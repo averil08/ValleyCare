@@ -1,4 +1,6 @@
 import React, { useState, useContext } from 'react';
+import { doctors } from './doctorData';
+import { Label } from '@/components/ui/label';
 import Sidebar from "@/components/Sidebar";
 import { Clock, TrendingUp, Users, XCircle, CheckCircle2, Download   } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,7 +16,11 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
+  // NEW: State for doctor selection
+  const [selectedDoctor, setSelectedDoctor] = useState(null); // null = general view, number = specific doctor
+  const [viewMode, setViewMode] = useState('general'); // 'general' or 'doctor'
   
+  // Add to the destructured context (around line 32)
   const { 
     patients, 
     currentServing, 
@@ -23,10 +29,17 @@ const Dashboard = () => {
     cancelPatient,
     avgWaitTime,
     addWaitTime,
-    reduceWaitTime
+    reduceWaitTime,
+    getDoctorCurrentServing,
+    callNextPatientForDoctor,
+    cancelPatientForDoctor,
+    // NEW: Add these
+    activeDoctors,
+    startDoctorQueue,
+    stopDoctorQueue,
+    isDoctorActive,
   } = useContext(PatientContext);
 
-  const doctorName = "Dr. Sarah Gonzales";
   const secretaryName = "Ms. Jenny Cruz";
 
   const serviceLabels = {
@@ -64,6 +77,11 @@ const Dashboard = () => {
       minute: '2-digit' 
     });
 
+    // NEW: Determine if this is a doctor-specific report
+    const isDoctorView = viewMode === 'doctor' && selectedDoctor;
+    const doctorName = isDoctorView ? doctors.find(d => d.id === selectedDoctor)?.name : 'All Doctors';
+    const reportTitle = isDoctorView ? `${doctorName} - Queue Report` : 'Dashboard Report (All Doctors)';
+
     // Helper function to format services and symptoms
     const formatArray = (arr) => {
       if (!arr || arr.length === 0) return 'None';
@@ -85,7 +103,7 @@ const Dashboard = () => {
     
     // Report Title
     doc.setFontSize(13);
-    doc.text('Dashboard Report', 105, logoY + logoHeight + 18, { align: 'center' });
+    doc.text(reportTitle, 105, logoY + logoHeight + 18, { align: 'center' });
         
     // Report Information - Two columns layout
     doc.setFontSize(10);
@@ -105,7 +123,11 @@ const Dashboard = () => {
     doc.setFont(undefined, 'normal');
     doc.text(`Current Serving: #${String(currentServing).padStart(3, '0')}`, 14, 92);
     doc.text(`Average Wait Time: ${avgWaitTime} mins`, 14, 98);
-    doc.text(`Total Patients Waiting: ${totalWaiting}`, 14, 104);
+    const totalWaitingForReport = viewMode === 'general' 
+  ? totalWaiting 
+  : filteredQueuePatients.filter(p => p.status === "waiting").length;
+
+  doc.text(`Total Patients Waiting: ${totalWaitingForReport}`, 14, 104);
 
     let yPosition = 114;
 
@@ -115,24 +137,39 @@ const Dashboard = () => {
     doc.text('Active Queue Patients', 14, yPosition);
     yPosition += 6;
 
-    if (queuePatients.length > 0) {
+    if (filteredQueuePatients.length > 0) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Queue #', 'Name', 'Age', 'Phone', 'Type', 'Status']],
-        body: queuePatients.map(patient => [
+        head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services', 'Status']],
+        body: filteredQueuePatients.map(patient => [
           `#${String(patient.queueNo).padStart(3, '0')}`,
           patient.name,
           patient.age,
           patient.phoneNum || 'N/A',
+          patient.assignedDoctor?.name || 'Not Assigned',
           patient.type,
+          formatArray(patient.symptoms),
+          formatArray(patient.services),
           patient.status
         ]),
         headStyles: { fillColor: [1, 121, 185] },
-        styles: { fontSize: 8 },
-        margin: { left: 14 },
+        styles: { 
+          fontSize: 8,  // Changed from 7 to 8
+          cellPadding: 2, // Add consistent padding
+          overflow: 'linebreak',  // ADD THIS
+          cellWidth: 'wrap'        // ADD THIS
+        },
+        margin: { left: 10 },
         columnStyles: {
-          5: { cellWidth: 35 }, // Symptoms column
-          6: { cellWidth: 35 }  // Services column
+          0: { cellWidth: 18 },  // Queue #
+          1: { cellWidth: 20 },  // Name
+          2: { cellWidth: 12 },  // Age
+          3: { cellWidth: 23 },  // Phone
+          4: { cellWidth: 22 },  // Doctor (NEW)
+          5: { cellWidth: 20 },  // Type
+          6: { cellWidth: 25 },  // Symptoms
+          7: { cellWidth: 30 },  // Services
+          8: { cellWidth: 20 }   // Status
         }
       });
       yPosition = doc.lastAutoTable.finalY + 10;
@@ -155,25 +192,40 @@ const Dashboard = () => {
     doc.text('Priority Patients', 14, yPosition);
     yPosition += 6;
 
-    if (priorityPatients.length > 0) {
+    if (filteredPriorityPatients.length > 0) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Queue #', 'Name', 'Age', 'Phone', 'Type', 'Status']],
-        body: priorityPatients.map(patient => [
+        head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services', 'Status']],
+        body: filteredPriorityPatients.map(patient => [
           `#${String(patient.queueNo).padStart(3, '0')}`,
           patient.name,
           patient.age,
           patient.phoneNum || 'N/A',
+          patient.assignedDoctor?.name || 'Not Assigned',
           patient.type,
+          formatArray(patient.symptoms),  // NEW
+          formatArray(patient.services),  // NEW
           patient.status
         ]),
         headStyles: { 
         fillColor: [180, 138, 34] },
-        styles: { fontSize: 8 },
-        margin: { left: 14 },
+        styles: { 
+          fontSize: 8,  // Changed from 7 to 8
+          cellPadding: 2,  // Add consistent padding
+          overflow: 'linebreak',  // ADD THIS
+          cellWidth: 'wrap'        // ADD THIS
+        },
+        margin: { left: 10 },
         columnStyles: {
-          5: { cellWidth: 35 }, // Symptoms column
-          6: { cellWidth: 35 }  // Services column
+          0: { cellWidth: 18 },  // Queue #
+          1: { cellWidth: 20 },  // Name
+          2: { cellWidth: 12 },  // Age
+          3: { cellWidth: 23 },  // Phone
+          4: { cellWidth: 22 },  // Doctor (NEW)
+          5: { cellWidth: 20 },  // Type
+          6: { cellWidth: 25 },  // Symptoms
+          7: { cellWidth: 30 },  // Services
+          8: { cellWidth: 20 }   // Status
         }
       });
       yPosition = doc.lastAutoTable.finalY + 10;
@@ -196,23 +248,32 @@ const Dashboard = () => {
     doc.text('Completed Patients', 14, yPosition);
     yPosition += 6;
 
-    if (donePatients.length > 0) {
+    if (filteredDonePatients.length  > 0) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Queue #', 'Name', 'Age', 'Phone', 'Type']],
-        body: donePatients.map(patient => [
+        head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services']],
+        body: filteredDonePatients.map(patient => [
           `#${String(patient.queueNo).padStart(3, '0')}`,
           patient.name,
           patient.age,
           patient.phoneNum || 'N/A',
-          patient.type
+            patient.assignedDoctor?.name || 'Not Assigned',
+          patient.type,
+          formatArray(patient.symptoms),  // NEW
+          formatArray(patient.services)  // NEW
         ]),
         headStyles: { fillColor: [16, 185, 129] },
         styles: { fontSize: 8 },
-        margin: { left: 14 },
+        margin: { left: 10 },
         columnStyles: {
-          5: { cellWidth: 35 }, // Symptoms column
-          6: { cellWidth: 35 }  // Services column
+          0: { cellWidth: 18 },  // Queue #
+          1: { cellWidth: 20 },  // Name
+          2: { cellWidth: 12 },  // Age
+          3: { cellWidth: 23 },  // Phone
+          4: { cellWidth: 25 },  // Doctor
+          5: { cellWidth: 20 },  // Type
+          6: { cellWidth: 35 },  // Symptoms (+7)
+          7: { cellWidth: 37 }   // Services (+7)
         }
       });
       yPosition = doc.lastAutoTable.finalY + 10;
@@ -235,23 +296,32 @@ const Dashboard = () => {
     doc.text('Cancelled Patients', 14, yPosition);
     yPosition += 6;
 
-    if (cancelPatients.length > 0) {
+    if (filteredCancelPatients.length > 0) {
       autoTable(doc, {
         startY: yPosition,
-        head: [['Queue #', 'Name', 'Age', 'Phone', 'Type']],
-        body: cancelPatients.map(patient => [
+        head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services']],
+        body: filteredCancelPatients.map(patient => [
           `#${String(patient.queueNo).padStart(3, '0')}`,
           patient.name,
           patient.age,
           patient.phoneNum || 'N/A',
-          patient.type
+          patient.assignedDoctor?.name || 'Not Assigned', 
+          patient.type,
+          formatArray(patient.symptoms),  // NEW
+          formatArray(patient.services)
         ]),
         headStyles: { fillColor: [239, 68, 68] },
         styles: { fontSize: 8 },
-        margin: { left: 14 },
+        margin: { left: 10 },
         columnStyles: {
-          5: { cellWidth: 35 }, // Symptoms column
-          6: { cellWidth: 35 }  // Services column
+          0: { cellWidth: 18 },  // Queue #
+          1: { cellWidth: 20 },  // Name
+          2: { cellWidth: 12 },  // Age
+          3: { cellWidth: 23 },  // Phone
+          4: { cellWidth: 25 },  // Doctor
+          5: { cellWidth: 20 },  // Type
+          6: { cellWidth: 35 },  // Symptoms (+7)
+          7: { cellWidth: 37 }   // Services (+7)
         }
       });
     } else {
@@ -388,8 +458,50 @@ const Dashboard = () => {
     return p.isPriority && p.inQueue;
   });
 
+  // NEW: Filter patients based on selected doctor
+  const getFilteredPatients = (patientList) => {
+    if (viewMode === 'general' || !selectedDoctor) {
+      return patientList; // Show all patients
+    }
+    // Filter to only show selected doctor's patients
+    return patientList.filter(p => p.assignedDoctor?.id === selectedDoctor);
+  };
+
+  // Apply filters to all patient lists
+  const filteredQueuePatients = getFilteredPatients(queuePatients);
+  const filteredPriorityPatients = getFilteredPatients(priorityPatients);
+  const filteredDonePatients = getFilteredPatients(donePatients);
+  const filteredCancelPatients = getFilteredPatients(cancelPatients);
 
   const totalWaiting = queuePatients.filter(p => p.status === "waiting").length;
+
+  // Helper function to check if a doctor has active or priority patients
+  const getDoctorPatientCount = (doctorId) => {
+    const activeCount = queuePatients.filter(p => p.assignedDoctor?.id === doctorId).length;
+    const priorityCount = priorityPatients.filter(p => p.assignedDoctor?.id === doctorId).length;
+    return activeCount + priorityCount;
+  };
+
+  // ADD THIS NEW FUNCTION:
+  const getDoctorStatus = (doctorId) => {
+    const doctorPatients = patients.filter(p => 
+      !p.isInactive && 
+      p.assignedDoctor?.id === doctorId &&
+      p.status !== "done" &&
+      p.status !== "cancelled"
+    );
+    
+    const hasWaiting = doctorPatients.some(p => p.status === "waiting");
+    const hasInProgress = doctorPatients.some(p => p.status === "in progress");
+    
+    if (hasInProgress && !hasWaiting) {
+      return 'busy'; // Doctor is serving someone but no one is waiting
+    } else if (hasWaiting) {
+      return 'hasPatients'; // Doctor has patients waiting
+    } else {
+      return 'idle'; // Doctor has no patients
+    }
+  };
 
   return (
     <div className="flex w-full min-h-screen">
@@ -414,6 +526,127 @@ const Dashboard = () => {
                 <span>Download Report</span>
               </Button>
             </div>
+            {/* Doctor Selector - NEW */}
+            <div className="bg-white shadow-sm border-t border-gray-200">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Select View Mode:</Label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => {
+                          setViewMode('general');
+                          setSelectedDoctor(null);
+                        }}
+                        variant={viewMode === 'general' ? 'default' : 'outline'}
+                        className={viewMode === 'general' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                      >
+                        General Queue (All Doctors)
+                      </Button>
+                      
+                      {doctors.map(doctor => {
+                        const patientCount = getDoctorPatientCount(doctor.id);
+                        const doctorStatus = getDoctorStatus(doctor.id);
+                        const isActive = isDoctorActive(doctor.id);
+                        
+                        return (
+                          <div key={doctor.id} className="flex items-center gap-2">
+                            <Button
+                              onClick={() => {
+                                setViewMode('doctor');
+                                setSelectedDoctor(doctor.id);
+                              }}
+                              variant={selectedDoctor === doctor.id ? 'default' : 'outline'}
+                              disabled={!isActive}
+                              className={`
+                                flex-1
+                                ${!isActive ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400' : ''}
+                                ${selectedDoctor === doctor.id ? 'bg-green-600 hover:bg-green-700' : ''}
+                                ${
+                                  isActive && selectedDoctor !== doctor.id && doctorStatus === 'hasPatients' 
+                                    ? 'font-bold border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' 
+                                    : ''
+                                }
+                                ${
+                                  isActive && selectedDoctor !== doctor.id && doctorStatus === 'busy'
+                                    ? 'font-bold border-2 border-orange-500 bg-orange-50 text-orange-700 hover:bg-orange-100'
+                                    : ''
+                                }
+                                ${
+                                  isActive && selectedDoctor !== doctor.id && doctorStatus === 'idle'
+                                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    : ''
+                                }
+                              `}
+                            >
+                              {!isActive && <span className="mr-2">⏸</span>}
+                              {doctor.name}
+                              {isActive && patientCount > 0 && (
+                                <span className={`ml-2 text-white text-xs px-2 py-0.5 rounded-full ${
+                                  doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                                  doctorStatus === 'busy' ? 'bg-orange-600' :
+                                  'bg-gray-600'
+                                }`}>
+                                  {patientCount}
+                                </span>
+                              )}
+                            </Button>
+                            
+                            <Button
+                              onClick={() => {
+                                if (isActive) {
+                                  stopDoctorQueue(doctor.id);
+                                } else {
+                                  startDoctorQueue(doctor.id);
+                                }
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className={`
+                                ${isActive 
+                                  ? 'bg-red-50 text-red-600 border-red-300 hover:bg-red-100' 
+                                  : 'bg-green-50 text-green-600 border-green-300 hover:bg-green-100'
+                                }
+                              `}
+                            >
+                              {isActive ? 'Stop' : 'Start'}
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* ADD THIS LEGEND: */}
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-gray-600">⏸ Inactive (Not started)</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="text-gray-600">Has waiting patients</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <span className="text-gray-600">Busy (no one waiting)</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-gray-600">No patients</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {viewMode === 'doctor' && selectedDoctor && (
+                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800">
+                      <strong>Note:</strong> You are viewing the queue for {doctors.find(d => d.id === selectedDoctor)?.name}. 
+                      Only this doctor's patients will be shown in the tables below.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Mobile: Stacked layout */}
             <div className="sm:hidden space-y-3 mb-3">
@@ -432,8 +665,8 @@ const Dashboard = () => {
 
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 pt-3 border-t border-gray-100">
               <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm text-gray-600">Doctor:</span>
-                <span className="text-xs sm:text-sm font-semibold text-gray-900">{doctorName}</span>
+                <span className="text-xs sm:text-sm text-gray-600">Medical Staff:</span>
+                <span className="text-xs sm:text-sm font-semibold text-gray-900">12 Doctors Available</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm text-gray-600">Secretary:</span>
@@ -449,30 +682,67 @@ const Dashboard = () => {
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs sm:text-sm">Current Serving</CardDescription>
+                  <CardDescription className="text-xs sm:text-sm">
+                    {viewMode === 'doctor' ? `${doctors.find(d => d.id === selectedDoctor)?.name} - Current Serving` : 'General Queue - Current Serving'}
+                  </CardDescription>
                   <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
-                  #{String(currentServing).padStart(3, '0')}
-                </p>
-                <div className="space-y-2">
-                  <Button 
-                    onClick={handleCallNext} 
-                    className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
-                  >
-                    Call Next Patient
-                  </Button>
-                  <Button 
-                    onClick={handleCancel}
-                    variant="outline"
-                    className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancel (No Show)
-                  </Button>
-                </div>
+                {viewMode === 'general' ? (
+                  <>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
+                      #{String(currentServing).padStart(3, '0')}
+                    </p>
+                    <div className="space-y-2">
+                      <Button 
+                        onClick={handleCallNext} 
+                        className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
+                      >
+                        Call Next Patient
+                      </Button>
+                      <Button 
+                        onClick={handleCancel}
+                        variant="outline"
+                        className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Cancel (No Show)
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {(() => {
+                      const doctorCurrentPatient = getDoctorCurrentServing(selectedDoctor);
+                      return (
+                        <>
+                          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
+                            {doctorCurrentPatient ? `#${String(doctorCurrentPatient).padStart(3, '0')}` : 'No Patient'}
+                          </p>
+                          <div className="space-y-2">
+                            <Button 
+                              onClick={() => callNextPatientForDoctor(selectedDoctor)} 
+                              className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
+                              disabled={getDoctorPatientCount(selectedDoctor) === 0}
+                            >
+                              Call Next Patient
+                            </Button>
+                            <Button 
+                              onClick={() => cancelPatientForDoctor(selectedDoctor)}
+                              variant="outline"
+                              className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
+                              disabled={!doctorCurrentPatient && getDoctorPatientCount(selectedDoctor) === 0}
+                            >
+                              <XCircle className="w-4 h-4 mr-2" />
+                              Cancel (No Show)
+                            </Button>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -501,12 +771,19 @@ const Dashboard = () => {
             <Card className="sm:col-span-2 lg:col-span-1">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs sm:text-sm">Total Patients Waiting</CardDescription>
+                  <CardDescription className="text-xs sm:text-sm">
+                    {viewMode === 'doctor' ? `${doctors.find(d => d.id === selectedDoctor)?.name} - Waiting` : 'Total Patients Waiting'}
+                  </CardDescription>
                   <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">{totalWaiting}</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 sm:mb-4">
+                  {viewMode === 'general' 
+                    ? totalWaiting 
+                    : filteredQueuePatients.filter(p => p.status === "waiting").length
+                  }
+                </p>
                 <p className="text-xs sm:text-sm text-gray-500">Currently in queue</p>
               </CardContent>
             </Card>
@@ -519,163 +796,184 @@ const Dashboard = () => {
               <CardDescription className="text-xs sm:text-sm">Patients currently in progress or waiting</CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Mobile Card View */}
-              <div className="block lg:hidden space-y-4">
-                {queuePatients.map(patient => (
-                  <Card key={patient.queueNo} className="border-l-4 border-l-blue-200">
-                    <CardContent className="pt-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <p className="font-bold text-lg text-gray-900">
-                            #{String(patient.queueNo).padStart(3, '0')}
-                          </p>
-                          <p className="text-sm text-gray-600">{patient.name}</p>  
-                        </div>
-                        <Badge
-                          variant={
-                            patient.status === 'done' ? 'default' : 
-                            patient.status === 'in progress' ? 'secondary' : 
-                            patient.status === 'cancelled' ? 'destructive' : 
-                            'outline'
-                          }
-                          className={
-                            patient.status === 'done'
-                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                              : patient.status === 'in progress'
-                              ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
-                              : patient.status === 'cancelled'
-                              ? 'bg-red-100 text-red-700 hover:bg-red-100'
-                              : ''
-                          }
-                        >
-                          {patient.status}
-                        </Badge>
-                      </div>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Age:</span>
-                          <span className="font-medium">{patient.age}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Phone:</span>
-                          <span className="font-medium">{patient.phoneNum || 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Type:</span>
-                          <span className="font-medium">{patient.type}</span>
-                        </div>
-                        
-                        <div className="pt-2 border-t">
-                          <p className="text-gray-600 mb-1">Symptoms:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {patient.symptoms && patient.symptoms.length > 0 ? (
-                              patient.symptoms.map((symptom, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                  {symptom}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-gray-400 text-xs">None</span>
-                            )}
+              {filteredQueuePatients.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                  <p>
+                    {viewMode === 'doctor' 
+                      ? `No active patients for ${doctors.find(d => d.id === selectedDoctor)?.name}` 
+                      : 'No active queue patients'
+                    }
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Card View */}
+                  <div className="block lg:hidden space-y-4">
+                    {filteredQueuePatients.map(patient => (
+                      <Card key={patient.queueNo} className="border-l-4 border-l-blue-200">
+                        <CardContent className="pt-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <p className="font-bold text-lg text-gray-900">
+                                #{String(patient.queueNo).padStart(3, '0')}
+                              </p>
+                              <p className="text-sm text-gray-600">{patient.name}</p>  
+                            </div>
+                            <Badge
+                              variant={
+                                patient.status === 'done' ? 'default' : 
+                                patient.status === 'in progress' ? 'secondary' : 
+                                patient.status === 'cancelled' ? 'destructive' : 
+                                'outline'
+                              }
+                              className={
+                                patient.status === 'done'
+                                  ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
+                                  : patient.status === 'in progress'
+                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                                  : patient.status === 'cancelled'
+                                  ? 'bg-red-100 text-red-700 hover:bg-red-100'
+                                  : ''
+                              }
+                            >
+                              {patient.status}
+                            </Badge>
                           </div>
-                        </div>
-                        
-                        <div className="pt-2">
-                          <p className="text-gray-600 mb-1">Services:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {patient.services && patient.services.length > 0 ? (
-                              patient.services.map((serviceId, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                  {getServiceLabel(serviceId)}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-gray-400 text-xs">None</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                          
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Age:</span>
+                              <span className="font-medium">{patient.age}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Phone:</span>
+                              <span className="font-medium">{patient.phoneNum || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Type:</span>
+                              <span className="font-medium">{patient.type}</span>
+                            </div>
 
-              {/* Desktop Table View */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-blue-100">
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Queue #</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
-                      <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {queuePatients.map(patient => (
-                      <tr key={patient.queueNo} className="border-b transition-colors hover:bg-blue-50">
-                        <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                        <td className="p-4 align-middle">{patient.name}</td>
-                        <td className="p-4 align-middle">{patient.age}</td>
-                        <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
-                        <td className="p-4 align-middle text-gray-500">{patient.type}</td>
-                        <td className="p-4 align-middle">
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {patient.symptoms && patient.symptoms.length > 0 ? (
-                              patient.symptoms.map((symptom, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                  {symptom}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-gray-400 text-xs">None</span>
-                            )}
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Doctor:</span>
+                              <span className="font-medium">{patient.assignedDoctor?.name || 'Not Assigned'}</span>
+                            </div>
+                            
+                            <div className="pt-2 border-t">
+                              <p className="text-gray-600 mb-1">Symptoms:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {patient.symptoms && patient.symptoms.length > 0 ? (
+                                  patient.symptoms.map((symptom, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      {symptom}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-400 text-xs">None</span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="pt-2">
+                              <p className="text-gray-600 mb-1">Services:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {patient.services && patient.services.length > 0 ? (
+                                  patient.services.map((serviceId, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                      {getServiceLabel(serviceId)}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-400 text-xs">None</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {patient.services && patient.services.length > 0 ? (
-                              patient.services.map((serviceId, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                  {getServiceLabel(serviceId)}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-gray-400 text-xs">None</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <Badge
-                            variant={
-                              patient.status === 'done' ? 'default' : 
-                              patient.status === 'in progress' ? 'secondary' : 
-                              patient.status === 'cancelled' ? 'destructive' : 
-                              'outline'
-                            }
-                            className={
-                              patient.status === 'done'
-                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                                : patient.status === 'in progress'
-                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
-                                : patient.status === 'cancelled'
-                                ? 'bg-red-100 text-red-700 hover:bg-red-100'
-                                : ''
-                            }
-                          >
-                            {patient.status}
-                          </Badge>
-                        </td>
-                      </tr>
+                        </CardContent>
+                      </Card>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-blue-100">
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Queue #</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Doctor</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredQueuePatients.map(patient => (
+                          <tr key={patient.queueNo} className="border-b transition-colors hover:bg-blue-50">
+                            <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                            <td className="p-4 align-middle">{patient.name}</td>
+                            <td className="p-4 align-middle">{patient.age}</td>
+                            <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
+                            <td className="p-4 align-middle text-gray-500">{patient.type}</td>
+                            <td className="p-4 align-middle">
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {patient.symptoms && patient.symptoms.length > 0 ? (
+                                  patient.symptoms.map((symptom, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                      {symptom}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-400 text-xs">None</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4 align-middle">
+                              <div className="flex flex-wrap gap-1 max-w-xs">
+                                {patient.services && patient.services.length > 0 ? (
+                                  patient.services.map((serviceId, idx) => (
+                                    <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                      {getServiceLabel(serviceId)}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-gray-400 text-xs">None</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4 align-middle">
+                              <Badge
+                                variant={
+                                  patient.status === 'done' ? 'default' : 
+                                  patient.status === 'in progress' ? 'secondary' : 
+                                  patient.status === 'cancelled' ? 'destructive' : 
+                                  'outline'
+                                }
+                                className={
+                                  patient.status === 'done'
+                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
+                                    : patient.status === 'in progress'
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                                    : patient.status === 'cancelled'
+                                    ? 'bg-red-100 text-red-700 hover:bg-red-100'
+                                    : ''
+                                }
+                              >
+                                {patient.status}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -691,16 +989,21 @@ const Dashboard = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {priorityPatients.length === 0 ? (
+              {filteredPriorityPatients.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No Priority consultations yet</p>
+                  <p>
+                    {viewMode === 'doctor' 
+                      ? `No priority patients for ${doctors.find(d => d.id === selectedDoctor)?.name}` 
+                      : 'No priority consultations yet'
+                    }
+                  </p>
                 </div>
               ) : (
                 <>
                   {/* Mobile Card View - NO ACTION BUTTONS */}
                   <div className="block lg:hidden space-y-4">
-                    {priorityPatients.map(patient => (
+                   {filteredPriorityPatients.map(patient => (
                       <Card key={patient.queueNo} className={`border-l-4 ${patient.status === 'waiting' ? 'border-l-yellow-600' : patient.status === 'in progress' ? 'border-l-green-600' : 'border-l-emerald-600'}`}>
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
@@ -743,6 +1046,11 @@ const Dashboard = () => {
                             <div className="flex justify-between">
                               <span className="text-gray-600">Type:</span>
                               <span className="font-medium">{patient.type}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Doctor:</span>
+                              <span className="font-medium">{patient.assignedDoctor?.name || 'Not Assigned'}</span>
                             </div>
 
                             <div className="pt-2 border-t">
@@ -789,6 +1097,7 @@ const Dashboard = () => {
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Doctor</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
@@ -796,12 +1105,13 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {priorityPatients.map(patient => (
+                        {filteredPriorityPatients.map(patient => (
                           <tr key={patient.queueNo} className="border-b transition-colors hover:bg-yellow-50">
                             <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                             <td className="p-4 align-middle">{patient.name}</td>
                             <td className="p-4 align-middle">{patient.age}</td>
                             <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                             <td className="p-4 align-middle text-gray-500">{patient.type}</td>
                             <td className="p-4 align-middle">
                               <div className="flex flex-wrap gap-1 max-w-xs">
@@ -872,16 +1182,21 @@ const Dashboard = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {donePatients.length === 0 ? (
+              {filteredDonePatients.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No completed consultations yet</p>
+                  <p>
+                    {viewMode === 'doctor' 
+                      ? `No completed patients for ${doctors.find(d => d.id === selectedDoctor)?.name}` 
+                      : 'No completed consultations yet'
+                    }
+                  </p>
                 </div>
               ) : (
                 <>
                   {/* Mobile Card View */}
                   <div className="block lg:hidden space-y-4">
-                    {donePatients.map(patient => (
+                    {filteredDonePatients.map(patient => (
                       <Card key={patient.queueNo} className="border-l-4 border-l-emerald-600">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
@@ -908,6 +1223,11 @@ const Dashboard = () => {
                             <div className="flex justify-between">
                               <span className="text-gray-600">Type:</span>
                               <span className="font-medium">{patient.type}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Doctor:</span>
+                              <span className="font-medium">{patient.assignedDoctor?.name || 'Not Assigned'}</span>
                             </div>
                             
                             <div className="pt-2 border-t">
@@ -954,18 +1274,20 @@ const Dashboard = () => {
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Doctor</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {donePatients.map(patient => (
+                        {filteredDonePatients.map(patient => (
                           <tr key={patient.queueNo} className="border-b transition-colors hover:bg-emerald-50">
                             <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                             <td className="p-4 align-middle">{patient.name}</td>
                             <td className="p-4 align-middle">{patient.age}</td>
                             <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                             <td className="p-4 align-middle text-gray-500">{patient.type}</td>
                             <td className="p-4 align-middle">
                               <div className="flex flex-wrap gap-1 max-w-xs">
@@ -1015,16 +1337,21 @@ const Dashboard = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {cancelPatients.length === 0 ? (
+              {filteredCancelPatients.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p>No cancelled consultations yet</p>
+                  <p>
+                    {viewMode === 'doctor' 
+                      ? `No cancelled patients for ${doctors.find(d => d.id === selectedDoctor)?.name}` 
+                      : 'No cancelled consultations yet'
+                    }
+                  </p>
                 </div>
               ) : (
                 <>
                   {/* Mobile Card View */}
                   <div className="block lg:hidden space-y-4">
-                    {cancelPatients.map(patient => (
+                    {filteredCancelPatients.map(patient => (
                       <Card key={patient.queueNo} className="border-l-4 border-l-red-200">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
@@ -1051,6 +1378,11 @@ const Dashboard = () => {
                             <div className="flex justify-between">
                               <span className="text-gray-600">Type:</span>
                               <span className="font-medium">{patient.type}</span>
+                            </div>
+
+                            <div className="flex justify-between">
+                              <span className="text-gray-600">Doctor:</span>
+                              <span className="font-medium">{patient.assignedDoctor?.name || 'Not Assigned'}</span>
                             </div>
                             
                             <div className="pt-2 border-t">
@@ -1097,18 +1429,20 @@ const Dashboard = () => {
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
+                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Doctor</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
                           <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {cancelPatients.map(patient => (
+                        {filteredCancelPatients.map(patient => (
                           <tr key={patient.queueNo} className="border-b transition-colors hover:bg-red-50">
                             <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                             <td className="p-4 align-middle">{patient.name}</td>
                             <td className="p-4 align-middle">{patient.age}</td>
                             <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                             <td className="p-4 align-middle text-gray-500">{patient.type}</td>
                             <td className="p-4 align-middle">
                               <div className="flex flex-wrap gap-1 max-w-xs">

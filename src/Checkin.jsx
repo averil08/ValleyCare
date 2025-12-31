@@ -1,5 +1,6 @@
 import React, { useState, useContext, useEffect } from "react";
 import { PatientContext } from "./PatientContext";
+import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";

@@ -1,18 +1,94 @@
 import React, { createContext, useState, useMemo, useEffect } from "react";
+import { assignDoctor } from './doctorData';
 
 export const PatientContext = createContext();
 
 export const PatientProvider = ({ children }) => {
   const [activePatient, setActivePatient] = useState(null);
   const [patients, setPatients] = useState([
-    { queueNo: 1, name: "Jane Doe", age: 26, type: "Walk-in", symptoms: ["Fever", "Cough"], services: ["cbc", "fbs"], phoneNum: "09171234567", status: "done", registeredAt: new Date().toISOString(), inQueue: true,  calledAt: new Date(Date.now() - 3600000).toISOString(), completedAt: new Date(Date.now() - 1800000).toISOString(), queueExitTime: new Date(Date.now() - 1800000).toISOString() },
-    { queueNo: 2, name: "Mark Cruz", age: 32, type: "Appointment", symptoms: ["Rashes"], services: ["pedia"], phoneNum: "09181234567", status: "in progress", registeredAt: new Date().toISOString(), appointmentDateTime: new Date(Date.now() + 86400000).toISOString(), appointmentStatus: "accepted", inQueue: true,  calledAt: new Date().toISOString(),  queueExitTime: null,  completedAt: null },
-    { queueNo: 3, name: "Leah Santos", age: 21, type: "Walk-in", symptoms: ["Headache"], services: ["adult"], phoneNum: "09191234567", status: "waiting", registeredAt: new Date().toISOString(), inQueue: true, calledAt: null,  queueExitTime: null,  completedAt: null },
-    { queueNo: 4, name: "Analyn Gomez", age: 21, type: "Walk-in", symptoms: ["Headache"], services: ["urinalysis"], phoneNum: "09201234567", status: "waiting", registeredAt: new Date().toISOString(), inQueue: true, calledAt: null,  queueExitTime: null, completedAt: null },
-  ]); 
+  { 
+    queueNo: 1, 
+    name: "Jane Doe", 
+    age: 26, 
+    type: "Walk-in", 
+    symptoms: ["Fever", "Cough"], 
+    services: ["cbc", "fbs"], 
+    phoneNum: "09171234567", 
+    status: "done", 
+    registeredAt: new Date().toISOString(), 
+    inQueue: true,  
+    calledAt: new Date(Date.now() - 3600000).toISOString(), 
+    completedAt: new Date(Date.now() - 1800000).toISOString(), 
+    queueExitTime: new Date(Date.now() - 1800000).toISOString(),
+    assignedDoctor: { id: 4, name: "Dr. Michael Torres" }  // ✅ CORRECT: CBC is handled by Dr. Michael Torres (ID 4)
+  },
+  { 
+    queueNo: 2, 
+    name: "Mark Cruz", 
+    age: 32, 
+    type: "Appointment", 
+    symptoms: ["Rashes"], 
+    services: ["pedia"], 
+    phoneNum: "09181234567", 
+    status: "in progress", 
+    registeredAt: new Date().toISOString(), 
+    appointmentDateTime: new Date(Date.now() + 86400000).toISOString(), 
+    appointmentStatus: "accepted", 
+    inQueue: true,  
+    calledAt: new Date().toISOString(),  
+    queueExitTime: null,  
+    completedAt: null,
+    assignedDoctor: { id: 1, name: "Dr. Sarah Gonzales" }  // ✅ CORRECT: Pedia is handled by Dr. Sarah Gonzales (ID 1)
+  },
+  { 
+    queueNo: 3, 
+    name: "Leah Santos", 
+    age: 21, 
+    type: "Walk-in", 
+    symptoms: ["Headache"], 
+    services: ["adult"], 
+    phoneNum: "09191234567", 
+    status: "waiting", 
+    registeredAt: new Date().toISOString(), 
+    inQueue: true, 
+    calledAt: null,  
+    queueExitTime: null,  
+    completedAt: null,
+    assignedDoctor: { id: 2, name: "Dr. John Martinez" }  // ✅ CORRECT: Adult is handled by Dr. John Martinez (ID 2)
+  },
+  { 
+    queueNo: 4, 
+    name: "Analyn Gomez", 
+    age: 21, 
+    type: "Walk-in", 
+    symptoms: ["Headache"], 
+    services: ["urinalysis"], 
+    phoneNum: "09201234567", 
+    status: "waiting", 
+    registeredAt: new Date().toISOString(), 
+    inQueue: true, 
+    calledAt: null,  
+    queueExitTime: null, 
+    completedAt: null,
+    assignedDoctor: { id: 11, name: "Dr. Patricia Brown" }  // ✅ CORRECT: Urinalysis is handled by Dr. Patricia Brown (ID 11)
+  },
+]);
 
   const [currentServing, setCurrentServing] = useState(2);
   const [avgWaitTime, setAvgWaitTime] = useState(15);
+  const [activeDoctors, setActiveDoctors] = useState([]); // Array of doctor IDs that are active today
+  // NEW: Track which patient each doctor is currently serving
+  // Initialize by finding patients that are already "in progress"
+  const [doctorCurrentServing, setDoctorCurrentServing] = useState(() => {
+    const initialServing = {};
+    patients.forEach(patient => {
+      if (patient.status === 'in progress' && patient.assignedDoctor) {
+        initialServing[patient.assignedDoctor.id] = patient.queueNo;
+      }
+    });
+    return initialServing;
+  });
+  // Example format: { 1: 5, 2: 8, 3: 12 } means Doctor 1 is serving patient #5, Doctor 2 is serving #8, etc.
 
   // ✅ Automatically sync activePatient with patients array
   useEffect(() => {
@@ -64,21 +140,27 @@ export const PatientProvider = ({ children }) => {
 
   //added ispriority and prioritytype
   const addPatient = (newPatient) => {
-    setPatients(prev => [
-      ...prev,
-      { 
-        ...newPatient,
-        isPriority: newPatient.isPriority || false,
-        priorityType: newPatient.priorityType || null,
-        queueNo: prev.length + 1, 
-        status: newPatient.status || "waiting",
-        registeredAt: new Date().toISOString(),
-        inQueue: true,
-        calledAt: null,
-        queueExitTime: null,
-        completedAt: null
-      }
-    ]);
+    setPatients(prev => {
+      // Assign doctor based on services and current patient load - ONLY ACTIVE DOCTORS
+      const assignedDoctor = assignDoctor(newPatient.services || [], prev, activeDoctors);
+      
+      return [
+        ...prev,
+        { 
+          ...newPatient,
+          isPriority: newPatient.isPriority || false,
+          priorityType: newPatient.priorityType || null,
+          queueNo: prev.length + 1, 
+          status: newPatient.status || "waiting",
+          registeredAt: new Date().toISOString(),
+          inQueue: true,
+          calledAt: null,
+          queueExitTime: null,
+          completedAt: null,
+          assignedDoctor: assignedDoctor
+        }
+      ];
+    });
   };
 
   // ✅ UPDATED: Track timestamps when status changes
@@ -215,11 +297,126 @@ export const PatientProvider = ({ children }) => {
   setAvgWaitTime(prev => Math.max(5, prev - 5)); // Minimum 5 mins
   };
 
+  // NEW: Get current serving patient for a specific doctor
+  const getDoctorCurrentServing = (doctorId) => {
+    return doctorCurrentServing[doctorId] || null;
+  };
+
+  // NEW: Set current serving patient for a specific doctor
+  const setDoctorCurrentServingPatient = (doctorId, queueNo) => {
+    setDoctorCurrentServing(prev => ({
+      ...prev,
+      [doctorId]: queueNo
+    }));
+  };
+
+  // NEW: Call next patient for a specific doctor
+  const callNextPatientForDoctor = (doctorId) => {
+    const currentPatientQueueNo = doctorCurrentServing[doctorId];
+    
+    // Mark current patient as done
+    if (currentPatientQueueNo) {
+      updatePatientStatus(currentPatientQueueNo, 'done');
+    }
+    
+    // Find next waiting priority patient for this doctor
+    const nextPriorityPatient = patients.find(p => 
+      p.status === "waiting" && 
+      p.inQueue && 
+      p.isPriority && 
+      p.assignedDoctor?.id === doctorId &&
+      !p.isInactive
+    );
+    
+    if (nextPriorityPatient) {
+      updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
+      setDoctorCurrentServingPatient(doctorId, nextPriorityPatient.queueNo);
+      return;
+    }
+    
+    // Find next waiting regular patient for this doctor
+    const nextWaitingPatient = patients.find(p => 
+      p.status === "waiting" && 
+      p.inQueue && 
+      !p.isPriority && 
+      p.assignedDoctor?.id === doctorId &&
+      !p.isInactive
+    );
+    
+    if (nextWaitingPatient) {
+      updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
+      setDoctorCurrentServingPatient(doctorId, nextWaitingPatient.queueNo);
+    } else {
+      // No more patients for this doctor
+      setDoctorCurrentServingPatient(doctorId, null);
+    }
+  };
+
+  // NEW: Cancel patient for a specific doctor
+  const cancelPatientForDoctor = (doctorId) => {
+    const currentPatientQueueNo = doctorCurrentServing[doctorId];
+    
+    if (!currentPatientQueueNo) return;
+    
+    // Mark current patient as cancelled
+    cancelPatient(currentPatientQueueNo);
+    
+    // Find next waiting priority patient for this doctor
+    const nextPriorityPatient = patients.find(p => 
+      p.status === "waiting" && 
+      p.inQueue && 
+      p.isPriority && 
+      p.assignedDoctor?.id === doctorId &&
+      !p.isInactive
+    );
+    
+    if (nextPriorityPatient) {
+      updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
+      setDoctorCurrentServingPatient(doctorId, nextPriorityPatient.queueNo);
+      return;
+    }
+    
+    // Find next waiting regular patient for this doctor
+    const nextWaitingPatient = patients.find(p => 
+      p.status === "waiting" && 
+      p.inQueue && 
+      !p.isPriority && 
+      p.assignedDoctor?.id === doctorId &&
+      !p.isInactive
+    );
+    
+    if (nextWaitingPatient) {
+      updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
+      setDoctorCurrentServingPatient(doctorId, nextWaitingPatient.queueNo);
+    } else {
+      // No more patients for this doctor
+      setDoctorCurrentServingPatient(doctorId, null);
+    }
+  };
+
   const queueInfo = useMemo(() => {
     const total = patients.filter(p => p.inQueue && !p.isInactive).length;
     const waitingCount = patients.filter(p => p.status === "waiting" && p.inQueue && !p.isInactive).length;
     return { total, waitingCount, currentServing };
   }, [patients, currentServing]);
+
+  // NEW: Start a doctor's queue for the day
+  const startDoctorQueue = (doctorId) => {
+    setActiveDoctors(prev => {
+      if (prev.includes(doctorId)) return prev; // Already active
+      return [...prev, doctorId];
+    });
+  };
+
+  // NEW: Stop a doctor's queue
+  const stopDoctorQueue = (doctorId) => {
+    setActiveDoctors(prev => prev.filter(id => id !== doctorId));
+  };
+
+  // NEW: Check if a doctor is active
+  const isDoctorActive = (doctorId) => {
+    return activeDoctors.includes(doctorId);
+  };
 
   return (
     <PatientContext.Provider value={{
@@ -241,6 +438,15 @@ export const PatientProvider = ({ children }) => {
       requeuePatient,
       acceptAppointment,
       rejectAppointment,
+      getDoctorCurrentServing,
+      setDoctorCurrentServingPatient,
+      callNextPatientForDoctor,
+      cancelPatientForDoctor,
+      // NEW: Add these
+      activeDoctors,
+      startDoctorQueue,
+      stopDoctorQueue,
+      isDoctorActive,
     }}>
       {children}
     </PatientContext.Provider>

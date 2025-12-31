@@ -8,8 +8,6 @@ import Dashboard from './Dashboard';
 import Analytics from './Analytics';
 import Checkin from './Checkin';
 import Appointment from './Appointment';
-import PatientUI from './PatientUI';
-import PatientQueue from './PatientQueue';
 import { PatientProvider } from './PatientContext';
 
 function App() {
@@ -19,8 +17,6 @@ function App() {
       <PatientProvider>
         <Routes>
           {/*<Route path="/" element={<LandingPage />} />*/}
-          <Route path="/patientui" element={<PatientUI />} />
-          <Route path="/patientqueue" element={<PatientQueue />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
