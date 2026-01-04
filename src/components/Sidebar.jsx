@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen } from "lucide-react";
+import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen, NotebookText } from "lucide-react";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import img1 from '../assets/logo-abante.png';
 
@@ -54,6 +54,12 @@ const Sidebar = ({ nav, handleNav }) => {
           </li>
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
+            onClick={() => navigate("/patientprofile")}>
+            <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            Patient Profile
+          </li>
+          <li
+            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={handleLogoutClick}>
             <DoorOpen className="w-5 h-5 text-green-600 group-hover:text-white" /> 
             Log Out
@@ -63,7 +69,7 @@ const Sidebar = ({ nav, handleNav }) => {
 
       {/* MOBILE HAMBURGER ICON */}
       <div
-        className="md:hidden fixed top-10 right-10 z-50"
+        className="md:hidden fixed top-10 right-10 z-50 pt-5"
         onClick={handleNav}>
         {nav ? <AiOutlineClose size={24} /> : <AiOutlineMenu size={24} />}
       </div>
@@ -95,6 +101,12 @@ const Sidebar = ({ nav, handleNav }) => {
             onClick={() => navigate("/checkin")}>
             <TicketCheck className="w-5 h-5 text-green-600 group-hover:text-white" /> 
             Patient Check-In
+          </li>
+          <li
+            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
+            onClick={() => navigate("/patientprofile")}>
+            <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            Patient Profile
           </li>
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"

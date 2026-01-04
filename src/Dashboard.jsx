@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { doctors } from './doctorData';
 import { Label } from '@/components/ui/label';
 import Sidebar from "@/components/Sidebar";
-import { Clock, TrendingUp, Users, XCircle, CheckCircle2, Download   } from 'lucide-react';
+import { Clock, TrendingUp, Users, XCircle, CheckCircle2, Download, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import logoImage from '@/assets/partner-logo.jpg'
@@ -19,6 +19,7 @@ const Dashboard = () => {
   // NEW: State for doctor selection
   const [selectedDoctor, setSelectedDoctor] = useState(null); // null = general view, number = specific doctor
   const [viewMode, setViewMode] = useState('general'); // 'general' or 'doctor'
+  const [showDoctorDropdown, setShowDoctorDropdown] = useState(false);
   
   // Add to the destructured context (around line 32)
   const { 
@@ -62,6 +63,12 @@ const Dashboard = () => {
   };
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
+
+  const getCurrentViewLabel = () => {
+  if (viewMode === 'general') return 'General Queue (All Doctors)';
+  const doctor = doctors.find(d => d.id === selectedDoctor);
+  return doctor ? doctor.name : 'Select Doctor';
+};
 
   // Download PDF Report Function
   const downloadReport = () => {
@@ -511,7 +518,7 @@ const Dashboard = () => {
         <div className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
             {/* Desktop: Side by side layout */}
-            <div className="hidden sm:flex items-center justify-between mb-3">
+            <div className="hidden sm:flex items-center justify-between mb-3 pt-8 lg:pt-8">
               <div className="flex items-center gap-3">
                 <div>
                   <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard</h1>
@@ -526,126 +533,257 @@ const Dashboard = () => {
                 <span>Download Report</span>
               </Button>
             </div>
-            {/* Doctor Selector - NEW */}
-            <div className="bg-white shadow-sm border-t border-gray-200">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Select View Mode:</Label>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
+            {/* Doctor Selector */}
+            <div className="bg-white border-t border-gray-200 pt-11 lg:pt-4 mt-5">
+              <Label className="text-sm font-medium text-gray-700 mb-2 block">Select View Mode:</Label>
+              
+              {/* Mobile: Dropdown View */}
+              <div className="block lg:hidden">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-gray-300 rounded-lg hover:border-green-500 transition-colors"
+                  >
+                    <span className="font-medium text-gray-900">{getCurrentViewLabel()}</span>
+                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showDoctorDropdown && (
+                      <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                      {/* General View Option */}
+                      <button
                         onClick={() => {
                           setViewMode('general');
                           setSelectedDoctor(null);
+                          setShowDoctorDropdown(false);
                         }}
-                        variant={viewMode === 'general' ? 'default' : 'outline'}
-                        className={viewMode === 'general' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b ${
+                          viewMode === 'general' ? 'bg-blue-50 font-semibold' : ''
+                        }`}
                       >
-                        General Queue (All Doctors)
-                      </Button>
-                      
+                        <div className="flex items-center justify-between">
+                          <span>General Queue (All Doctors)</span>
+                          {viewMode === 'general' && (
+                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Doctor Options */}
                       {doctors.map(doctor => {
                         const patientCount = getDoctorPatientCount(doctor.id);
                         const doctorStatus = getDoctorStatus(doctor.id);
                         const isActive = isDoctorActive(doctor.id);
-                        
+
                         return (
-                          <div key={doctor.id} className="flex items-center gap-2">
-                            <Button
-                              onClick={() => {
-                                setViewMode('doctor');
-                                setSelectedDoctor(doctor.id);
-                              }}
-                              variant={selectedDoctor === doctor.id ? 'default' : 'outline'}
-                              disabled={!isActive}
-                              className={`
-                                flex-1
-                                ${!isActive ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400' : ''}
-                                ${selectedDoctor === doctor.id ? 'bg-green-600 hover:bg-green-700' : ''}
-                                ${
-                                  isActive && selectedDoctor !== doctor.id && doctorStatus === 'hasPatients' 
-                                    ? 'font-bold border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' 
-                                    : ''
-                                }
-                                ${
-                                  isActive && selectedDoctor !== doctor.id && doctorStatus === 'busy'
-                                    ? 'font-bold border-2 border-orange-500 bg-orange-50 text-orange-700 hover:bg-orange-100'
-                                    : ''
-                                }
-                                ${
-                                  isActive && selectedDoctor !== doctor.id && doctorStatus === 'idle'
-                                    ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                                    : ''
-                                }
-                              `}
-                            >
-                              {!isActive && <span className="mr-2">⏸</span>}
-                              {doctor.name}
-                              {isActive && patientCount > 0 && (
-                                <span className={`ml-2 text-white text-xs px-2 py-0.5 rounded-full ${
-                                  doctorStatus === 'hasPatients' ? 'bg-blue-600' :
-                                  doctorStatus === 'busy' ? 'bg-orange-600' :
-                                  'bg-gray-600'
-                                }`}>
-                                  {patientCount}
-                                </span>
-                              )}
-                            </Button>
-                            
-                            <Button
-                              onClick={() => {
-                                if (isActive) {
-                                  stopDoctorQueue(doctor.id);
-                                } else {
-                                  startDoctorQueue(doctor.id);
-                                }
-                              }}
-                              variant="outline"
-                              size="sm"
-                              className={`
-                                ${isActive 
-                                  ? 'bg-red-50 text-red-600 border-red-300 hover:bg-red-100' 
-                                  : 'bg-green-50 text-green-600 border-green-300 hover:bg-green-100'
-                                }
-                              `}
-                            >
-                              {isActive ? 'Stop' : 'Start'}
-                            </Button>
+                          <div key={doctor.id} className="border-b last:border-b-0">
+                            <div className="px-4 py-3">
+                              <button
+                                onClick={() => {
+                                  if (isActive) {
+                                    setViewMode('doctor');
+                                    setSelectedDoctor(doctor.id);
+                                    setShowDoctorDropdown(false);
+                                  }
+                                }}
+                                disabled={!isActive}
+                                className={`w-full text-left hover:bg-gray-50 transition-colors p-2 rounded ${
+                                  !isActive ? 'opacity-50 bg-gray-50' : ''
+                                } ${
+                                  selectedDoctor === doctor.id ? 'bg-green-50 font-semibold' : ''
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    {!isActive && <span className="text-sm">⏸</span>}
+                                    <span>{doctor.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {isActive && patientCount > 0 && (
+                                      <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
+                                        doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                                        doctorStatus === 'busy' ? 'bg-orange-600' :
+                                        'bg-gray-600'
+                                      }`}>
+                                        {patientCount}
+                                      </span>
+                                    )}
+                                    {selectedDoctor === doctor.id && (
+                                      <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                              <div className="flex items-center gap-2 mt-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isActive) {
+                                      stopDoctorQueue(doctor.id);
+                                    } else {
+                                      startDoctorQueue(doctor.id);
+                                    }
+                                  }}
+                                  className={`text-xs px-2 py-1 rounded ${
+                                    isActive 
+                                      ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+                                      : 'bg-green-100 text-green-600 hover:bg-green-200'
+                                  }`}
+                                >
+                                  {isActive ? 'Stop Queue' : 'Start Queue'}
+                                </button>
+                                {!isActive && (
+                                  <span className="text-xs text-gray-500">Inactive</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
                     </div>
-                    {/* ADD THIS LEGEND: */}
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                        <span className="text-gray-600">⏸ Inactive (Not started)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                        <span className="text-gray-600">Has waiting patients</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                        <span className="text-gray-600">Busy (no one waiting)</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                        <span className="text-gray-600">No patients</span>
-                      </div>
+                  )}
+                </div>
+
+                {/* Legend for mobile */}
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Status Legend:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <span className="text-gray-600">Has waiting patients</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                      <span className="text-gray-600">Busy (no waiting)</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                      <span className="text-gray-600">⏸ Inactive</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                      <span className="text-gray-600">No patients</span>
                     </div>
                   </div>
                 </div>
-                
-                {viewMode === 'doctor' && selectedDoctor && (
-                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm text-green-800">
-                      <strong>Note:</strong> You are viewing the queue for {doctors.find(d => d.id === selectedDoctor)?.name}. 
-                      Only this doctor's patients will be shown in the tables below.
-                    </p>
-                  </div>
-                )}
               </div>
+
+              {/* Desktop: Button View */}
+              <div className="hidden lg:block">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => {
+                      setViewMode('general');
+                      setSelectedDoctor(null);
+                    }}
+                    variant={viewMode === 'general' ? 'default' : 'outline'}
+                    className={viewMode === 'general' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                  >
+                    General Queue (All Doctors)
+                  </Button>
+                  
+                  {doctors.map(doctor => {
+                    const patientCount = getDoctorPatientCount(doctor.id);
+                    const doctorStatus = getDoctorStatus(doctor.id);
+                    const isActive = isDoctorActive(doctor.id);
+                    
+                    return (
+                      <div key={doctor.id} className="flex items-center gap-2">
+                        <Button
+                          onClick={() => {
+                            setViewMode('doctor');
+                            setSelectedDoctor(doctor.id);
+                          }}
+                          variant={selectedDoctor === doctor.id ? 'default' : 'outline'}
+                          disabled={!isActive}
+                          className={`
+                            flex-1
+                            ${!isActive ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400' : ''}
+                            ${selectedDoctor === doctor.id ? 'bg-green-600 hover:bg-green-700' : ''}
+                            ${
+                              isActive && selectedDoctor !== doctor.id && doctorStatus === 'hasPatients' 
+                                ? 'font-bold border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' 
+                                : ''
+                            }
+                            ${
+                              isActive && selectedDoctor !== doctor.id && doctorStatus === 'busy'
+                                ? 'font-bold border-2 border-orange-500 bg-orange-50 text-orange-700 hover:bg-orange-100'
+                                : ''
+                            }
+                            ${
+                              isActive && selectedDoctor !== doctor.id && doctorStatus === 'idle'
+                                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                : ''
+                            }
+                          `}
+                        >
+                          {!isActive && <span className="mr-2">⏸</span>}
+                          {doctor.name}
+                          {isActive && patientCount > 0 && (
+                            <span className={`ml-2 text-white text-xs px-2 py-0.5 rounded-full ${
+                              doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                              doctorStatus === 'busy' ? 'bg-orange-600' :
+                              'bg-gray-600'
+                            }`}>
+                              {patientCount}
+                            </span>
+                          )}
+                        </Button>
+                        
+                        <Button
+                          onClick={() => {
+                            if (isActive) {
+                              stopDoctorQueue(doctor.id);
+                            } else {
+                              startDoctorQueue(doctor.id);
+                            }
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className={`
+                            ${isActive 
+                              ? 'bg-red-50 text-red-600 border-red-300 hover:bg-red-100' 
+                              : 'bg-green-50 text-green-600 border-green-300 hover:bg-green-100'
+                            }
+                          `}
+                        >
+                          {isActive ? 'Stop' : 'Start'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Desktop Legend */}
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                    <span className="text-gray-600">⏸ Inactive (Not started)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span className="text-gray-600">Has waiting patients</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <span className="text-gray-600">Busy (no one waiting)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                    <span className="text-gray-600">No patients</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Note section */}
+              {viewMode === 'doctor' && selectedDoctor && (
+                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <strong>Note:</strong> You are viewing the queue for {doctors.find(d => d.id === selectedDoctor)?.name}. 
+                    Only this doctor's patients will be shown in the tables below.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Mobile: Stacked layout */}

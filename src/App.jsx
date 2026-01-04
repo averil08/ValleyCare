@@ -9,6 +9,7 @@ import Analytics from './Analytics';
 import Checkin from './Checkin';
 import Appointment from './Appointment';
 import { PatientProvider } from './PatientContext';
+import PatientProfile from "./PatientProfile";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/qstatus" element={<QueueStatus />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/appointment" element={<Appointment />} />
+          <Route path="/patientprofile" element={<PatientProfile />} />
         </Routes>
       </PatientProvider>
     </Router>

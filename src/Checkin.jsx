@@ -59,6 +59,7 @@ function Checkin() {
     daysSinceOnSet: "",
     isPriority: false,
     priorityType: null,
+    isReturningPatient: false,
   });
 
   const handlePriorityChange = (checked) => {
@@ -223,6 +224,9 @@ function Checkin() {
       services: [],
       appointmentDateTime: "",
       daysSinceOnSet: "",
+      isPriority: false,
+      priorityType: null,
+      isReturningPatient: false,
     });
     setExpandedCategory(null);
     setAvailableSlots(1);
@@ -258,10 +262,45 @@ function Checkin() {
       }
 
       if (result.success) {
+        // Helper function to normalize strings for matching
+        const normalizeString = (str) => {
+          if (!str) return '';
+          return str.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').trim();
+        };
+
+        // Helper function to find existing patient profile
+        const findExistingPatient = () => {
+          if (!formData.isReturningPatient) return null;
+
+          const normalizedName = normalizeString(formData.name);
+          const normalizedPhone = formData.phoneNum ? formData.phoneNum.replace(/\D/g, '') : '';
+
+          // Search through all patients (including inactive ones for this purpose)
+          for (const patient of patients) {
+            const existingPhone = patient.phoneNum ? patient.phoneNum.replace(/\D/g, '') : '';
+            const existingName = normalizeString(patient.name);
+
+            // Match by phone number (strongest identifier)
+            if (normalizedPhone && existingPhone && normalizedPhone === existingPhone) {
+              return patient;
+            }
+
+            // Match by exact normalized name
+            if (normalizedName && existingName && normalizedName === existingName) {
+              if (!normalizedPhone || !existingPhone || normalizedPhone === existingPhone) {
+                return patient;
+              }
+            }
+          }
+          return null;
+        };
+
+        const existingPatient = findExistingPatient();
+
         const newPatient = {
           name: formData.name,
-          age: formData.age,
-          phoneNum: formData.phoneNum,
+          age: formData.age, // Updated age
+          phoneNum: formData.phoneNum, // Updated phone
           type: selectedPatientType,
           symptoms: formData.symptoms,
           services: formData.services,
@@ -269,7 +308,29 @@ function Checkin() {
           appointmentDateTime: formData.appointmentDateTime || undefined,
           isPriority: formData.isPriority,
           priorityType: formData.priorityType,
+          isReturningPatient: formData.isReturningPatient,
         };
+
+        // If returning patient and we found existing profile, preserve some data
+        if (existingPatient && formData.isReturningPatient) {
+          // Update phone number only if new one is provided and old one wasn't
+          if (!existingPatient.phoneNum && formData.phoneNum) {
+            newPatient.phoneNum = formData.phoneNum;
+          } else if (existingPatient.phoneNum) {
+            // Keep the existing phone if it exists (or use new one if provided)
+            newPatient.phoneNum = formData.phoneNum || existingPatient.phoneNum;
+          }
+
+          // Use the more complete name (prefer proper casing)
+          const hasMoreCapitals = (formData.name.match(/[A-Z]/g) || []).length > 
+                                 (existingPatient.name.match(/[A-Z]/g) || []).length;
+          if (!hasMoreCapitals && existingPatient.name.length >= formData.name.length) {
+            newPatient.name = existingPatient.name;
+          }
+
+          // Always use the most recent age
+          newPatient.age = formData.age;
+        }
 
         if (selectedPatientType === "Walk-in") {
           newPatient.status = "waiting";
@@ -505,6 +566,45 @@ function Checkin() {
             <div className="space-y-2">
               <Label htmlFor="phoneNum">Phone Number *</Label>
               <Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handleInputChange} required />
+            </div>
+
+            {/* NEW OR RETURNING PATIENT QUESTION */}
+            <div className="space-y-3 p-4 rounded-lg border-2 border-blue-300 bg-blue-50">
+              <Label className="text-blue-800 font-bold">Are you a new or returning patient? *</Label>
+              <p className="text-sm text-blue-700 mb-3">
+                <strong>New Patient:</strong> This is your first visit to our clinic<br/>
+                <strong>Returning Patient:</strong> You have visited our clinic before
+              </p>
+              
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <input 
+                    type="radio" 
+                    id="newPatient"
+                    name="patientType"
+                    value="new"
+                    checked={!formData.isReturningPatient}
+                    onChange={() => setFormData(prev => ({ ...prev, isReturningPatient: false }))}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    required
+                  />
+                  <Label htmlFor="newPatient" className="ml-2 text-blue-900 font-medium">New Patient / First Timer</Label>
+                </div>
+
+                <div className="flex items-center">
+                  <input 
+                    type="radio" 
+                    id="returningPatient"
+                    name="patientType"
+                    value="returning"
+                    checked={formData.isReturningPatient}
+                    onChange={() => setFormData(prev => ({ ...prev, isReturningPatient: true }))}
+                    className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    required
+                  />
+                  <Label htmlFor="returningPatient" className="ml-2 text-blue-900 font-medium">Returning Patient</Label>
+                </div>
+              </div>
             </div>
 
             {selectedPatientType === "Walk-in" && (

@@ -15,12 +15,13 @@ export const PatientProvider = ({ children }) => {
     services: ["cbc", "fbs"], 
     phoneNum: "09171234567", 
     status: "done", 
-    registeredAt: new Date().toISOString(), 
-    inQueue: true,  
-    calledAt: new Date(Date.now() - 3600000).toISOString(), 
-    completedAt: new Date(Date.now() - 1800000).toISOString(), 
-    queueExitTime: new Date(Date.now() - 1800000).toISOString(),
-    assignedDoctor: { id: 4, name: "Dr. Michael Torres" }  // ✅ CORRECT: CBC is handled by Dr. Michael Torres (ID 4)
+    registeredAt: new Date(Date.now() - 86400000).toISOString(), // Yesterday (Jan 3)
+    inQueue: false,  // Changed to false since visit is complete
+    calledAt: new Date(Date.now() - 90000000).toISOString(), // Yesterday
+    completedAt: new Date(Date.now() - 88200000).toISOString(), // Yesterday
+    queueExitTime: new Date(Date.now() - 88200000).toISOString(), // Yesterday
+    assignedDoctor: { id: 4, name: "Dr. Michael Torres" },
+    isReturningPatient: false // First visit, so not a returning patient
   },
   { 
     queueNo: 2, 
@@ -138,20 +139,82 @@ export const PatientProvider = ({ children }) => {
     return Math.max(0, MAX_SLOTS_PER_TIME - bookedCount);
   };
 
-  //added ispriority and prioritytype
+  //added ispriority and prioritytype + returning patient profile update
   const addPatient = (newPatient) => {
     setPatients(prev => {
+      // Helper function to normalize strings for matching
+      const normalizeString = (str) => {
+        if (!str) return '';
+        return str.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').trim();
+      };
+
+      // Helper function to find existing patient profile (only if marked as returning)
+      const findExistingPatient = () => {
+        if (!newPatient.isReturningPatient) return null;
+
+        const normalizedName = normalizeString(newPatient.name);
+        const normalizedPhone = newPatient.phoneNum ? newPatient.phoneNum.replace(/\D/g, '') : '';
+
+        // Search through all patients
+        for (const patient of prev) {
+          // Skip inactive entries
+          if (patient.isInactive) continue;
+
+          const existingPhone = patient.phoneNum ? patient.phoneNum.replace(/\D/g, '') : '';
+          const existingName = normalizeString(patient.name);
+
+          // Match by phone number (strongest identifier)
+          if (normalizedPhone && existingPhone && normalizedPhone === existingPhone) {
+            return patient;
+          }
+
+          // Match by exact normalized name
+          if (normalizedName && existingName && normalizedName === existingName) {
+            if (!normalizedPhone || !existingPhone || normalizedPhone === existingPhone) {
+              return patient;
+            }
+          }
+        }
+        return null;
+      };
+
+      const existingPatient = findExistingPatient();
+      
+      // Prepare updated patient data
+      let updatedPatientData = { ...newPatient };
+
+      // If returning patient and we found existing profile, use consistent data
+      if (existingPatient && newPatient.isReturningPatient) {
+        // Update phone number: use new one if provided, otherwise keep existing
+        if (newPatient.phoneNum) {
+          updatedPatientData.phoneNum = newPatient.phoneNum;
+        } else if (existingPatient.phoneNum) {
+          updatedPatientData.phoneNum = existingPatient.phoneNum;
+        }
+
+        // Use the more complete name (prefer proper casing)
+        const newNameCapitals = (newPatient.name.match(/[A-Z]/g) || []).length;
+        const existingNameCapitals = (existingPatient.name.match(/[A-Z]/g) || []).length;
+        
+        if (existingNameCapitals > newNameCapitals && existingPatient.name.length >= newPatient.name.length) {
+          updatedPatientData.name = existingPatient.name;
+        }
+
+        // Always use the most recent age
+        updatedPatientData.age = newPatient.age;
+      }
+
       // Assign doctor based on services and current patient load - ONLY ACTIVE DOCTORS
-      const assignedDoctor = assignDoctor(newPatient.services || [], prev, activeDoctors);
+      const assignedDoctor = assignDoctor(updatedPatientData.services || [], prev, activeDoctors);
       
       return [
         ...prev,
         { 
-          ...newPatient,
-          isPriority: newPatient.isPriority || false,
-          priorityType: newPatient.priorityType || null,
+          ...updatedPatientData,
+          isPriority: updatedPatientData.isPriority || false,
+          priorityType: updatedPatientData.priorityType || null,
           queueNo: prev.length + 1, 
-          status: newPatient.status || "waiting",
+          status: updatedPatientData.status || "waiting",
           registeredAt: new Date().toISOString(),
           inQueue: true,
           calledAt: null,

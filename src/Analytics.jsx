@@ -791,7 +791,7 @@ const downloadAnalyticsReport = () => {
        <Sidebar nav={nav} handleNav={handleNav} />
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 ml-0 md:ml-52">
+      <div className="flex-1 ml-0 md:ml-52 lg:pt-8">
         {/* Header */}
         <div className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
@@ -814,9 +814,9 @@ const downloadAnalyticsReport = () => {
             </div>
 
             {/* Mobile: Stacked layout */}
-            <div className="sm:hidden space-y-4">
-              <div className="flex items-center gap-3">
-                <BarChart3 className="w-6 h-6 text-green-600" />
+            <div className="lg:hidden space-y-4 pt-12">
+              <div className="flex items-center gap-3 ">
+                <BarChart3 className="w-6 h-6 text-green-600"/>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">Clinic Analytics</h1>
                   <p className="text-sm text-gray-600">Insights and statistics</p>
