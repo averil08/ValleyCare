@@ -140,68 +140,52 @@ export const PatientProvider = ({ children }) => {
   };
 
   //added ispriority and prioritytype + returning patient profile update
+  // SIMPLIFIED: Normalize name for exact matching (case-insensitive, trim whitespace only)
+  const normalizeName = (name) => {
+    if (!name) return '';
+    return name.toLowerCase().trim();
+  };
+
+  // SIMPLIFIED: Find existing patient by EXACT name match only (for returning patients)
+  const findExistingPatientByName = (patientName, isReturningPatient) => {
+    if (!isReturningPatient) return null;
+    
+    const normalizedName = normalizeName(patientName);
+    
+    // Search through all existing patients
+    for (const patient of patients) {
+      if (patient.isInactive) continue;
+      
+      const existingNormalizedName = normalizeName(patient.name);
+      
+      // Exact name match (case-insensitive)
+      if (normalizedName === existingNormalizedName) {
+        return patient;
+      }
+    }
+    
+    return null;
+  };
+
   const addPatient = (newPatient) => {
     setPatients(prev => {
-      // Helper function to normalize strings for matching
-      const normalizeString = (str) => {
-        if (!str) return '';
-        return str.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').trim();
-      };
-
-      // Helper function to find existing patient profile (only if marked as returning)
-      const findExistingPatient = () => {
-        if (!newPatient.isReturningPatient) return null;
-
-        const normalizedName = normalizeString(newPatient.name);
-        const normalizedPhone = newPatient.phoneNum ? newPatient.phoneNum.replace(/\D/g, '') : '';
-
-        // Search through all patients
-        for (const patient of prev) {
-          // Skip inactive entries
-          if (patient.isInactive) continue;
-
-          const existingPhone = patient.phoneNum ? patient.phoneNum.replace(/\D/g, '') : '';
-          const existingName = normalizeString(patient.name);
-
-          // Match by phone number (strongest identifier)
-          if (normalizedPhone && existingPhone && normalizedPhone === existingPhone) {
-            return patient;
-          }
-
-          // Match by exact normalized name
-          if (normalizedName && existingName && normalizedName === existingName) {
-            if (!normalizedPhone || !existingPhone || normalizedPhone === existingPhone) {
-              return patient;
-            }
-          }
-        }
-        return null;
-      };
-
-      const existingPatient = findExistingPatient();
+      const existingPatient = findExistingPatientByName(newPatient.name, newPatient.isReturningPatient);
       
-      // Prepare updated patient data
-      let updatedPatientData = { ...newPatient };
-
-      // If returning patient and we found existing profile, use consistent data
+      // Prepare patient data - if returning patient found, update their info
+     let updatedPatientData = { ...newPatient };
+      
       if (existingPatient && newPatient.isReturningPatient) {
-        // Update phone number: use new one if provided, otherwise keep existing
-        if (newPatient.phoneNum) {
-          updatedPatientData.phoneNum = newPatient.phoneNum;
-        } else if (existingPatient.phoneNum) {
-          updatedPatientData.phoneNum = existingPatient.phoneNum;
-        }
-
-        // Use the more complete name (prefer proper casing)
+        // Use the name with better casing (more capital letters)
         const newNameCapitals = (newPatient.name.match(/[A-Z]/g) || []).length;
         const existingNameCapitals = (existingPatient.name.match(/[A-Z]/g) || []).length;
         
-        if (existingNameCapitals > newNameCapitals && existingPatient.name.length >= newPatient.name.length) {
+        if (existingNameCapitals >= newNameCapitals) {
           updatedPatientData.name = existingPatient.name;
         }
-
-        // Always use the most recent age
+        
+        // Always use new age and phone if provided
         updatedPatientData.age = newPatient.age;
+        updatedPatientData.phoneNum = newPatient.phoneNum || existingPatient.phoneNum;
       }
 
       // Assign doctor based on services and current patient load - ONLY ACTIVE DOCTORS

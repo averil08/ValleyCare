@@ -36,107 +36,82 @@ const PatientProfile = () => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // Normalize string for comparison (remove spaces, lowercase, trim)
-  const normalizeString = (str) => {
-  if (!str) return '';
-  return str.toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
-};
+ // Normalize name for exact matching (case-insensitive, trim whitespace)
+  const normalizeName = (name) => {
+    if (!name) return '';
+    return name.toLowerCase().trim();
+  };
 
-  // Group patients by unique patient info with improved matching
+  // Group patients by unique patient with SIMPLIFIED matching logic
   const uniquePatients = useMemo(() => {
     const patientMap = new Map();
     
     patients.forEach(visit => {
-      // Skip inactive patients
-      if (visit.isInactive) return;
+    // Skip inactive patients
+    if (visit.isInactive) return;
+    
+    // Skip pending or rejected appointments from patient profile
+    if (visit.type === 'Appointment' && 
+        (visit.appointmentStatus === 'pending' || visit.appointmentStatus === 'rejected')) {
+      return;
+    }
       
-      // Normalize identifiers
-      const normalizedName = normalizeString(visit.name);
-      const normalizedPhone = visit.phoneNum ? visit.phoneNum.replace(/\D/g, '') : '';
-
-      // Find existing patient using multiple matching strategies
-      let existingKey = null;
-
-      for (const [key, patient] of patientMap.entries()) {
-        const existingPhone = patient.phoneNum ? patient.phoneNum.replace(/\D/g, '') : '';
-        const existingName = normalizeString(patient.name);
-        
-        // Strategy 1: Match by phone number (strongest identifier)
-        if (normalizedPhone && existingPhone && normalizedPhone === existingPhone) {
-          existingKey = key;
-          break;
-        }
-        
-        // Strategy 2: Match by exact normalized name
-        if (normalizedName && existingName && normalizedName === existingName) {
-          // Only match by name if:
-          // - Neither has a phone number, OR
-          // - Only one has a phone number (we assume it's the same person), OR
-          // - Both have the same phone number
-          if (!normalizedPhone || !existingPhone || normalizedPhone === existingPhone) {
-            existingKey = key;
-            break;
-          }
-        }
-      }
-
-      // Use existing key or create new one
-      // If no existing key found, create a stable key based on identifiers only
-      const key = existingKey || (normalizedPhone || normalizedName);
+      // For returning patients, use exact name match as the key
+      // For new patients, use name + first visit date to ensure uniqueness
+      const normalizedName = normalizeName(visit.name);
+      
+      // Use normalized name as the primary key
+      const key = normalizedName;
             
-      if (!patientMap.has(key)) {
+    if (!patientMap.has(key)) {
         // Create new patient profile
         patientMap.set(key, {
-          name: visit.name,
+          name: visit.name, // Use the actual name with proper casing from first visit
           phoneNum: visit.phoneNum,
           age: visit.age,
           visits: []
         });
       } else {
-        // Update patient info with most complete/recent data
+        // Update patient info with most recent data
         const existing = patientMap.get(key);
         
-        // Update phone if it wasn't available before
-        if (!existing.phoneNum && visit.phoneNum) {
+        // Always update to the latest phone number if provided
+        if (visit.phoneNum) {
           existing.phoneNum = visit.phoneNum;
         }
         
-        // Update age to most recent
+        // Always update to the latest age
         if (visit.age) {
           existing.age = visit.age;
         }
         
-        // Update name to most complete version (prefer proper casing and longer names)
+        // Update name to the most complete version (prefer proper casing)
         const hasMoreCapitals = (visit.name.match(/[A-Z]/g) || []).length > 
                                (existing.name.match(/[A-Z]/g) || []).length;
-        const isLonger = visit.name.length > existing.name.length;
         
-        if (hasMoreCapitals || (isLonger && !existing.name.includes(visit.name))) {
+        if (hasMoreCapitals || visit.name.length > existing.name.length) {
           existing.name = visit.name;
         }
       }
 
-      // Add visit to patient's history
-      patientMap.get(key).visits.push(visit);
-    });
-    
-    // Convert to array and sort visits by date
-    return Array.from(patientMap.values()).map(patient => ({
-      ...patient,
-      visits: patient.visits.sort((a, b) => 
-        new Date(b.registeredAt) - new Date(a.registeredAt)
-      ),
-      totalVisits: patient.visits.length,
-      lastVisit: patient.visits[0],
-      firstVisit: patient.visits[patient.visits.length - 1]
-    })).sort((a, b) => 
-      // Sort by most recent visit
-      new Date(b.lastVisit.registeredAt) - new Date(a.lastVisit.registeredAt)
-    );
-  }, [patients]);
+    // Add visit to patient's history
+    patientMap.get(key).visits.push(visit);
+  });
+  
+  // Convert to array and sort visits by date
+  return Array.from(patientMap.values()).map(patient => ({
+    ...patient,
+    visits: patient.visits.sort((a, b) => 
+      new Date(b.registeredAt) - new Date(a.registeredAt)
+    ),
+    totalVisits: patient.visits.length,
+    lastVisit: patient.visits[0],
+    firstVisit: patient.visits[patient.visits.length - 1]
+  })).sort((a, b) => 
+    // Sort by most recent visit
+    new Date(b.lastVisit.registeredAt) - new Date(a.lastVisit.registeredAt)
+  );
+}, [patients]);
 
   // Filter patients based on search
   const filteredPatients = uniquePatients.filter(patient =>

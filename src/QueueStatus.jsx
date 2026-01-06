@@ -324,7 +324,10 @@ const QueueStatus = () => {
             </div>
 
             {/* NEW: Doctor's Queue Table */}
-            {currentPatient?.assignedDoctor && doctorPatients.length > 0 && (
+            {currentPatient?.assignedDoctor && 
+            doctorPatients.length > 0 && 
+            !isAppointmentPending && 
+            !isAppointmentRejected && (
               <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
                   {currentPatient.assignedDoctor.name}'s Queue
@@ -580,7 +583,10 @@ const QueueStatus = () => {
             </div>
 
             {/* NEW: Doctor's Queue Table */}
-            {currentPatient?.assignedDoctor && doctorPatients.length > 0 && (
+            {currentPatient?.assignedDoctor && 
+            doctorPatients.length > 0 && 
+            !isAppointmentPending && 
+            !isAppointmentRejected && (
               <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
                   {currentPatient.assignedDoctor.name}'s Queue
@@ -1122,7 +1128,10 @@ const QueueStatus = () => {
             </div>
 
             {/* NEW: Doctor's Queue Table - ADDED HERE FOR CLINIC VIEW */}
-            {currentPatient?.assignedDoctor && doctorPatients.length > 0 && (
+            {currentPatient?.assignedDoctor && 
+            doctorPatients.length > 0 && 
+            !isAppointmentPending && 
+            !isAppointmentRejected && (
               <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
                   {currentPatient.assignedDoctor.name}'s Queue
@@ -1391,7 +1400,10 @@ const QueueStatus = () => {
             </div>
 
             {/* NEW: Doctor's Queue Table - ADDED HERE FOR CLINIC VIEW */}
-            {currentPatient?.assignedDoctor && doctorPatients.length > 0 && (
+            {currentPatient?.assignedDoctor && 
+            doctorPatients.length > 0 && 
+            !isAppointmentPending && 
+            !isAppointmentRejected && (
               <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">
                   {currentPatient.assignedDoctor.name}'s Queue

@@ -262,34 +262,27 @@ function Checkin() {
       }
 
       if (result.success) {
-        // Helper function to normalize strings for matching
-        const normalizeString = (str) => {
-          if (!str) return '';
-          return str.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '').trim();
+        // Helper function to normalize name for exact matching
+        const normalizeName = (name) => {
+          if (!name) return '';
+          return name.toLowerCase().trim();
         };
 
-        // Helper function to find existing patient profile
+        // Helper function to find existing patient by exact name match
         const findExistingPatient = () => {
           if (!formData.isReturningPatient) return null;
 
-          const normalizedName = normalizeString(formData.name);
-          const normalizedPhone = formData.phoneNum ? formData.phoneNum.replace(/\D/g, '') : '';
+          const normalizedName = normalizeName(formData.name);
 
-          // Search through all patients (including inactive ones for this purpose)
+          // Search through all patients
           for (const patient of patients) {
-            const existingPhone = patient.phoneNum ? patient.phoneNum.replace(/\D/g, '') : '';
-            const existingName = normalizeString(patient.name);
+            if (patient.isInactive) continue;
+            
+            const existingNormalizedName = normalizeName(patient.name);
 
-            // Match by phone number (strongest identifier)
-            if (normalizedPhone && existingPhone && normalizedPhone === existingPhone) {
+            // Exact name match (case-insensitive)
+            if (normalizedName === existingNormalizedName) {
               return patient;
-            }
-
-            // Match by exact normalized name
-            if (normalizedName && existingName && normalizedName === existingName) {
-              if (!normalizedPhone || !existingPhone || normalizedPhone === existingPhone) {
-                return patient;
-              }
             }
           }
           return null;
@@ -311,25 +304,19 @@ function Checkin() {
           isReturningPatient: formData.isReturningPatient,
         };
 
-        // If returning patient and we found existing profile, preserve some data
+        // If returning patient and we found existing profile, update their information
         if (existingPatient && formData.isReturningPatient) {
-          // Update phone number only if new one is provided and old one wasn't
-          if (!existingPatient.phoneNum && formData.phoneNum) {
-            newPatient.phoneNum = formData.phoneNum;
-          } else if (existingPatient.phoneNum) {
-            // Keep the existing phone if it exists (or use new one if provided)
-            newPatient.phoneNum = formData.phoneNum || existingPatient.phoneNum;
-          }
-
-          // Use the more complete name (prefer proper casing)
-          const hasMoreCapitals = (formData.name.match(/[A-Z]/g) || []).length > 
-                                 (existingPatient.name.match(/[A-Z]/g) || []).length;
-          if (!hasMoreCapitals && existingPatient.name.length >= formData.name.length) {
+          // Use the name with better casing (more capital letters)
+          const newNameCapitals = (formData.name.match(/[A-Z]/g) || []).length;
+          const existingNameCapitals = (existingPatient.name.match(/[A-Z]/g) || []).length;
+          
+          if (existingNameCapitals >= newNameCapitals) {
             newPatient.name = existingPatient.name;
           }
 
-          // Always use the most recent age
+          // Always use new age and phone
           newPatient.age = formData.age;
+          newPatient.phoneNum = formData.phoneNum || existingPatient.phoneNum;
         }
 
         if (selectedPatientType === "Walk-in") {
