@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useContext } from "react";
 import Sidebar from "@/components/Sidebar";
-//added MessageSquare icon
-import { Bell, X, QrCode, User, RefreshCw, XCircle, MessageSquare } from "lucide-react";
+import PatientSidebar from "@/components/PatientSidebar";
+import { Bell, X, QrCode, User, RefreshCw, XCircle, MessageSquare, AlertCircle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
@@ -12,28 +13,56 @@ const QueueStatus = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
   
-  const [viewMode, setViewMode] = useState('clinic');
-  // ✅ Check URL parameters to determine if patient accessed directly
-  const getInitialPatientAccess = () => {
+  // Helper function to determine initial view mode
+  const getInitialViewMode = () => {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('view') === 'patient';
+    const isPatientView = urlParams.get('view') === 'patient';
+    const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
+    return (isPatientView || isFromPatientSidebar) ? 'patient' : 'clinic';
   };
 
+  //  Helper function to check if patient accessed directly
+  const getInitialPatientAccess = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPatientView = urlParams.get('view') === 'patient';
+    const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
+    return isPatientView || isFromPatientSidebar;
+  };
+
+  const [viewMode, setViewMode] = useState(getInitialViewMode());
+  const [isFromPatientSidebar, setIsFromPatientSidebar] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('from') === 'patient-sidebar';
+  });
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
+  const [showDoneModal, setShowDoneModal] = useState(false);
 
-  // ✅ Set initial view mode based on access type
-  useEffect(() => {
-    if (isPatientAccess) {
+  // ✅ NEW: Get current logged-in patient's email
+  const currentPatientEmail = localStorage.getItem('currentPatientEmail');
+  const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
+
+ //  Set initial view mode based on access type
+useEffect(() => {
+  if (isFromPatientSidebar) {
+    // Patient sidebar has highest priority - always show clinic view with PatientSidebar
+    if (viewMode !== 'clinic') {
+      setViewMode('clinic');
+    }
+  } else if (isPatientAccess && !isFromPatientSidebar) {
+    // Direct patient access (QR code) - show patient view (no sidebar)
+    if (viewMode !== 'patient') {
       setViewMode('patient');
     }
-  }, [isPatientAccess]);
+  }
+}, [isPatientAccess, isFromPatientSidebar, viewMode]);
 
-  // ✅ Force patient access to always stay in patient view
-  useEffect(() => {
-    if (isPatientAccess && viewMode === 'clinic') {
-      setViewMode('patient');
-    }
-  }, [viewMode, isPatientAccess]);
+//  Force patient sidebar users to stay in clinic view
+useEffect(() => {
+  if (isFromPatientSidebar && viewMode === 'patient') {
+    setViewMode('clinic');
+  }
+}, [viewMode, isFromPatientSidebar]);
+
   
   const { 
     patients, 
@@ -43,8 +72,26 @@ const QueueStatus = () => {
     setActivePatient,
     requeuePatient
   } = useContext(PatientContext);
+  
+  // Validate that activePatient belongs to current logged-in patient
+  // This prevents seeing other patients' queue status
+  const isMyAppointment = React.useMemo(() => {
+    if (!activePatient || !isPatientLoggedIn || !currentPatientEmail) {
+      return true; // Allow if accessed from clinic view (not logged in as patient)
+    }
 
-  // ✅ Always get the latest patient data from the patients array
+    // For patient access, verify the appointment belongs to them
+    if (activePatient.patientEmail) {
+      const normalizedActiveEmail = activePatient.patientEmail.toLowerCase().trim();
+      const normalizedCurrentEmail = currentPatientEmail.toLowerCase().trim();
+      return normalizedActiveEmail === normalizedCurrentEmail;
+    }
+
+    // If appointment has no email (created before fix), don't show to patients
+    return false;
+  }, [activePatient, isPatientLoggedIn, currentPatientEmail]);
+
+  // Always get the latest patient data from the patients array
   const currentPatient = patients.find(p => p.queueNo === activePatient?.queueNo);
 
   const [showNotification, setShowNotification] = useState(false);
@@ -85,21 +132,21 @@ const QueueStatus = () => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // ✅ FIXED: Show flat wait time (no calculation based on queue position)
+  // FIXED: Show flat wait time (no calculation based on queue position)
   const peopleAhead = Math.max(queueNumber - currentServing, 0);
   const estimatedWait = avgWaitTime; // Just use the avgWaitTime directly
 
-  // ✅ Check if appointment is pending approval
+  // Check if appointment is pending approval
   const isAppointmentPending = currentPatient?.type === 'Appointment' && 
     (!currentPatient?.appointmentStatus || currentPatient?.appointmentStatus === 'pending');
 
-  // ✅ Check if appointment is rejected
+  // Check if appointment is rejected
   const isAppointmentRejected = currentPatient?.type === 'Appointment' && 
     currentPatient?.appointmentStatus === 'rejected';
 
-  // ✅ Watch for status changes in the patients array
+  // Watch for status changes in the patients array
   useEffect(() => {
-    if (!currentPatient) return;
+    if (!currentPatient) return
 
     // Don't show notifications if appointment is pending
     if (isAppointmentPending) return;
@@ -139,11 +186,10 @@ const QueueStatus = () => {
     }
   }, [currentPatient, currentServing, queueNumber, notificationType, isAppointmentPending]);
 
-  // ✅ Handle requeue - creates new ticket and updates activePatient
+  // Handle requeue - creates new ticket and updates activePatient
   const handleRequeue = () => {
     const oldQueueNo = queueNumber;
     requeuePatient(oldQueueNo);
-    
     // Find the new ticket that was just created
     setTimeout(() => {
       const newTicket = patients.find(p => 
@@ -163,21 +209,45 @@ const QueueStatus = () => {
     }, 100);
   };
 
-    const PushNotification = () => {
+  // Handle Done button click - show confirmation modal
+  const handleDoneClick = () => {
+    setShowDoneModal(true);
+  };
+
+  // Handle confirmed Done - proceed with navigation
+  const handleConfirmDone = () => {
+    setShowDoneModal(false);
+    setActivePatient(null);
+    
+    if (isFromPatientSidebar) {
+      // Navigate to checkin with patient sidebar
+      const params = new URLSearchParams();
+      params.append('from', 'patient-sidebar');
+      params.append('type', 'appointment');
+      navigate(`/checkin?${params.toString()}`);
+    } else {
+      // Navigate based on access type
+      const params = new URLSearchParams();
+      if (isPatientAccess) params.append('view', 'patient');
+      navigate(`/checkin${params.toString() ? '?' + params.toString() : ''}`);
+    }
+  };
+
+  const PushNotification = () => {
     if (!showNotification) return null;
-    
+      
     const isCancelled = notificationType === "cancelled";
-    
+      
     return (
       <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-md px-4 animate-in slide-in-from-top">
         <div className={`${
           isCancelled ? "bg-red-600" : "bg-green-600"
-        } text-white shadow-lg rounded-xl p-4 relative`}>
+          } text-white shadow-lg rounded-xl p-4 relative`}>
           {!isCancelled && (
             <button
               className="absolute top-2 right-2 text-white hover:opacity-80"
               onClick={() => setShowNotification(false)}
-            >
+              >
               <X className="h-4 w-4" />
             </button>
           )}
@@ -210,6 +280,45 @@ const QueueStatus = () => {
     );
   };
 
+  const DoneConfirmationModal = () => {
+    if (!showDoneModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
+        <div className="bg-white p-6 sm:p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 animate-fade-in">
+          <div className="flex items-center justify-center mb-4">
+            <Bell className="w-10 h-10 sm:w-12 sm:h-12 text-amber-600" />
+          </div>
+          <h3 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2 text-center">
+            Confirm Action
+          </h3>
+          <p className="text-sm sm:text-base text-gray-600 mb-6 text-center">
+            {isAppointmentPending ? (
+              <>Are you sure you want to leave? You won't be able to see your appointment status updates unless you return to this page.</>
+            ) : isAppointmentRejected ? (
+              <>Are you sure you want to leave? You can book a new appointment after clicking "Done".</>
+            ) : (
+              <>Are you sure you're done? You can book a new appointment after completing this action.</>
+            )}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => setShowDoneModal(false)}
+              className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium text-sm sm:text-base"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmDone}
+              className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium text-sm sm:text-base"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (!currentPatient) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-700">
@@ -218,13 +327,44 @@ const QueueStatus = () => {
     );
   }
 
-  // === PENDING APPOINTMENT APPROVAL VIEW ===
+//If patient is logged in but viewing someone else's appointment, redirect
+  if (isPatientLoggedIn && !isMyAppointment) {
+    return (
+      <div className="flex w-full min-h-screen">
+        {isFromPatientSidebar ? (
+          <PatientSidebar nav={nav} handleNav={handleNav} />
+        ) : null}
+      <div className={`flex-1 min-h-screen bg-gray-50 ${isFromPatientSidebar ? 'ml-0 md:ml-52' : ''} flex items-center justify-center p-4`}>
+        <Card className="max-w-md">
+         <CardContent className="p-6 text-center">            <AlertCircle className="w-16 h-16 mx-auto text-red-500 mb-4" />
+          <h3 className="text-lg font-bold text-gray-900 mb-2">Access Denied</h3>
+          <p className="text-gray-600 mb-4">
+            This appointment does not belong to your account.
+          </p>
+          <Button
+            onClick={() => navigate('/homepage')}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              >
+                 Go to Homepage
+            </Button>
+          </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  //Pending Appointment - Clinic View (Sidebar/Patient Sidebar)
   if (isAppointmentPending) {
     // Clinic View
     if (viewMode === 'clinic') {
       return (
         <div className="flex w-full min-h-screen">
-          <Sidebar nav={nav} handleNav={handleNav} />
+          {isFromPatientSidebar ? (
+            <PatientSidebar nav={nav} handleNav={handleNav} />
+          ) : (
+            <Sidebar nav={nav} handleNav={handleNav} />
+          )}
+          <DoneConfirmationModal />
           <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 p-4">
             <div className="max-w-[800px] mt-[20px] sm:mt-[50px] w-full mx-auto space-y-6">
               <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 text-center">
@@ -313,10 +453,7 @@ const QueueStatus = () => {
                     variant="outline"
                     className="w-full text-sm sm:text-lg"
                     size="lg"
-                    onClick={() => {
-                      setActivePatient(null);
-                      navigate(`/checkin${isPatientAccess ? '?view=patient' : ''}`);
-                    }}
+                    onClick={handleDoneClick}
                   >
                     Done
                   </Button>
@@ -480,9 +617,10 @@ const QueueStatus = () => {
     );
   }
 
-    // Patient View
+    // Pending Appointment - Patient View (No sidebar)
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+        <DoneConfirmationModal />
         <div className="flex-1 p-4">
           <div className="max-w-[800px] mt-[20px] sm:mt-[50px] w-full mx-auto space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 text-center">
@@ -567,15 +705,12 @@ const QueueStatus = () => {
                     Back to Clinic View
                   </Button>
                 )}
-                
+              
                 <Button
                   variant="outline"
                   className="w-full text-sm sm:text-lg"
                   size="lg"
-                  onClick={() => {
-                    setActivePatient(null);
-                    navigate(`/checkin${isPatientAccess ? '?view=patient' : ''}`);
-                  }}
+                  onClick={handleDoneClick}
                 >
                   Done
                 </Button>
@@ -739,13 +874,18 @@ const QueueStatus = () => {
     );
   };
 
-  // === REJECTED APPOINTMENT VIEW ===
+  // Rejected Appointment - Clinic View (Sidebar & Patient Sidebar)
   if (isAppointmentRejected) {
     // Clinic View
     if (viewMode === 'clinic') {
       return (
         <div className="flex w-full min-h-screen">
-          <Sidebar nav={nav} handleNav={handleNav} />
+          {isFromPatientSidebar ? (
+            <PatientSidebar nav={nav} handleNav={handleNav} />
+          ) : (
+            <Sidebar nav={nav} handleNav={handleNav} />
+          )}
+          <DoneConfirmationModal />
           <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 p-4">
             <div className="max-w-[800px] mt-[20px] sm:mt-[50px] w-full mx-auto space-y-6">
               <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 text-center">
@@ -861,10 +1001,7 @@ const QueueStatus = () => {
                     variant="outline"
                     className="w-full text-sm sm:text-lg"
                     size="lg"
-                    onClick={() => {
-                      setActivePatient(null);
-                      navigate(`/checkin${isPatientAccess ? '?view=patient' : ''}`);
-                    }}
+                    onClick={handleDoneClick}
                   >
                     Done
                   </Button>
@@ -876,9 +1013,10 @@ const QueueStatus = () => {
       );
     }
 
-    // Patient View
+    // Rejected Appointment - Patient View (No Sidebar)
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+        <DoneConfirmationModal />
         <div className="flex-1 p-4">
           <div className="max-w-[800px] mt-[20px] sm:mt-[50px] w-full mx-auto space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 text-center">
@@ -990,15 +1128,12 @@ const QueueStatus = () => {
                     Back to Clinic View
                   </Button>
                 )}
-                
+               
                 <Button
                   variant="outline"
                   className="w-full text-sm sm:text-lg"
                   size="lg"
-                  onClick={() => {
-                    setActivePatient(null);
-                    navigate(`/checkin${isPatientAccess ? '?view=patient' : ''}`);
-                  }}
+                  onClick={handleDoneClick}
                 >
                   Done
                 </Button>
@@ -1010,13 +1145,17 @@ const QueueStatus = () => {
     );
   }
 
-  // === NORMAL QUEUE STATUS VIEW (After approval or Walk-in) ===
-  // Clinic View
+  // Queue Status Updates - Clinic View (Sidebar & Patient Sidebar)
   if (viewMode === 'clinic') {
     return (
       <div className="flex w-full min-h-screen">
-        <Sidebar nav={nav} handleNav={handleNav} />
+        {isFromPatientSidebar ? (
+          <PatientSidebar nav={nav} handleNav={handleNav} />
+        ) : (
+          <Sidebar nav={nav} handleNav={handleNav} />
+        )}
         <PushNotification />
+        <DoneConfirmationModal />
         <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 p-4">
           <div className="max-w-[800px] mt-[20px] sm:mt-[50px] w-full mx-auto space-y-6">
             <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 text-center">
@@ -1109,7 +1248,7 @@ const QueueStatus = () => {
                     size="lg"
                   >
                     <User className="w-4 sm:w-5 h-4 sm:h-5 mr-2" />
-                    Switch to Patient View
+                    Switch to  Patient View
                   </Button>
                 )}
                 
@@ -1117,10 +1256,7 @@ const QueueStatus = () => {
                   variant="outline"
                   className="w-full text-sm sm:text-lg"
                   size="lg"
-                  onClick={() => {
-                    setActivePatient(null);
-                    navigate(`/checkin${isPatientAccess ? '?view=patient' : ''}`);
-                  }}
+                  onClick={handleDoneClick}
                 >
                   Done
                 </Button>
@@ -1284,11 +1420,11 @@ const QueueStatus = () => {
     );
   }
 
-  // Patient View
+  // Queue Status Updates - Patient View (No Sidebar)
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
       <PushNotification />
-      
+      <DoneConfirmationModal />
       <div className="flex-1 p-4">
         <div className="max-w-[800px] mt-[20px] sm:mt-[50px] w-full mx-auto space-y-6">
           <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 text-center">
@@ -1375,24 +1511,22 @@ const QueueStatus = () => {
 
             <div className="mt-6 space-y-3">
                 {!isPatientAccess && (
-                  <Button
-                    onClick={() => setViewMode('patient')}
-                    className="w-full text-sm sm:text-lg bg-green-600 hover:bg-green-700 text-white"
-                    size="lg"
-                  >
-                    <User className="w-4 sm:w-5 h-4 sm:h-5 mr-2" />
-                    Switch to Patient View
-                  </Button>
-                )}
-                
+                <Button
+                  onClick={() => setViewMode('clinic')} 
+                  variant="outline"
+                  className="w-full text-sm sm:text-lg border-green-600 text-green-600 hover:bg-green-50"
+                  size="lg"
+                >
+                  <QrCode className="w-4 sm:w-5 h-4 sm:h-5 mr-2" />
+                  Back to Clinic View
+                </Button>
+              )}
+
                 <Button
                   variant="outline"
                   className="w-full text-sm sm:text-lg"
                   size="lg"
-                  onClick={() => {
-                    setActivePatient(null);
-                    navigate(`/checkin${isPatientAccess ? '?view=patient' : ''}`);
-                  }}
+                  onClick={handleDoneClick}
                 >
                   Done
                 </Button>

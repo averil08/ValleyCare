@@ -54,7 +54,7 @@ function Signup() {
 
     try {
       // Validation
-      if (!formData.fullName || !formData.companyName || !formData.phoneNumber || !formData.email || !formData.password) {
+      if (!formData.fullName || !formData.phoneNumber || !formData.email || !formData.password) {
         showMessage("Validation Error", "Please fill in all required fields.", false);
         setIsSubmitting(false);
         return;
@@ -83,7 +83,7 @@ function Signup() {
         formData.password, 
         staffRole,
         formData.fullName,
-        formData.companyName,
+        formData.companyName || "DeValley Clinic",
         formData.phoneNumber
       );
 
@@ -129,23 +129,26 @@ function Signup() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
       <Card className="w-full max-w-md shadow-xl border-t-4 border-green-600">
-        <Button 
-          onClick={() => navigate("/")}
-          variant="link"
-          className="text-green-600 text-sm mb-0 pt-5 pr-5 h-auto"
-        >
-          ← Back
-        </Button>
+        <div className="p-4 border-b border-gray-200">
+          <Button 
+            onClick={() => navigate("/")}
+            variant="outline"
+            size="sm"
+            className="text-green-600 border-green-600 hover:bg-green-50"
+            >
+            ← Back
+          </Button>
+        </div>
         <div className="flex justify-center items-center mt-0">
           <img src={Logo} alt="Abante Logo" className="w-[190px] h-25 object-contain" />
         </div>
 
         <CardHeader>
           <CardTitle className="text-center text-green-700">
-            Clinic Staff Registration
+            Patient Sign Up
           </CardTitle>
           <p className="text-center text-sm text-gray-500">
-            Create your account to access the clinic dashboard.
+            Create your account to access the patient dashboard.
           </p>
         </CardHeader>
 
@@ -163,7 +166,7 @@ function Signup() {
               />
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="companyName">Company Name *</Label>
               <Input
                 id="companyName"
@@ -173,7 +176,7 @@ function Signup() {
                 placeholder="Abante Clinic"
                 required
               />
-            </div>
+            </div> */}
 
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">Phone Number *</Label>
@@ -194,7 +197,7 @@ function Signup() {
                 type="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                placeholder="staff@example.com"
+                placeholder="patient@example.com"
                 required
               />
             </div>
@@ -219,6 +222,37 @@ function Signup() {
             >
               {isSubmitting ? "Registering..." : "Sign Up"}
             </Button>
+
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-gray-50 text-gray-500">OR</span>
+              </div>
+            </div>
+
+            {/* Login and Guest buttons */}
+            <div className="space-y-3">
+              <Button
+                type="button"
+                onClick={() => navigate("/login?type=patient")} 
+                variant="outline"
+                className="w-full border-green-600 text-green-600 hover:bg-green-50"
+              >
+                Already have an account? Log In
+              </Button>
+              
+              <Button
+                type="button"
+                onClick={() => navigate("/checkin?view=patient")} // will change this
+                variant="outline"
+                className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+              >
+                Join as Guest (View Schedule Slots)
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>

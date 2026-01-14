@@ -8,6 +8,11 @@ import { useNavigate } from "react-router-dom";
 
 function Login() {
   const navigate = useNavigate();
+  
+  // Check URL parameters to determine if this is patient or staff login
+  const urlParams = new URLSearchParams(window.location.search);
+  const isPatientLogin = urlParams.get('type') === 'patient';
+  
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -58,20 +63,34 @@ function Login() {
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       // For demo purposes - accepts any credentials
-      // TODO: Replace with actual loginStaff() function when backend is ready
+      // TODO: Replace with actual loginStaff() or loginPatient() function when backend is ready
       const result = { success: true };
 
       if (result.success) {
+        // ✅ NEW: Store patient identifier in localStorage for filtering
+        if (isPatientLogin) {
+          localStorage.setItem('currentPatientEmail', formData.email.toLowerCase().trim());
+          localStorage.setItem('isPatientLoggedIn', 'true');
+        } else {
+          // Clear patient data for staff login
+          localStorage.removeItem('currentPatientEmail');
+          localStorage.removeItem('isPatientLoggedIn');
+        }
+
         showMessage(
           "Login Successful!",
-          "Redirecting to dashboard...",
+          `Redirecting to ${isPatientLogin ? 'patient' : 'clinic'} dashboard...`,
           true
         );
         resetForm();
 
-        // Redirect to dashboard
+        // Redirect based on login type
         setTimeout(() => {
-          navigate("/dashboard");
+          if (isPatientLogin) {
+            navigate("/homepage"); // Patient dashboard
+          } else {
+            navigate("/dashboard"); // Staff dashboard
+          }
         }, 1500);
       } else {
         showMessage("Login Failed", "Please check your credentials.", false);
@@ -83,21 +102,123 @@ function Login() {
     }
   };
 
+  // ========== PATIENT LOGIN FORM ==========
+  if (isPatientLogin) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+        <Card className="w-full max-w-sm shadow-xl border-t-4 border-green-600">
+          <div className="p-4 border-b border-gray-200">
+            <Button 
+              onClick={() => navigate("/")}
+              variant="outline"
+              size="sm"
+              className="text-green-600 border-green-600 hover:bg-blue-50"
+            >
+              ← Back
+            </Button>
+          </div>
+          <div className="flex justify-center items-center mt-4">
+            <img src={Logo} alt="Valleycare Logo" className="w-[190px] h-25 object-contain" />
+          </div>
+
+          <CardHeader>
+            <CardTitle className="text-center text-green-700">
+              Patient Login
+            </CardTitle>
+            <p className="text-center text-sm text-gray-500">
+              Sign in to access your patient dashboard.
+            </p>
+          </CardHeader>
+
+          <CardContent>
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="patient@example.com"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Enter your password"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-[#047a52] hover:bg-[#03503a] text-white"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Signing In..." : "Sign In"}
+              </Button>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-gray-50 text-gray-500">OR</span>
+                </div>
+              </div>
+
+              {/* Sign Up and Guest buttons */}
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  onClick={() => navigate("/signup")}
+                  variant="outline"
+                  className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                >
+                  Don't have an account? Sign Up
+                </Button>
+                
+                <Button
+                  type="button"
+                  onClick={() => navigate("/checkin?view=patient&type=appointment")}
+                  variant="outline"
+                  className="w-full border-blue-600 text-blue-600 hover:bg-blue-50"
+                >
+                  Join as Guest (View Schedule Slots)
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <div id="message-box"></div>
+      </div>
+    );
+  }
+
+  // ========== CLINIC STAFF LOGIN FORM (DEFAULT) ==========
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
       <Card className="w-full max-w-sm shadow-xl border-t-4 border-green-600">
         <div className="p-4 border-b border-gray-200">
           <Button 
-            onClick={() => navigate("/checkin?from=login")}
+            onClick={() => navigate("/")}
             variant="outline"
             size="sm"
             className="text-green-600 border-green-600 hover:bg-green-50"
           >
-            ← Register As Patient
+            ← Back
           </Button>
         </div>
         <div className="flex justify-center items-center mt-4">
-          <img src={Logo} alt="Abante Logo" className="w-[190px] h-25 object-contain" />
+          <img src={Logo} alt="Valleycare Logo" className="w-[190px] h-25 object-contain" />
         </div>
 
         <CardHeader>
@@ -142,17 +263,6 @@ function Login() {
             >
               {isSubmitting ? "Signing In..." : "Sign In"}
             </Button>
-
-            <div className="text-center text-sm text-gray-600 pt-2">
-              Don't have an account?{" "}
-              <button
-                type="button"
-                onClick={() => navigate("/signup")}
-                className="text-green-600 hover:underline font-semibold"
-              >
-                Sign Up
-              </button>
-            </div>
           </form>
         </CardContent>
       </Card>

@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen, NotebookText } from "lucide-react";
+import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen, NotebookText, CircleUserRound } from "lucide-react";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import img1 from '../assets/logo-valley.png';
+import  { PatientContext } from '../PatientContext'; 
 
-const Sidebar = ({ nav, handleNav }) => {
+const PatientSidebar = ({ nav, handleNav }) => {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Get setActivePatient from context
+  const { setActivePatient } = useContext(PatientContext);
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true);
@@ -14,7 +18,14 @@ const Sidebar = ({ nav, handleNav }) => {
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    // Add any logout logic here (clear tokens, etc.)
+    
+    // ✅ NEW: Clear patient identity data on logout
+    localStorage.removeItem('currentPatientEmail');
+    localStorage.removeItem('isPatientLoggedIn');
+     // ✅ ADD THIS: Clear active patient session
+    setActivePatient(null);
+    
+    // Navigate to home
     navigate("/");
   };
 
@@ -30,32 +41,19 @@ const Sidebar = ({ nav, handleNav }) => {
         <ul className="mt-8 text-sm text-gray-700">
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/dashboard")}>
+            onClick={() => navigate("/homepage")}>
             <Users className="w-5 h-5 text-green-600 group-hover:text-white" /> 
-            Clinic Dashboard
+            Patient Homepage
           </li>
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/analytics")}>
-            <ChartNoAxesCombined className="w-5 h-5 text-green-600 group-hover:text-white" /> 
-            Clinic Analytics
+            onClick={() => navigate("/checkin?view=patient&from=patient-sidebar&type=appointment")}>
+            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            Book Appointment
           </li>
 
-          <li className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" onClick={() => navigate("/appointment")}>
-            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" />
-            Appointments
-          </li>
-
-          <li
-            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/checkin")}>
-            <TicketCheck className="w-5 h-5 text-green-600 group-hover:text-white" /> 
-            Patient Check-In
-          </li>
-          <li
-            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/patientprofile")}>
-            <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+          <li className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" onClick={() => navigate("/appointmenthistory")}>
+            <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" />
             Patient Profile
           </li>
           <li
@@ -82,30 +80,18 @@ const Sidebar = ({ nav, handleNav }) => {
         <ul className="mt-10 text-sm text-gray-700">
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/dashboard")}>
+            onClick={() => navigate("/homepage")}>
             <Users className="w-5 h-5 text-green-600 group-hover:text-white" /> 
-            Clinic Dashboard
+            Patient Homepage
           </li>
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/analytics")}>
-            <ChartNoAxesCombined className="w-5 h-5 text-green-600 group-hover:text-white" /> 
-            Clinic Analytics
+            onClick={() => navigate("/checkin?view=patient&from=patient-sidebar&type=appointment")}>
+            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            Book Appointment
           </li>
-          <li className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" onClick={() => navigate("/appointment")}>
-            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" />
-            Appointments
-          </li>
-          <li
-            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/checkin")}>
-            <TicketCheck className="w-5 h-5 text-green-600 group-hover:text-white" /> 
-            Patient Check-In
-          </li>
-          <li
-            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
-            onClick={() => navigate("/patientprofile")}>
-            <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+          <li className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" onClick={() => navigate("/appointmenthistory")}>
+            <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" />
             Patient Profile
           </li>
           <li
@@ -151,4 +137,4 @@ const Sidebar = ({ nav, handleNav }) => {
   );
 };
 
-export default Sidebar;
+export default PatientSidebar;

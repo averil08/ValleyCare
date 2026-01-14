@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from "react";
 import { PatientContext } from "./PatientContext";
-import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
+import PatientSidebar from "@/components/PatientSidebar";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,44 +10,55 @@ import { QrCode, User, AlertCircle } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate, Navigate } from "react-router-dom";
 import Logo from "./assets/logo-valley.png";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import "./datepicker.css";
+import AppointmentPicker from "./components/AppointmentPicker";
+import "./calendar.css";
 import {
   registerWalkInPatient,
-  registerAppointmentPatient,
-  checkAppointmentAvailable
+  registerAppointmentPatient
 } from "./lib/supabaseClient";
 
 function Checkin() {
+  //============= CONSTANTS & CONTEXT ==============
   const navigate = useNavigate();
   const { patients, addPatient, activePatient, setActivePatient, getAvailableSlots } = useContext(PatientContext);
 
-  // ✅ Check URL parameters BEFORE initial render to prevent flash
+  //=========== HELPER FUNCTIONS (URL PARAMS) ===========
   const getInitialViewMode = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
     const isFromLogin = urlParams.get('from') === 'login';
-    return (isPatientView || isFromLogin) ? 'patient' : 'clinic';
+    const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
+    return (isPatientView || isFromLogin || isFromPatientSidebar) ? 'patient' : 'clinic';
   };
 
   const getInitialPatientAccess = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
     const isFromLogin = urlParams.get('from') === 'login';
-    return isPatientView || isFromLogin;
+    const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
+    return isPatientView || isFromLogin || isFromPatientSidebar;
   };
 
+  const getInitialPatientType = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const type = urlParams.get('type');
+    if (type === 'walkin') return 'Walk-in';
+    if (type === 'appointment') return 'Appointment';
+    return null;
+  };
+
+  //==================== STATE DECLARATIONS ====================
   const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
   const [nav, setNav] = useState(false);
-  const handleNav = () => setNav(!nav);
-  
-  const [selectedPatientType, setSelectedPatientType] = useState(null);
+  const [selectedPatientType, setSelectedPatientType] = useState(getInitialPatientType());
+  const [isFromPatientSidebar, setIsFromPatientSidebar] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('from') === 'patient-sidebar';
+  });
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState(1);
-  
   const [formData, setFormData] = useState({
     name: "",
     age: "",
@@ -62,22 +73,7 @@ function Checkin() {
     isReturningPatient: false,
   });
 
-  const handlePriorityChange = (checked) => {
-    setFormData(prev => ({ ...prev, isPriority: checked, priorityType: checked ? prev.priorityType : null }));
-  };
-
-  const handlePriorityTypeChange = (value) => {
-    setFormData(prev => ({ ...prev, priorityType: value }));
-  };
-
-  // ✅ Update available slots whenever appointment date/time changes
-  useEffect(() => {
-    if (formData.appointmentDateTime) {
-      const slots = getAvailableSlots(formData.appointmentDateTime);
-      setAvailableSlots(slots);
-    }
-  }, [formData.appointmentDateTime, getAvailableSlots, patients]);
-
+  //============== STATIC DATA ===============
   const symptomsList = [
     'Fever','Cough','Sore Throat','Headache','Stomach Pain',
     'Vomiting','Diarrhea','Rash','Ear Pain','Runny Nose',
@@ -175,6 +171,17 @@ function Checkin() {
     },
   ];
 
+  //==================== EVENT HANDLERS ====================
+  const handleNav = () => setNav(!nav);
+
+  const handlePriorityChange = (checked) => {
+    setFormData(prev => ({ ...prev, isPriority: checked, priorityType: checked ? prev.priorityType : null }));
+  };
+
+  const handlePriorityTypeChange = (value) => {
+    setFormData(prev => ({ ...prev, priorityType: value }));
+  };
+
   const toggleCategory = (id) => {
     setExpandedCategory(expandedCategory === id ? null : id);
   };
@@ -232,10 +239,6 @@ function Checkin() {
     setAvailableSlots(1);
   };
 
-  if (activePatient) {
-    return <Navigate to={`/qstatus${isPatientAccess ? '?view=patient' : ''}`} />;
-  }
-
   const handlePatientSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -262,6 +265,8 @@ function Checkin() {
       }
 
       if (result.success) {
+        // Store patient email if they're registering from patient view
+        const currentPatientEmail = localStorage.getItem('currentPatientEmail');
         // Helper function to normalize name for exact matching
         const normalizeName = (name) => {
           if (!name) return '';
@@ -274,13 +279,11 @@ function Checkin() {
 
           const normalizedName = normalizeName(formData.name);
 
-          // Search through all patients
           for (const patient of patients) {
             if (patient.isInactive) continue;
             
             const existingNormalizedName = normalizeName(patient.name);
 
-            // Exact name match (case-insensitive)
             if (normalizedName === existingNormalizedName) {
               return patient;
             }
@@ -292,8 +295,8 @@ function Checkin() {
 
         const newPatient = {
           name: formData.name,
-          age: formData.age, // Updated age
-          phoneNum: formData.phoneNum, // Updated phone
+          age: formData.age,
+          phoneNum: formData.phoneNum,
           type: selectedPatientType,
           symptoms: formData.symptoms,
           services: formData.services,
@@ -302,11 +305,11 @@ function Checkin() {
           isPriority: formData.isPriority,
           priorityType: formData.priorityType,
           isReturningPatient: formData.isReturningPatient,
+          // Store patient email to link this registration to logged-in user
+          patientEmail: currentPatientEmail || null,
         };
 
-        // If returning patient and we found existing profile, update their information
         if (existingPatient && formData.isReturningPatient) {
-          // Use the name with better casing (more capital letters)
           const newNameCapitals = (formData.name.match(/[A-Z]/g) || []).length;
           const existingNameCapitals = (existingPatient.name.match(/[A-Z]/g) || []).length;
           
@@ -314,7 +317,6 @@ function Checkin() {
             newPatient.name = existingPatient.name;
           }
 
-          // Always use new age and phone
           newPatient.age = formData.age;
           newPatient.phoneNum = formData.phoneNum || existingPatient.phoneNum;
         }
@@ -340,8 +342,11 @@ function Checkin() {
         }
 
         setTimeout(() => {
-        navigate(`/qstatus${isPatientAccess ? '?view=patient' : ''}`);
-      }, 1000);
+          const params = new URLSearchParams();
+          if (isPatientAccess) params.append('view', 'patient');
+          if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
+          navigate(`/qstatus${params.toString() ? '?' + params.toString() : ''}`);
+        }, 1000);
       } else {
         showMessage("Error", result.error, false);
       }
@@ -352,6 +357,22 @@ function Checkin() {
       setIsSubmitting(false);
     }
   };
+  
+  //==================== USE EFFECTS ====================
+  useEffect(() => {
+    if (formData.appointmentDateTime) {
+      const slots = getAvailableSlots(formData.appointmentDateTime);
+      setAvailableSlots(slots);
+    }
+  }, [formData.appointmentDateTime, getAvailableSlots, patients]);
+
+  //conditional returns
+  if (activePatient) {
+    const params = new URLSearchParams();
+    if (isPatientAccess) params.append('view', 'patient');
+    if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
+    return <Navigate to={`/qstatus${params.toString() ? '?' + params.toString() : ''}`} />;
+  }
 
   // === CLINIC VIEW - QR CODE ONLY (Only for staff access) ===
   if (viewMode === 'clinic' && !isPatientAccess) {
@@ -377,7 +398,7 @@ function Checkin() {
               <div className="bg-white p-8 rounded-xl border-2 border-green-200 flex flex-col items-center">
                 <div className="bg-white p-4 rounded-lg shadow-inner">
                   <QRCodeSVG 
-                    value={`${import.meta.env.VITE_APP_URL}/checkin?view=patient`}
+                    value={`${import.meta.env.VITE_APP_URL}/checkin?view=patient&type=walkin`}
                     size={200}
                     level="H"
                     marginSize={4}
@@ -426,10 +447,46 @@ function Checkin() {
     );
   }
 
-  // === PATIENT VIEW - REGISTRATION FORMS ===
-  
-  // Step 1: Patient Type Selection
+  // === PATIENT UI CONTROLS ONLY STARTS HERE === 
   if (!selectedPatientType) {
+    // If coming from patient sidebar, show with PatientSidebar
+    if (isFromPatientSidebar) {
+      return (
+        <div className="flex w-full min-h-screen">
+          <PatientSidebar nav={nav} handleNav={handleNav} />
+          
+          <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md shadow-xl border-t-4 border-green-600">
+              <div className="flex justify-center items-center mt-4">
+                <img src={Logo} alt="Logo" className="w-[190px] h-auto" />
+              </div>
+
+              <CardHeader>
+                <CardTitle className="text-center text-green-700">Patient Registration</CardTitle>
+                <p className="text-center text-sm text-gray-500">Choose how you'd like to register</p>
+              </CardHeader>
+              
+              <CardContent className="flex flex-col space-y-4">
+                <Button 
+                  className="w-full bg-[#33a37f] hover:bg-[#059669] text-white py-6 text-lg"
+                  onClick={() => setSelectedPatientType("Appointment")}
+                >
+                  Book Appointment
+                </Button>
+                <Button 
+                  className="w-full bg-[#33a37f] hover:bg-[#059669] text-white py-6 text-lg"
+                  onClick={() => setSelectedPatientType("Walk-in")}
+                >
+                  Walk-in Registration
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    // Original patient view (from QR code or direct patient access)
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-xl border-t-4 border-green-600">
@@ -478,7 +535,206 @@ function Checkin() {
     );
   }
 
-  // Step 2: Patient Form
+  // Step 2: Patient Registration Forms
+  // If coming from patient sidebar, show with PatientSidebar
+  if (isFromPatientSidebar) {
+    return (
+      <div className="flex w-full min-h-screen">
+        <PatientSidebar nav={nav} handleNav={handleNav} />
+        
+        <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg shadow-xl border-t-4 border-green-600 my-8">
+            <CardHeader>
+              <CardTitle className="text-center text-green-700">
+                {selectedPatientType === "Appointment" ? "Book Appointment" : "Walk-in Registration"}
+              </CardTitle>
+            </CardHeader>
+            
+            <CardContent>
+              {selectedPatientType === "Appointment" && (
+                <div className="space-y-4 mb-6">
+                  <AppointmentPicker
+                    selectedDateTime={formData.appointmentDateTime}
+                    onDateTimeChange={(dateTime) => setFormData({ ...formData, appointmentDateTime: dateTime })}
+                    getAvailableSlots={getAvailableSlots}
+                  />
+                </div>
+              )}
+
+              <form onSubmit={handlePatientSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name *</Label>
+                    <Input id="name" type="text" value={formData.name} onChange={handleInputChange} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="age">Age *</Label>
+                    <Input id="age" type="number" value={formData.age} onChange={handleInputChange} required />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="phoneNum">Phone Number *</Label>
+                  <Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handleInputChange} required />
+                </div>
+
+                {/* NEW OR RETURNING PATIENT QUESTION */}
+                <div className="space-y-3 p-4 rounded-lg border-2 border-blue-300 bg-blue-50">
+                  <Label className="text-blue-800 font-bold">Are you a new or returning patient? *</Label>
+                  <p className="text-sm text-blue-700 mb-3">
+                    <strong>New Patient:</strong> This is your first visit to our clinic<br/>
+                    <strong>Returning Patient:</strong> You have visited our clinic before
+                  </p>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <input 
+                        type="radio" 
+                        id="newPatient"
+                        name="patientType"
+                        value="new"
+                        checked={!formData.isReturningPatient}
+                        onChange={() => setFormData(prev => ({ ...prev, isReturningPatient: false }))}
+                        className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        required
+                      />
+                      <Label htmlFor="newPatient" className="ml-2 text-blue-900 font-medium">New Patient / First Timer</Label>
+                    </div>
+
+                    <div className="flex items-center">
+                      <input 
+                        type="radio" 
+                        id="returningPatient"
+                        name="patientType"
+                        value="returning"
+                        checked={formData.isReturningPatient}
+                        onChange={() => setFormData(prev => ({ ...prev, isReturningPatient: true }))}
+                        className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                        required
+                      />
+                      <Label htmlFor="returningPatient" className="ml-2 text-blue-900 font-medium">Returning Patient</Label>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPatientType === "Walk-in" && (
+                  <div className="space-y-3 p-4 rounded-lg border-2 border-purple-300 bg-purple-50">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-purple-700 font-bold">Priority Patient (Optional)</Label>
+                      <input 
+                        type="checkbox" 
+                        id="isPriority"
+                        checked={formData.isPriority}
+                        onChange={(e) => handlePriorityChange(e.target.checked)}
+                        className="h-5 w-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500" 
+                      />
+                    </div>
+                    
+                    {formData.isPriority && (
+                      <div className="space-y-3 pl-2">
+                        <p className="text-sm text-purple-700 mb-2">Please select priority type:</p>
+                        <div className="flex items-center">
+                          <input 
+                            type="radio" 
+                            id="pwd"
+                            name="priorityType"
+                            value="PWD"
+                            checked={formData.priorityType === "PWD"}
+                            onChange={(e) => handlePriorityTypeChange(e.target.value)}
+                            className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500" 
+                          />
+                          <Label htmlFor="pwd" className="ml-2">PWD (Person with Disability)</Label>
+                        </div>
+
+                        <div className="flex items-center">
+                          <input 
+                            type="radio" 
+                            id="pregnant"
+                            name="priorityType"
+                            value="Pregnant"
+                            checked={formData.priorityType === "Pregnant"}
+                            onChange={(e) => handlePriorityTypeChange(e.target.value)}
+                            className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500" 
+                          />
+                          <Label htmlFor="pregnant" className="ml-2">Pregnant</Label>
+                        </div>
+
+                        <div className="flex items-center">
+                          <input 
+                            type="radio" 
+                            id="senior"
+                            name="priorityType"
+                            value="Senior"
+                            checked={formData.priorityType === "Senior"}
+                            onChange={(e) => handlePriorityTypeChange(e.target.value)}
+                            className="h-4 w-4 text-purple-600 border-gray-300 focus:ring-purple-500" 
+                          />
+                          <Label htmlFor="senior" className="ml-2">Senior Citizen (60+)</Label>
+                        </div>
+
+                        <div className="mt-2 p-2 bg-purple-100 rounded text-xs text-purple-800">
+                          <strong>Note:</strong> Priority patients will be served ahead of regular patients in the queue.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-3 p-4 rounded-lg border border-green-300">
+                  <Label className="text-green-700 font-bold">Symptoms (Select all that apply)</Label>
+                  {symptomsList.map(symptom => (
+                    <div key={symptom} className="flex items-center">
+                      <input type="checkbox" id={symptom} checked={formData.symptoms.includes(symptom)}
+                        onChange={(e) => handleSymptomChange(symptom, e.target.checked)}
+                        className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+                      <Label htmlFor={symptom} className="ml-2">{symptom}</Label>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3 p-4 rounded-lg border border-green-300 bg-green-50">
+                  <Label className="text-green-700 font-bold">Select Services</Label>
+                  {serviceCategories.map(cat => (
+                    <div key={cat.id} className="pt-2 border-b last:border-b-0">
+                      <div className="cursor-pointer flex justify-between font-semibold text-green-700"
+                        onClick={() => toggleCategory(cat.id)}>
+                        {cat.label} <span>{expandedCategory === cat.id ? "▲" : "▼"}</span>
+                      </div>
+                      {expandedCategory === cat.id && (
+                        <div className="ml-2 mt-2 space-y-2">
+                          {cat.services.map(svc => (
+                            <div key={svc.id} className="flex items-center">
+                              <input type="checkbox" id={svc.id} checked={formData.services.includes(svc.id)}
+                                onChange={(e) => handleServiceChange(svc.id, e.target.checked)}
+                                className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500" />
+                              <Label htmlFor={svc.id} className="ml-2">{svc.label}</Label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-3">                  
+                  <Button 
+                    type="submit" 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg" 
+                    disabled={isSubmitting || (selectedPatientType === "Appointment" && availableSlots <= 0)}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit Registration"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+          <div id="message-box"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Original form view (from QR code or direct patient access)
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-lg shadow-xl border-t-4 border-green-600 my-8">
@@ -507,34 +763,12 @@ function Checkin() {
         
         <CardContent>
           {selectedPatientType === "Appointment" && (
-            <div className="space-y-4 mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <Label htmlFor="appointmentDateTime">Appointment Date & Time *</Label>
-              <DatePicker
-                selected={formData.appointmentDateTime ? new Date(formData.appointmentDateTime) : null}
-                onChange={(date) => setFormData({ ...formData, appointmentDateTime: date ? date.toISOString() : "" })}
-                showTimeSelect 
-                timeFormat="h:mm aa" 
-                timeIntervals={30} 
-                minDate={new Date()}
-                minTime={new Date(new Date().setHours(8,0,0,0))} 
-                maxTime={new Date(new Date().setHours(17,0,0,0))}
-                dateFormat="MMMM d, yyyy h:mm aa"
-                className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-green-600"
+            <div className="space-y-4 mb-6">
+              <AppointmentPicker
+                selectedDateTime={formData.appointmentDateTime}
+                onDateTimeChange={(dateTime) => setFormData({ ...formData, appointmentDateTime: dateTime })}
+                getAvailableSlots={getAvailableSlots}
               />
-              
-              {formData.appointmentDateTime && (
-                <div className={`flex items-center gap-2 p-3 rounded-md ${availableSlots > 0 ? 'bg-blue-50 border border-blue-200' : 'bg-red-50 border border-red-200'}`}>
-                  <AlertCircle className={`w-5 h-5 ${availableSlots > 0 ? 'text-blue-600' : 'text-red-600'}`} />
-                  <div>
-                    <p className={`font-semibold text-sm ${availableSlots > 0 ? 'text-blue-900' : 'text-red-900'}`}>
-                      {availableSlots > 0 ? 'Slot available' : 'Slot not available'}
-                    </p>
-                    <p className={`text-xs ${availableSlots > 0 ? 'text-blue-700' : 'text-red-700'}`}>
-                      {availableSlots > 0 ? 'Book now to secure your appointment' : 'This time is already booked, please select another time'}
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

@@ -814,7 +814,7 @@ const downloadAnalyticsReport = () => {
             </div>
 
             {/* Mobile: Stacked layout */}
-            <div className="lg:hidden space-y-4 pt-12">
+            <div className="sm:hidden space-y-4 pt-12">
               <div className="flex items-center gap-3 ">
                 <BarChart3 className="w-6 h-6 text-green-600"/>
                 <div>

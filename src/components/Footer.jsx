@@ -1,5 +1,5 @@
 import React from 'react'
-import img1 from '../assets/logo-abante.png';
+import img1 from '../assets/logo-valley.png';
 
 import {
     FaFacebookSquare,
@@ -13,7 +13,7 @@ const Footer = () => {
     <div id="contact" className='max-w-[1240px] mx-auto py-16 px-4 grid lg:grid-cols-3 gap-8 text-black'>
       <div>
         <img className='w-[175px]' src={img1} alt=""/>
-        <p className='py-4'>Abante streamlines patient flow for clinics — combining queue management, appointment booking, and real-time insights in one simple system.</p>
+        <p className='py-4'>Valleycare streamlines patient flow for clinics — combining queue management, appointment booking, and real-time insights in one simple system.</p>
         <div className='flex justify-between md:w-[75%] my-6'>
             <FaFacebookSquare size={30}/>
             <FaInstagram size={30}/>

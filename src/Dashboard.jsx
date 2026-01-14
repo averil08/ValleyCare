@@ -518,7 +518,7 @@ const Dashboard = () => {
         <div className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
             {/* Desktop: Side by side layout */}
-            <div className="hidden sm:flex items-center justify-between mb-3 pt-8 lg:pt-8">
+            <div className="hidden sm:flex items-center justify-between mb-3 pt-12 lg:pt-8">
               <div className="flex items-center gap-3">
                 <div>
                   <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard</h1>
@@ -668,109 +668,175 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Desktop: Button View */}
+              {/* Desktop: Button/Dropdown View */}
               <div className="hidden lg:block">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => {
-                      setViewMode('general');
-                      setSelectedDoctor(null);
-                    }}
-                    variant={viewMode === 'general' ? 'default' : 'outline'}
-                    className={viewMode === 'general' ? 'bg-blue-600 hover:bg-blue-700' : ''}
+                <div className="relative max-w-2xl">
+                  <button
+                    onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-gray-300 rounded-lg hover:border-blue-500 transition-colors shadow-sm"
                   >
-                    General Queue (All Doctors)
-                  </Button>
-                  
-                  {doctors.map(doctor => {
-                    const patientCount = getDoctorPatientCount(doctor.id);
-                    const doctorStatus = getDoctorStatus(doctor.id);
-                    const isActive = isDoctorActive(doctor.id);
-                    
-                    return (
-                      <div key={doctor.id} className="flex items-center gap-2">
-                        <Button
-                          onClick={() => {
-                            setViewMode('doctor');
-                            setSelectedDoctor(doctor.id);
-                          }}
-                          variant={selectedDoctor === doctor.id ? 'default' : 'outline'}
-                          disabled={!isActive}
-                          className={`
-                            flex-1
-                            ${!isActive ? 'opacity-50 cursor-not-allowed bg-gray-100 text-gray-400' : ''}
-                            ${selectedDoctor === doctor.id ? 'bg-green-600 hover:bg-green-700' : ''}
-                            ${
-                              isActive && selectedDoctor !== doctor.id && doctorStatus === 'hasPatients' 
-                                ? 'font-bold border-2 border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100' 
-                                : ''
-                            }
-                            ${
-                              isActive && selectedDoctor !== doctor.id && doctorStatus === 'busy'
-                                ? 'font-bold border-2 border-orange-500 bg-orange-50 text-orange-700 hover:bg-orange-100'
-                                : ''
-                            }
-                            ${
-                              isActive && selectedDoctor !== doctor.id && doctorStatus === 'idle'
-                                ? 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                                : ''
-                            }
-                          `}
-                        >
-                          {!isActive && <span className="mr-2">⏸</span>}
-                          {doctor.name}
-                          {isActive && patientCount > 0 && (
-                            <span className={`ml-2 text-white text-xs px-2 py-0.5 rounded-full ${
-                              doctorStatus === 'hasPatients' ? 'bg-blue-600' :
-                              doctorStatus === 'busy' ? 'bg-orange-600' :
-                              'bg-gray-600'
-                            }`}>
-                              {patientCount}
-                            </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-gray-900">{getCurrentViewLabel()}</span>
+                      {viewMode === 'doctor' && selectedDoctor && (() => {
+                        const patientCount = getDoctorPatientCount(selectedDoctor);
+                        const doctorStatus = getDoctorStatus(selectedDoctor);
+                        return patientCount > 0 ? (
+                          <span className={`text-white text-xs px-2.5 py-1 rounded-full font-medium ${
+                            doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                            doctorStatus === 'busy' ? 'bg-orange-600' :
+                            'bg-gray-600'
+                          }`}>
+                            {patientCount} patient{patientCount !== 1 ? 's' : ''}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showDoctorDropdown && (
+                    <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+                      {/* General View Option */}
+                      <button
+                        onClick={() => {
+                          setViewMode('general');
+                          setSelectedDoctor(null);
+                          setShowDoctorDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-3.5 hover:bg-gray-50 transition-colors border-b ${
+                          viewMode === 'general' ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            {viewMode === 'general' && (
+                              <div className="w-1.5 h-8 bg-blue-600 rounded-full"></div>
+                            )}
+                            <div>
+                              <span className={`font-medium ${viewMode === 'general' ? 'text-blue-700' : 'text-gray-900'}`}>
+                                General Queue (All Doctors)
+                              </span>
+                              <p className="text-xs text-gray-500 mt-0.5">View all patients across all doctors</p>
+                            </div>
+                          </div>
+                          {viewMode === 'general' && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
                           )}
-                        </Button>
-                        
-                        <Button
-                          onClick={() => {
-                            if (isActive) {
-                              stopDoctorQueue(doctor.id);
-                            } else {
-                              startDoctorQueue(doctor.id);
-                            }
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className={`
-                            ${isActive 
-                              ? 'bg-red-50 text-red-600 border-red-300 hover:bg-red-100' 
-                              : 'bg-green-50 text-green-600 border-green-300 hover:bg-green-100'
-                            }
-                          `}
-                        >
-                          {isActive ? 'Stop' : 'Start'}
-                        </Button>
+                        </div>
+                      </button>
+
+                      {/* Doctor Options */}
+                      <div className="py-1">
+                        <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Individual Doctors</p>
+                        {doctors.map(doctor => {
+                          const patientCount = getDoctorPatientCount(doctor.id);
+                          const doctorStatus = getDoctorStatus(doctor.id);
+                          const isActive = isDoctorActive(doctor.id);
+                          const isSelected = selectedDoctor === doctor.id;
+
+                          return (
+                            <div 
+                              key={doctor.id} 
+                              className={`border-b last:border-b-0 ${isSelected ? 'bg-green-50' : ''}`}
+                            >
+                              <div className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                                <div className="flex items-center justify-between gap-4">
+                                  {/* Left: Selection Area */}
+                                  <button
+                                    onClick={() => {
+                                      if (isActive) {
+                                        setViewMode('doctor');
+                                        setSelectedDoctor(doctor.id);
+                                        setShowDoctorDropdown(false);
+                                      }
+                                    }}
+                                    disabled={!isActive}
+                                    className="flex-1 flex items-center gap-3 text-left"
+                                  >
+                                    {isSelected && (
+                                      <div className="w-1.5 h-8 bg-green-600 rounded-full"></div>
+                                    )}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        {!isActive && <span className="text-gray-400">⏸</span>}
+                                        <span className={`font-medium ${
+                                          !isActive ? 'text-gray-400' : 
+                                          isSelected ? 'text-green-700' : 
+                                          'text-gray-900'
+                                        }`}>
+                                          {doctor.name}
+                                        </span>
+                                        {isActive && patientCount > 0 && (
+                                          <span className={`text-white text-xs px-2 py-0.5 rounded-full font-medium ${
+                                            doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                                            doctorStatus === 'busy' ? 'bg-orange-600' :
+                                            'bg-gray-600'
+                                          }`}>
+                                            {patientCount}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        {!isActive ? 'Queue not started' : 
+                                        doctorStatus === 'hasPatients' ? 'Has patients waiting' :
+                                        doctorStatus === 'busy' ? 'Busy - no one waiting' :
+                                        'No patients currently'}
+                                      </p>
+                                    </div>
+                                  </button>
+
+                                  {/* Right: Control Button */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (isActive) {
+                                        stopDoctorQueue(doctor.id);
+                                      } else {
+                                        startDoctorQueue(doctor.id);
+                                      }
+                                    }}
+                                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                      isActive 
+                                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                    }`}
+                                  >
+                                    {isActive ? 'Stop' : 'Start'}
+                                  </button>
+
+                                  {isSelected && (
+                                    <div className="w-2.5 h-2.5 rounded-full bg-green-600"></div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
                 
                 {/* Desktop Legend */}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                    <span className="text-gray-600">⏸ Inactive (Not started)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-gray-600">Has waiting patients</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                    <span className="text-gray-600">Busy (no one waiting)</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                    <span className="text-gray-600">No patients</span>
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Status Indicators:</p>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                      <span className="text-gray-600">⏸ Inactive (Not started)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                      <span className="text-gray-600">Has waiting patients</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                      <span className="text-gray-600">Busy (no one waiting)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                      <span className="text-gray-600">No patients</span>
+                    </div>
                   </div>
                 </div>
               </div>
