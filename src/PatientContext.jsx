@@ -31,12 +31,12 @@ export const PatientProvider = ({ children }) => {
     symptoms: ["Rashes"], 
     services: ["pedia"], 
     phoneNum: "09181234567", 
-    status: "in progress", 
+    status: "waiting", // ✅ CHANGED from "in progress" to "waiting"
     registeredAt: new Date().toISOString(), 
     appointmentDateTime: new Date(Date.now() + 86400000).toISOString(), 
     appointmentStatus: "accepted", 
     inQueue: true,  
-    calledAt: new Date().toISOString(),  
+    calledAt: null, // ✅ CHANGED from new Date().toISOString() to null
     queueExitTime: null,  
     completedAt: null,
     assignedDoctor: { id: 1, name: "Dr. Sarah Gonzales" }  // ✅ CORRECT: Pedia is handled by Dr. Sarah Gonzales (ID 1)
@@ -82,7 +82,8 @@ export const PatientProvider = ({ children }) => {
     console.log('📤 Broadcasting patients to other tabs:', patients.length);
   }, [patients]);
 
-  const [currentServing, setCurrentServing] = useState(2);
+  // ✅ CHANGED: Initialize to null instead of 2
+  const [currentServing, setCurrentServing] = useState(null);
   const [avgWaitTime, setAvgWaitTime] = useState(15);
   const [activeDoctors, setActiveDoctors] = useState([]); // Array of doctor IDs that are active today
   // NEW: Track which patient each doctor is currently serving
@@ -292,6 +293,13 @@ export const PatientProvider = ({ children }) => {
         inQueue: false,
         queueExitTime: new Date().toISOString() // Left queue when rejected
       } : p)
+    );
+  };
+
+  //added mock simulation helper function (pending - queue status)
+  const simulateStatusChange = (queueNo, updates) => {
+    setPatients(prev =>
+      prev.map(p => p.queueNo === queueNo ? { ...p, ...updates } : p)
     );
   };
 
@@ -547,12 +555,12 @@ export const PatientProvider = ({ children }) => {
       setDoctorCurrentServingPatient,
       callNextPatientForDoctor,
       cancelPatientForDoctor,
-      // NEW: Add these
       activeDoctors,
       startDoctorQueue,
       stopDoctorQueue,
       isDoctorActive,
-      reassignPatientsForDoctor, // NEW: Add this
+      reassignPatientsForDoctor,
+      simulateStatusChange, //added for simulation 
     }}>
       {children}
     </PatientContext.Provider>

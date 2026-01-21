@@ -923,60 +923,61 @@ const Dashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {viewMode === 'general' ? (
-                  <>
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
-                      #{String(currentServing).padStart(3, '0')}
-                    </p>
-                    <div className="space-y-2">
-                      <Button 
-                        onClick={handleCallNext} 
-                        className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
-                      >
-                        Call Next Patient
-                      </Button>
-                      <Button 
-                        onClick={handleCancel}
-                        variant="outline"
-                        className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Cancel (No Show)
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {(() => {
-                      const doctorCurrentPatient = getDoctorCurrentServing(selectedDoctor);
-                      return (
-                        <>
-                          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
-                            {doctorCurrentPatient ? `#${String(doctorCurrentPatient).padStart(3, '0')}` : 'No Patient'}
-                          </p>
-                          <div className="space-y-2">
-                            <Button 
-                              onClick={() => callNextPatientForDoctor(selectedDoctor)} 
-                              className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
-                              disabled={getDoctorPatientCount(selectedDoctor) === 0}
-                            >
-                              Call Next Patient
-                            </Button>
-                            <Button 
-                              onClick={() => cancelPatientForDoctor(selectedDoctor)}
-                              variant="outline"
-                              className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
-                              disabled={!doctorCurrentPatient && getDoctorPatientCount(selectedDoctor) === 0}
-                            >
-                              <XCircle className="w-4 h-4 mr-2" />
-                              Cancel (No Show)
-                            </Button>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </>
-                )}
+              {viewMode === 'general' ? (
+                <>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
+                    {currentServing ? `#${String(currentServing).padStart(3, '0')}` : 'No Patient'}
+                  </p>
+                  <div className="space-y-2">
+                    <Button 
+                      onClick={handleCallNext} 
+                      className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
+                    >
+                      Call Next Patient
+                    </Button>
+                    <Button 
+                      onClick={handleCancel}
+                      variant="outline"
+                      className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
+                      disabled={!currentServing}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Cancel (No Show)
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {(() => {
+                    const doctorCurrentPatient = getDoctorCurrentServing(selectedDoctor);
+                    return (
+                      <>
+                        <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 sm:mb-4">
+                          {doctorCurrentPatient ? `#${String(doctorCurrentPatient).padStart(3, '0')}` : 'No Patient'}
+                        </p>
+                        <div className="space-y-2">
+                          <Button 
+                            onClick={() => callNextPatientForDoctor(selectedDoctor)} 
+                            className="w-full bg-green-600 hover:bg-green-700 text-sm sm:text-base"
+                            disabled={getDoctorPatientCount(selectedDoctor) === 0}
+                          >
+                            Call Next Patient
+                          </Button>
+                          <Button 
+                            onClick={() => cancelPatientForDoctor(selectedDoctor)}
+                            variant="outline"
+                            className="w-full text-red-600 border-red-300 hover:bg-red-50 text-sm sm:text-base"
+                            disabled={!doctorCurrentPatient && getDoctorPatientCount(selectedDoctor) === 0}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Cancel (No Show)
+                          </Button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
               </CardContent>
             </Card>
 

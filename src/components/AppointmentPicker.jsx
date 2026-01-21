@@ -13,24 +13,37 @@ const AppointmentPicker = ({
   const [selectedTime, setSelectedTime] = useState("");
   const [timeSlots, setTimeSlots] = useState([]);
 
-  // Define available time slots (8:00 AM - 5:00 PM, 1-hour intervals)
+  // Define available time slots (8:00 AM - 5:00 PM, 30-minute intervals)
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 8; hour <= 16; hour++) {
-      const startHour = hour;
-      const endHour = hour + 1;
-      const startTime = `${startHour.toString().padStart(2, '0')}:00`;
-      const endTime = `${endHour.toString().padStart(2, '0')}:00`;
+      // First 30-minute slot (e.g., 8:00 - 8:30)
+      const startTime1 = `${hour.toString().padStart(2, '0')}:00`;
+      const endTime1 = `${hour.toString().padStart(2, '0')}:30`;
       slots.push({
-        value: startTime,
-        label: `${formatTime(startHour, 0)}-${formatTime(endHour, 0)}`,
-        hour: startHour
+        value: startTime1,
+        label: `${formatTime(hour, 0)} - ${formatTime(hour, 30)}`,
+        hour: hour,
+        minute: 0
       });
+
+      // Second 30-minute slot (e.g., 8:30 - 9:00)
+      // Don't add the 5:30-6:00 slot since clinic closes at 5:00 PM
+      if (hour < 16) {
+        const startTime2 = `${hour.toString().padStart(2, '0')}:30`;
+        const endTime2 = `${(hour + 1).toString().padStart(2, '0')}:00`;
+        slots.push({
+          value: startTime2,
+          label: `${formatTime(hour, 30)} - ${formatTime(hour + 1, 0)}`,
+          hour: hour,
+          minute: 30
+        });
+      }
     }
     return slots;
   };
 
-   const formatTime = (hour, minute) => {
+  const formatTime = (hour, minute) => {
     const period = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
     return `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`;
