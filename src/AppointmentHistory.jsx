@@ -37,9 +37,13 @@ const AppointmentHistory = () => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // ✅ UPDATED: Filter appointments by current logged-in patient's email
+  // Add this temporarily at the top of myAppointments useMemo
+console.log('🔍 Current Email:', currentPatientEmail);
+console.log('📋 All Patients:', patients);
+console.log('✅ My Appointments:', patients.filter(p => p.patientEmail === currentPatientEmail));
+
   const myAppointments = React.useMemo(() => {
-    if (!activePatient || !currentPatientEmail) return [];
+    if (!currentPatientEmail) return [];
 
     // Normalize email for comparison
     const normalizedCurrentEmail = currentPatientEmail.toLowerCase().trim();
@@ -49,7 +53,7 @@ const AppointmentHistory = () => {
         // Skip inactive patients
         if (p.isInactive) return false;
         
-        // ✅ NEW: Only show appointments that belong to the current logged-in patient
+        // ✅ Only show appointments that belong to the current logged-in patient
         // Match by patientEmail field
         if (p.patientEmail) {
           const normalizedPatientEmail = p.patientEmail.toLowerCase().trim();
@@ -60,7 +64,7 @@ const AppointmentHistory = () => {
         return false;
       })
       .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
-  }, [patients, activePatient, currentPatientEmail]);
+  }, [patients, currentPatientEmail]); // ✅ REMOVED activePatient from dependencies
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -130,7 +134,7 @@ const AppointmentHistory = () => {
     };
   }, [myAppointments]);
 
-  if (!activePatient || !currentPatientEmail) {
+  if (!currentPatientEmail) {
     return (
       <div className="flex w-full min-h-screen">
         <PatientSidebar nav={nav} handleNav={handleNav} />
@@ -188,31 +192,37 @@ const AppointmentHistory = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <User className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Full Name</p>
-                    <p className="font-semibold text-gray-900">{activePatient.name}</p>
+              {(() => {
+                // ✅ Get profile from localStorage
+                const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <User className="w-5 h-5 text-green-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Full Name</p>
+                        <p className="font-semibold text-gray-900">{userProfile.fullName || 'Not set'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <User className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Age</p>
+                        <p className="font-semibold text-gray-900">{userProfile.age ? `${userProfile.age} years old` : 'Not set'}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <Phone className="w-5 h-5 text-purple-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Phone Number</p>
+                        <p className="font-semibold text-gray-900">{userProfile.phoneNumber || 'Not set'}</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <User className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Age</p>
-                    <p className="font-semibold text-gray-900">{activePatient.age} years old</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Phone className="w-5 h-5 text-purple-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone Number</p>
-                    <p className="font-semibold text-gray-900">{activePatient.phoneNum || 'Not provided'}</p>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
             </CardContent>
           </Card>
 

@@ -4,90 +4,174 @@ import { assignDoctor, doctors } from './doctorData';
 export const PatientContext = createContext();
 
 export const PatientProvider = ({ children }) => {
-  const [activePatient, setActivePatient] = useState(null);
-  const [patients, setPatients] = useState([
-  { 
-    queueNo: 1, 
-    name: "Jane Doe", 
-    age: 26, 
-    type: "Walk-in", 
-    symptoms: ["Fever", "Cough"], 
-    services: ["cbc", "fbs"], 
-    phoneNum: "09171234567", 
-    status: "done", 
-    registeredAt: new Date(Date.now() - 86400000).toISOString(), // Yesterday (Jan 3)
-    inQueue: false,  // Changed to false since visit is complete
-    calledAt: new Date(Date.now() - 90000000).toISOString(), // Yesterday
-    completedAt: new Date(Date.now() - 88200000).toISOString(), // Yesterday
-    queueExitTime: new Date(Date.now() - 88200000).toISOString(), // Yesterday
-    assignedDoctor: { id: 4, name: "Dr. Michael Torres" },
-    isReturningPatient: false // First visit, so not a returning patient
-  },
-  { 
-    queueNo: 2, 
-    name: "Mark Cruz", 
-    age: 32, 
-    type: "Appointment", 
-    symptoms: ["Rashes"], 
-    services: ["pedia"], 
-    phoneNum: "09181234567", 
-    status: "waiting", // ✅ CHANGED from "in progress" to "waiting"
-    registeredAt: new Date().toISOString(), 
-    appointmentDateTime: new Date(Date.now() + 86400000).toISOString(), 
-    appointmentStatus: "accepted", 
-    inQueue: true,  
-    calledAt: null, // ✅ CHANGED from new Date().toISOString() to null
-    queueExitTime: null,  
-    completedAt: null,
-    assignedDoctor: { id: 1, name: "Dr. Sarah Gonzales" }  // ✅ CORRECT: Pedia is handled by Dr. Sarah Gonzales (ID 1)
-  },
-  { 
-    queueNo: 3, 
-    name: "Leah Santos", 
-    age: 21, 
-    type: "Walk-in", 
-    symptoms: ["Headache"], 
-    services: ["adult"], 
-    phoneNum: "09191234567", 
-    status: "waiting", 
-    registeredAt: new Date().toISOString(), 
-    inQueue: true, 
-    calledAt: null,  
-    queueExitTime: null,  
-    completedAt: null,
-    assignedDoctor: { id: 2, name: "Dr. John Martinez" }  // ✅ CORRECT: Adult is handled by Dr. John Martinez (ID 2)
-  },
-  { 
-    queueNo: 4, 
-    name: "Analyn Gomez", 
-    age: 21, 
-    type: "Walk-in", 
-    symptoms: ["Headache"], 
-    services: ["urinalysis"], 
-    phoneNum: "09201234567", 
-    status: "waiting", 
-    registeredAt: new Date().toISOString(), 
-    inQueue: true, 
-    calledAt: null,  
-    queueExitTime: null, 
-    completedAt: null,
-    assignedDoctor: { id: 11, name: "Dr. Patricia Brown" }  // ✅ CORRECT: Urinalysis is handled by Dr. Patricia Brown (ID 11)
-  },
-]);
+  const [activePatient, setActivePatient] = useState(() => {
+    try {
+      const savedActivePatient = localStorage.getItem('active-patient');
+      if (savedActivePatient) {
+        const parsed = JSON.parse(savedActivePatient);
+        console.log('✅ Loaded active patient from localStorage:', parsed.queueNo);
+        return parsed;
+      }
+    } catch (error) {
+      console.error('❌ Error loading active patient from localStorage:', error);
+    }
+    return null;
+  });
 
-  // Add this useEffect in PatientProvider, after the patients state
+  //✅ ADD THIS: Save activePatient to localStorage whenever it changes
   useEffect(() => {
-    // Broadcast patient changes to other tabs via localStorage
-    localStorage.setItem('patients-sync', JSON.stringify(patients));
-    console.log('📤 Broadcasting patients to other tabs:', patients.length);
+    try {
+      if (activePatient) {
+        localStorage.setItem('active-patient', JSON.stringify(activePatient));
+        console.log('💾 Saved active patient to localStorage:', activePatient.queueNo);
+      } else {
+        localStorage.removeItem('active-patient');
+        console.log('🗑️ Removed active patient from localStorage');
+      }
+    } catch (error) {
+      console.error('❌ Error saving active patient to localStorage:', error);
+    }
+  }, [activePatient]);
+  
+  // ✅ Load patients from localStorage on initial load
+  const [patients, setPatients] = useState(() => {
+    try {
+      const savedPatients = localStorage.getItem('clinic-patients-data');
+      if (savedPatients) {
+        const parsed = JSON.parse(savedPatients);
+        console.log('✅ Loaded patients from localStorage:', parsed.length);
+        return parsed;
+      }
+    } catch (error) {
+      console.error('❌ Error loading patients from localStorage:', error);
+    }
+    
+    // Default patients if nothing in localStorage
+    return [
+      { 
+        queueNo: 1, 
+        name: "Jane Doe", 
+        age: 26, 
+        type: "Walk-in", 
+        symptoms: ["Fever", "Cough"], 
+        services: ["cbc", "fbs"], 
+        phoneNum: "09171234567", 
+        status: "done", 
+        registeredAt: new Date(Date.now() - 86400000).toISOString(),
+        inQueue: false,
+        calledAt: new Date(Date.now() - 90000000).toISOString(),
+        completedAt: new Date(Date.now() - 88200000).toISOString(),
+        queueExitTime: new Date(Date.now() - 88200000).toISOString(),
+        assignedDoctor: { id: 4, name: "Dr. Michael Torres" },
+        isReturningPatient: false
+      },
+      { 
+        queueNo: 2, 
+        name: "Mark Cruz", 
+        age: 32, 
+        type: "Appointment", 
+        symptoms: ["Rashes"], 
+        services: ["pedia"], 
+        phoneNum: "09181234567", 
+        status: "waiting",
+        registeredAt: new Date().toISOString(), 
+        appointmentDateTime: new Date(Date.now() + 86400000).toISOString(), 
+        appointmentStatus: "accepted", 
+        inQueue: true,  
+        calledAt: null,
+        queueExitTime: null,  
+        completedAt: null,
+        assignedDoctor: { id: 1, name: "Dr. Sarah Gonzales" }
+      },
+      { 
+        queueNo: 3, 
+        name: "Leah Santos", 
+        age: 21, 
+        type: "Walk-in", 
+        symptoms: ["Headache"], 
+        services: ["adult"], 
+        phoneNum: "09191234567", 
+        status: "waiting", 
+        registeredAt: new Date().toISOString(), 
+        inQueue: true, 
+        calledAt: null,  
+        queueExitTime: null,  
+        completedAt: null,
+        assignedDoctor: { id: 2, name: "Dr. John Martinez" }
+      },
+      { 
+        queueNo: 4, 
+        name: "Analyn Gomez", 
+        age: 21, 
+        type: "Walk-in", 
+        symptoms: ["Headache"], 
+        services: ["urinalysis"], 
+        phoneNum: "09201234567", 
+        status: "waiting", 
+        registeredAt: new Date().toISOString(), 
+        inQueue: true, 
+        calledAt: null,  
+        queueExitTime: null, 
+        completedAt: null,
+        assignedDoctor: { id: 11, name: "Dr. Patricia Brown" }
+      },
+    ];
+  });
+
+  // ✅ Save patients to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('clinic-patients-data', JSON.stringify(patients));
+      console.log('💾 Saved patients to localStorage:', patients.length);
+    } catch (error) {
+      console.error('❌ Error saving patients to localStorage:', error);
+    }
   }, [patients]);
 
-  // ✅ CHANGED: Initialize to null instead of 2
+  // ✅ Sync from localStorage in the SAME tab (every 1 second)
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      try {
+        const storedPatients = localStorage.getItem('clinic-patients-data');
+        if (storedPatients) {
+          const parsedPatients = JSON.parse(storedPatients);
+          
+          // Only update if the data actually changed
+          if (JSON.stringify(parsedPatients) !== JSON.stringify(patients)) {
+            console.log('🔄 Syncing patients from localStorage...');
+            setPatients(parsedPatients);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error syncing from localStorage:', error);
+      }
+    }, 1000); // Check every second
+
+    return () => clearInterval(syncInterval);
+  }, [patients]);
+
+  // ✅ Listen for storage events from OTHER tabs
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'clinic-patients-data' && e.newValue) {
+        try {
+          const parsedPatients = JSON.parse(e.newValue);
+          console.log('🔄 Storage event detected - updating patients from other tab');
+          setPatients(parsedPatients);
+        } catch (error) {
+          console.error('❌ Error handling storage event:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const [currentServing, setCurrentServing] = useState(null);
   const [avgWaitTime, setAvgWaitTime] = useState(15);
-  const [activeDoctors, setActiveDoctors] = useState([]); // Array of doctor IDs that are active today
-  // NEW: Track which patient each doctor is currently serving
-  // Initialize by finding patients that are already "in progress"
+  const [activeDoctors, setActiveDoctors] = useState([]);
+  
   const [doctorCurrentServing, setDoctorCurrentServing] = useState(() => {
     const initialServing = {};
     patients.forEach(patient => {
@@ -98,7 +182,6 @@ export const PatientProvider = ({ children }) => {
     return initialServing;
   });
 
-  // NEW: Sync doctorCurrentServing with actual patient statuses
   useEffect(() => {
     const currentServing = {};
     patients.forEach(patient => {
@@ -108,12 +191,9 @@ export const PatientProvider = ({ children }) => {
     });
     setDoctorCurrentServing(currentServing);
   }, [patients]); 
-  // Example format: { 1: 5, 2: 8, 3: 12 } means Doctor 1 is serving patient #5, Doctor 2 is serving #8, etc.
 
-  // ✅ Automatically sync activePatient with patients array
   useEffect(() => {
     if (activePatient) {
-      // If current activePatient is inactive, find the new requeued version
       if (activePatient.isInactive) {
         const newTicket = patients.find(p => 
           p.requeued && 
@@ -126,7 +206,6 @@ export const PatientProvider = ({ children }) => {
         }
       }
       
-      // Normal sync for active patients
       const updatedPatient = patients.find(p => p.queueNo === activePatient.queueNo);
       if (updatedPatient && JSON.stringify(updatedPatient) !== JSON.stringify(activePatient)) {
         setActivePatient(updatedPatient);
@@ -135,19 +214,16 @@ export const PatientProvider = ({ children }) => {
   }, [patients, activePatient]);
 
   const getAvailableSlots = (dateTimeString) => {
-    if (!dateTimeString) return 1; // Changed from 5 to 1 slot only
+    if (!dateTimeString) return 1;
     
-    const MAX_SLOTS_PER_TIME = 1; //changed from 5 slots to 1
+    const MAX_SLOTS_PER_TIME = 1;
     const targetDate = new Date(dateTimeString);
     
     const minutes = targetDate.getMinutes();
     targetDate.setMinutes(minutes < 30 ? 0 : 30, 0, 0);
     
-    // Count appointments that are NOT rejected (only count pending and accepted)
     const bookedCount = patients.filter(p => {
       if (!p.appointmentDateTime) return false;
-
-      // Don't count rejected appointments
       if (p.appointmentStatus === 'rejected') return false;
 
       const pDate = new Date(p.appointmentDateTime);
@@ -158,26 +234,21 @@ export const PatientProvider = ({ children }) => {
     return Math.max(0, MAX_SLOTS_PER_TIME - bookedCount);
   };
 
-  //added ispriority and prioritytype + returning patient profile update
-  // SIMPLIFIED: Normalize name for exact matching (case-insensitive, trim whitespace only)
   const normalizeName = (name) => {
     if (!name) return '';
     return name.toLowerCase().trim();
   };
 
-  // SIMPLIFIED: Find existing patient by EXACT name match only (for returning patients)
   const findExistingPatientByName = (patientName, isReturningPatient) => {
     if (!isReturningPatient) return null;
     
     const normalizedName = normalizeName(patientName);
     
-    // Search through all existing patients
     for (const patient of patients) {
       if (patient.isInactive) continue;
       
       const existingNormalizedName = normalizeName(patient.name);
       
-      // Exact name match (case-insensitive)
       if (normalizedName === existingNormalizedName) {
         return patient;
       }
@@ -190,11 +261,9 @@ export const PatientProvider = ({ children }) => {
     setPatients(prev => {
       const existingPatient = findExistingPatientByName(newPatient.name, newPatient.isReturningPatient);
       
-      // Prepare patient data - if returning patient found, update their info
-     let updatedPatientData = { ...newPatient };
+      let updatedPatientData = { ...newPatient };
       
       if (existingPatient && newPatient.isReturningPatient) {
-        // Use the name with better casing (more capital letters)
         const newNameCapitals = (newPatient.name.match(/[A-Z]/g) || []).length;
         const existingNameCapitals = (existingPatient.name.match(/[A-Z]/g) || []).length;
         
@@ -202,12 +271,10 @@ export const PatientProvider = ({ children }) => {
           updatedPatientData.name = existingPatient.name;
         }
         
-        // Always use new age and phone if provided
         updatedPatientData.age = newPatient.age;
         updatedPatientData.phoneNum = newPatient.phoneNum || existingPatient.phoneNum;
       }
 
-      // Assign doctor based on services and current patient load - ONLY ACTIVE DOCTORS
       const assignedDoctor = assignDoctor(updatedPatientData.services || [], prev, activeDoctors);
       
       return [
@@ -229,7 +296,6 @@ export const PatientProvider = ({ children }) => {
     });
   };
 
-  // ✅ UPDATED: Track timestamps when status changes
   const updatePatientStatus = (queueNo, newStatus) => {
     setPatients(prev =>
       prev.map(p => {
@@ -237,17 +303,13 @@ export const PatientProvider = ({ children }) => {
         
         const updates = { status: newStatus };
         
-        // When patient is called (waiting → in progress)
         if (newStatus === "in progress" && p.status === "waiting") {
           updates.calledAt = new Date().toISOString();
-          // Patient leaves the waiting queue when called
           updates.queueExitTime = new Date().toISOString();
         }
         
-        // When patient completes service (in progress → done)
         if (newStatus === "done" && p.status === "in progress") {
           updates.completedAt = new Date().toISOString();
-          // If queueExitTime wasn't set yet, set it now
           if (!p.queueExitTime) {
             updates.queueExitTime = new Date().toISOString();
           }
@@ -258,7 +320,6 @@ export const PatientProvider = ({ children }) => {
     );
   };
 
-  // ✅ UPDATED: Track when patient is cancelled
   const cancelPatient = (queueNo) => {
     setPatients(prev =>
       prev.map(p => {
@@ -267,22 +328,19 @@ export const PatientProvider = ({ children }) => {
         return {
           ...p,
           status: "cancelled",
-          queueExitTime: new Date().toISOString(), // Left queue when cancelled
+          queueExitTime: new Date().toISOString(),
           cancelledAt: new Date().toISOString()
         };
       })
     );
   };
 
-
-  // ✅ Accept appointment - changes status from 'pending' to 'accepted'
   const acceptAppointment = (queueNo) => {
     setPatients(prev =>
       prev.map(p => p.queueNo === queueNo ? { ...p, appointmentStatus: "accepted", inQueue: true } : p)
     );
   };
 
-  // ✅ Updated rejectAppointment function to accept and store the reason
   const rejectAppointment = (queueNo, reason) => {
     setPatients(prev =>
       prev.map(p => p.queueNo === queueNo ? { 
@@ -291,12 +349,11 @@ export const PatientProvider = ({ children }) => {
         rejectionReason: reason,
         rejectedAt: new Date().toISOString(),
         inQueue: false,
-        queueExitTime: new Date().toISOString() // Left queue when rejected
+        queueExitTime: new Date().toISOString()
       } : p)
     );
   };
 
-  //added mock simulation helper function (pending - queue status)
   const simulateStatusChange = (queueNo, updates) => {
     setPatients(prev =>
       prev.map(p => p.queueNo === queueNo ? { ...p, ...updates } : p)
@@ -305,15 +362,12 @@ export const PatientProvider = ({ children }) => {
 
   const requeuePatient = (queueNo) => {
     setPatients(prev => {
-      // Find the cancelled patient
       const cancelledPatient = prev.find(p => p.queueNo === queueNo);
       if (!cancelledPatient) return prev;
       
-      // Get the highest queue number to assign new ticket
       const maxQueueNo = Math.max(...prev.map(p => p.queueNo));
       const newQueueNo = maxQueueNo + 1;
       
-      // Create new patient entry with new queue number
       const newPatient = {
         ...cancelledPatient,
         queueNo: newQueueNo,
@@ -327,12 +381,10 @@ export const PatientProvider = ({ children }) => {
         completedAt: null
       };
       
-      // Mark old entry as inactive (but keep it in history)
       const updatedPatients = prev.map(p => 
         p.queueNo === queueNo ? { ...p, isInactive: true, inQueue: false } : p
       );
       
-      // Add new patient entry at the end
       return [...updatedPatients, newPatient];
     });
   };
@@ -367,15 +419,13 @@ export const PatientProvider = ({ children }) => {
   };
 
   const reduceWaitTime = () => {
-  setAvgWaitTime(prev => Math.max(5, prev - 5)); // Minimum 5 mins
+    setAvgWaitTime(prev => Math.max(5, prev - 5));
   };
 
-  // NEW: Get current serving patient for a specific doctor
   const getDoctorCurrentServing = (doctorId) => {
     return doctorCurrentServing[doctorId] || null;
   };
 
-  // NEW: Set current serving patient for a specific doctor
   const setDoctorCurrentServingPatient = (doctorId, queueNo) => {
     setDoctorCurrentServing(prev => ({
       ...prev,
@@ -383,16 +433,13 @@ export const PatientProvider = ({ children }) => {
     }));
   };
 
-  // NEW: Call next patient for a specific doctor
   const callNextPatientForDoctor = (doctorId) => {
     const currentPatientQueueNo = doctorCurrentServing[doctorId];
     
-    // Mark current patient as done
     if (currentPatientQueueNo) {
       updatePatientStatus(currentPatientQueueNo, 'done');
     }
     
-    // Find next waiting priority patient for this doctor
     const nextPriorityPatient = patients.find(p => 
       p.status === "waiting" && 
       p.inQueue && 
@@ -407,7 +454,6 @@ export const PatientProvider = ({ children }) => {
       return;
     }
     
-    // Find next waiting regular patient for this doctor
     const nextWaitingPatient = patients.find(p => 
       p.status === "waiting" && 
       p.inQueue && 
@@ -420,21 +466,17 @@ export const PatientProvider = ({ children }) => {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
       setDoctorCurrentServingPatient(doctorId, nextWaitingPatient.queueNo);
     } else {
-      // No more patients for this doctor
       setDoctorCurrentServingPatient(doctorId, null);
     }
   };
 
-  // NEW: Cancel patient for a specific doctor
   const cancelPatientForDoctor = (doctorId) => {
     const currentPatientQueueNo = doctorCurrentServing[doctorId];
     
     if (!currentPatientQueueNo) return;
     
-    // Mark current patient as cancelled
     cancelPatient(currentPatientQueueNo);
     
-    // Find next waiting priority patient for this doctor
     const nextPriorityPatient = patients.find(p => 
       p.status === "waiting" && 
       p.inQueue && 
@@ -449,7 +491,6 @@ export const PatientProvider = ({ children }) => {
       return;
     }
     
-    // Find next waiting regular patient for this doctor
     const nextWaitingPatient = patients.find(p => 
       p.status === "waiting" && 
       p.inQueue && 
@@ -462,7 +503,6 @@ export const PatientProvider = ({ children }) => {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
       setDoctorCurrentServingPatient(doctorId, nextWaitingPatient.queueNo);
     } else {
-      // No more patients for this doctor
       setDoctorCurrentServingPatient(doctorId, null);
     }
   };
@@ -473,47 +513,39 @@ export const PatientProvider = ({ children }) => {
     return { total, waitingCount, currentServing };
   }, [patients, currentServing]);
 
-  // NEW: Start a doctor's queue for the day
   const startDoctorQueue = (doctorId) => {
     setActiveDoctors(prev => {
-      if (prev.includes(doctorId)) return prev; // Already active
+      if (prev.includes(doctorId)) return prev;
       const newActiveDoctors = [...prev, doctorId];
       
-      // Reassign unassigned patients after updating active doctors
       setTimeout(() => reassignPatientsForDoctor(doctorId), 0);
       
       return newActiveDoctors;
     });
   };
 
-  // NEW: Stop a doctor's queue
   const stopDoctorQueue = (doctorId) => {
     setActiveDoctors(prev => prev.filter(id => id !== doctorId));
   };
 
-  // NEW: Reassign unassigned patients when a doctor starts their queue
   const reassignPatientsForDoctor = (doctorId) => {
     setPatients(prev => {
       const doctor = doctors.find(d => d.id === doctorId);
       if (!doctor) return prev;
 
       return prev.map(patient => {
-        // Skip if already assigned, inactive, or done/cancelled
         if (patient.assignedDoctor || patient.isInactive || 
             patient.status === 'done' || patient.status === 'cancelled') {
           return patient;
         }
 
-        // Skip if appointment not accepted yet
         if (patient.type === 'Appointment' && patient.appointmentStatus !== 'accepted') {
           return patient;
         }
 
-        // Check if this doctor can handle the patient's services
         const primaryService = patient.services?.[0];
         if (!primaryService) return patient;
 
-        // If doctor specializes in this service, assign them
         if (doctor.specializations.includes(primaryService)) {
           return {
             ...patient,
@@ -526,7 +558,6 @@ export const PatientProvider = ({ children }) => {
     });
   };
 
-  // NEW: Check if a doctor is active
   const isDoctorActive = (doctorId) => {
     return activeDoctors.includes(doctorId);
   };
@@ -560,7 +591,7 @@ export const PatientProvider = ({ children }) => {
       stopDoctorQueue,
       isDoctorActive,
       reassignPatientsForDoctor,
-      simulateStatusChange, //added for simulation 
+      simulateStatusChange,
     }}>
       {children}
     </PatientContext.Provider>

@@ -70,6 +70,8 @@ function Checkin() {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState(1);
+  const currentPatientEmail = localStorage.getItem('currentPatientEmail');
+  const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
   const [formData, setFormData] = useState({
     name: "",
     age: "",
@@ -421,6 +423,30 @@ function Checkin() {
       }
     }
   }, [isFromPatientSidebar, selectedPatientType]);
+
+  // 🆕 CHECK FOR EXISTING APPOINTMENT - Redirect if found
+  useEffect(() => {
+    if (isFromPatientSidebar && !selectedPatientType && isPatientLoggedIn) {
+      const currentPatientEmail = localStorage.getItem('currentPatientEmail');
+      
+      if (currentPatientEmail) {
+        // Find if this patient has an active appointment
+        const myActiveAppointment = patients.find(p => 
+          p.type === 'Appointment' &&
+          p.patientEmail &&
+          p.patientEmail.toLowerCase().trim() === currentPatientEmail.toLowerCase().trim() &&
+          (p.appointmentStatus === 'pending' || p.appointmentStatus === 'accepted') &&
+          !p.isInactive
+        );
+
+        if (myActiveAppointment) {
+          console.log('✅ Found existing appointment, redirecting...');
+          setActivePatient(myActiveAppointment);
+          // Will trigger the Navigate component at the top
+        }
+      }
+    }
+  }, [isFromPatientSidebar, selectedPatientType, isPatientLoggedIn, patients, setActivePatient]);
 
   //conditional returns
   if (activePatient) {

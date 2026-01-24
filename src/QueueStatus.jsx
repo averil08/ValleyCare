@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { PatientContext } from "./PatientContext";
 
-//THIS SHOWS APPOINTMENT (PENDING, REJECTED) AND QUEUEING STATUS: CLINIC UI (CHECKIN) PATIENT UI, JOIN AS GUEST
 const QueueStatus = () => {
   const navigate = useNavigate();
   const [nav, setNav] = useState(false);
@@ -22,7 +21,6 @@ const QueueStatus = () => {
     return (isPatientView || isFromPatientSidebar) ? 'patient' : 'clinic';
   };
 
-  //  Helper function to check if patient accessed directly
   const getInitialPatientAccess = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
@@ -38,61 +36,132 @@ const QueueStatus = () => {
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
   const [showDoneModal, setShowDoneModal] = useState(false);
 
-  // ✅ NEW: Get current logged-in patient's email
   const currentPatientEmail = localStorage.getItem('currentPatientEmail');
   const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
 
- //  Set initial view mode based on access type
-useEffect(() => {
-  if (isFromPatientSidebar) {
-    // Patient sidebar has highest priority - always show clinic view with PatientSidebar
-    if (viewMode !== 'clinic') {
-      setViewMode('clinic');
-    }
-  } else if (isPatientAccess && !isFromPatientSidebar) {
-    // Direct patient access (QR code) - show patient view (no sidebar)
-    if (viewMode !== 'patient') {
-      setViewMode('patient');
-    }
-  }
-}, [isPatientAccess, isFromPatientSidebar, viewMode]);
-
-//  Force patient sidebar users to stay in clinic view
-useEffect(() => {
-  if (isFromPatientSidebar && viewMode === 'patient') {
-    setViewMode('clinic');
-  }
-}, [viewMode, isFromPatientSidebar]);
-
-  
   const { 
     patients, 
     activePatient, 
     currentServing, 
     avgWaitTime,
     setActivePatient,
-    requeuePatient
+    requeuePatient,
   } = useContext(PatientContext);
-  
-  // Validate that activePatient belongs to current logged-in patient
-  // This prevents seeing other patients' queue status
+
+  // ✅ Listen for localStorage changes from OTHER tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      // Check if the patients data was updated (match the key from PatientContext)
+      if (e.key === 'clinic-patients-data' || e.key === null) {
+        try {
+          const storedPatients = localStorage.getItem('clinic-patients-data');
+          if (storedPatients && activePatient) {
+            const parsedPatients = JSON.parse(storedPatients);
+            const updatedPatient = parsedPatients.find(p => p.queueNo === activePatient.queueNo);
+            
+            if (updatedPatient && 
+                updatedPatient.appointmentStatus !== activePatient.appointmentStatus) {
+              setActivePatient(updatedPatient);
+            }
+          }
+        } catch (error) {
+          console.error('Error handling storage change:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [activePatient, setActivePatient]);
+
+  // ✅ Poll localStorage periodically for SAME-tab updates
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      try {
+        const storedPatients = localStorage.getItem('clinic-patients-data');
+        if (storedPatients && activePatient) {
+          const parsedPatients = JSON.parse(storedPatients);
+          const updatedPatient = parsedPatients.find(p => p.queueNo === activePatient.queueNo);
+          
+          if (updatedPatient) {
+            // Check if appointment status changed from pending to accepted
+            if (activePatient.appointmentStatus === 'pending' && 
+                updatedPatient.appointmentStatus === 'accepted') {
+              
+              console.log('🎉 Appointment ACCEPTED! Updating to queue view...');
+              
+              // Update the active patient
+              setActivePatient(updatedPatient);
+              
+              // Show success notification
+              setNotificationMessage("Your appointment has been approved! You're now in the queue.");
+              setNotificationType("success");
+              setShowNotification(true);
+              
+              // Auto-hide notification after 5 seconds
+              setTimeout(() => setShowNotification(false), 5000);
+            }
+            // Check if appointment was rejected
+            else if (activePatient.appointmentStatus === 'pending' && 
+                    updatedPatient.appointmentStatus === 'rejected') {
+              
+              console.log('❌ Appointment REJECTED');
+              
+              // Update the active patient
+              setActivePatient(updatedPatient);
+              
+              // Show rejection notification
+              setNotificationMessage("Your appointment request was not approved. Please check the reason below.");
+              setNotificationType("cancelled");
+              setShowNotification(true);
+            }
+            // Check for other status updates (for accepted appointments)
+            else if (updatedPatient.status !== activePatient.status) {
+              console.log(`🔄 Status changed: ${activePatient.status} → ${updatedPatient.status}`);
+              setActivePatient(updatedPatient);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error polling localStorage:', error);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [activePatient, setActivePatient]);
+
+  useEffect(() => {
+    if (isFromPatientSidebar) {
+      if (viewMode !== 'clinic') {
+        setViewMode('clinic');
+      }
+    } else if (isPatientAccess && !isFromPatientSidebar) {
+      if (viewMode !== 'patient') {
+        setViewMode('patient');
+      }
+    }
+  }, [isPatientAccess, isFromPatientSidebar, viewMode]);
+
+  useEffect(() => {
+    if (isFromPatientSidebar && viewMode === 'patient') {
+      setViewMode('clinic');
+    }
+  }, [viewMode, isFromPatientSidebar]);
+
   const isMyAppointment = React.useMemo(() => {
     if (!activePatient || !isPatientLoggedIn || !currentPatientEmail) {
-      return true; // Allow if accessed from clinic view (not logged in as patient)
+      return true;
     }
 
-    // For patient access, verify the appointment belongs to them
     if (activePatient.patientEmail) {
       const normalizedActiveEmail = activePatient.patientEmail.toLowerCase().trim();
       const normalizedCurrentEmail = currentPatientEmail.toLowerCase().trim();
       return normalizedActiveEmail === normalizedCurrentEmail;
     }
 
-    // If appointment has no email (created before fix), don't show to patients
     return false;
   }, [activePatient, isPatientLoggedIn, currentPatientEmail]);
 
-  // Always get the latest patient data from the patients array
   const currentPatient = patients.find(p => p.queueNo === activePatient?.queueNo);
 
   const [showNotification, setShowNotification] = useState(false);
@@ -102,15 +171,17 @@ useEffect(() => {
   const queueNumber = currentPatient?.queueNo || 0;
   const service = currentPatient?.type || "Walk-in";
   const symptoms = currentPatient?.symptoms || [];
-  // NEW: Get all patients assigned to the same doctor
+  
   const doctorPatients = currentPatient?.assignedDoctor 
-    ? patients.filter(p => 
-        !p.isInactive && 
-        p.assignedDoctor?.id === currentPatient.assignedDoctor.id &&
-        p.inQueue &&
-        (p.type !== "Appointment" || p.appointmentStatus === "accepted")
-      ).sort((a, b) => a.queueNo - b.queueNo)
-    : [];
+  ? patients.filter(p => 
+      !p.isInactive && 
+      p.assignedDoctor?.id === currentPatient.assignedDoctor.id &&
+      p.inQueue &&
+      p.status !== 'done' &&          // ✅ ADD THIS: Exclude done patients
+      p.status !== 'cancelled' &&     // ✅ ADD THIS: Exclude cancelled patients
+      (p.type !== "Appointment" || p.appointmentStatus === "accepted")
+    ).sort((a, b) => a.queueNo - b.queueNo)
+  : [];
 
   const serviceLabels = {
     pedia: "Pediatric", adult: "Adult", senior: "Senior (65+)",
@@ -133,28 +204,21 @@ useEffect(() => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // FIXED: Show flat wait time (no calculation based on queue position)
   const peopleAhead = Math.max(queueNumber - currentServing, 0);
-  const estimatedWait = avgWaitTime; // Just use the avgWaitTime directly
+  const estimatedWait = avgWaitTime;
 
-  // Check if appointment is pending approval
   const isAppointmentPending = currentPatient?.type === 'Appointment' && 
     (!currentPatient?.appointmentStatus || currentPatient?.appointmentStatus === 'pending');
 
-  // Check if appointment is rejected
   const isAppointmentRejected = currentPatient?.type === 'Appointment' && 
     currentPatient?.appointmentStatus === 'rejected';
 
-  // Watch for status changes in the patients array
   useEffect(() => {
-    if (!currentPatient) return
-
-    // Don't show notifications if appointment is pending
+    if (!currentPatient) return;
     if (isAppointmentPending) return;
 
     const difference = queueNumber - currentServing;
     
-    // Check if cancelled
     if (currentPatient.status === "cancelled") {
       setNotificationMessage("Your queue has been cancelled. You didn't show up.");
       setNotificationType("cancelled");
@@ -162,7 +226,6 @@ useEffect(() => {
       return;
     }
     
-    // Check if patient is in progress
     if (currentPatient.status === "in progress") {
       setNotificationMessage("It's your turn now! Please proceed to the counter.");
       setNotificationType("success");
@@ -170,7 +233,6 @@ useEffect(() => {
       return;
     }
     
-    // Check if coming up soon
     if (difference === 1 && currentPatient.status === "waiting") {
       setNotificationMessage("Your turn is coming up soon! Please be ready.");
       setNotificationType("success");
@@ -180,18 +242,15 @@ useEffect(() => {
       setNotificationType("success");
       setShowNotification(true);
     } else {
-      // Only hide notification if it's not a cancellation
       if (notificationType !== "cancelled") {
         setShowNotification(false);
       }
     }
   }, [currentPatient, currentServing, queueNumber, notificationType, isAppointmentPending]);
 
-  // Handle requeue - creates new ticket and updates activePatient
   const handleRequeue = () => {
     const oldQueueNo = queueNumber;
     requeuePatient(oldQueueNo);
-    // Find the new ticket that was just created
     setTimeout(() => {
       const newTicket = patients.find(p => 
         p.requeued && p.originalQueueNo === oldQueueNo && !p.isInactive
@@ -210,24 +269,20 @@ useEffect(() => {
     }, 100);
   };
 
-  // Handle Done button click - show confirmation modal
   const handleDoneClick = () => {
     setShowDoneModal(true);
   };
 
-  // Handle confirmed Done - proceed with navigation
   const handleConfirmDone = () => {
     setShowDoneModal(false);
     setActivePatient(null);
     
     if (isFromPatientSidebar) {
-      // Navigate to checkin with patient sidebar
       const params = new URLSearchParams();
       params.append('from', 'patient-sidebar');
       params.append('type', 'appointment');
       navigate(`/checkin?${params.toString()}`);
     } else {
-      // Navigate based on access type
       const params = new URLSearchParams();
       if (isPatientAccess) params.append('view', 'patient');
       navigate(`/checkin${params.toString() ? '?' + params.toString() : ''}`);
@@ -248,7 +303,7 @@ useEffect(() => {
             <button
               className="absolute top-2 right-2 text-white hover:opacity-80"
               onClick={() => setShowNotification(false)}
-              >
+            >
               <X className="h-4 w-4" />
             </button>
           )}
@@ -276,7 +331,6 @@ useEffect(() => {
             </div>
           )}
         </div>
-
       </div>
     );
   };
@@ -328,27 +382,27 @@ useEffect(() => {
     );
   }
 
-//If patient is logged in but viewing someone else's appointment, redirect
   if (isPatientLoggedIn && !isMyAppointment) {
     return (
       <div className="flex w-full min-h-screen">
         {isFromPatientSidebar ? (
           <PatientSidebar nav={nav} handleNav={handleNav} />
         ) : null}
-      <div className={`flex-1 min-h-screen bg-gray-50 ${isFromPatientSidebar ? 'ml-0 md:ml-52' : ''} flex items-center justify-center p-4`}>
-        <Card className="max-w-md">
-         <CardContent className="p-6 text-center">            <AlertCircle className="w-16 h-16 mx-auto text-red-500 mb-4" />
-          <h3 className="text-lg font-bold text-gray-900 mb-2">Access Denied</h3>
-          <p className="text-gray-600 mb-4">
-            This appointment does not belong to your account.
-          </p>
-          <Button
-            onClick={() => navigate('/homepage')}
-              className="w-full bg-green-600 hover:bg-green-700 text-white"
+        <div className={`flex-1 min-h-screen bg-gray-50 ${isFromPatientSidebar ? 'ml-0 md:ml-52' : ''} flex items-center justify-center p-4`}>
+          <Card className="max-w-md">
+            <CardContent className="p-6 text-center">
+              <AlertCircle className="w-16 h-16 mx-auto text-red-500 mb-4" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Access Denied</h3>
+              <p className="text-gray-600 mb-4">
+                This appointment does not belong to your account.
+              </p>
+              <Button
+                onClick={() => navigate('/homepage')}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
               >
-                 Go to Homepage
-            </Button>
-          </CardContent>
+                Go to Homepage
+              </Button>
+            </CardContent>
           </Card>
         </div>
       </div>
