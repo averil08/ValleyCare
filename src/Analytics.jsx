@@ -1130,16 +1130,46 @@ const downloadAnalyticsReport = () => {
               </CardContent>
             </Card>
           </div>
-          {/* Heatmap */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Peak Hours Heatmap</CardTitle>
-                <CardDescription>When do patients come the most? (Mon-Sat)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <HeatmapChart data={analytics.heatmapData} />
-              </CardContent>
-            </Card>
+          {/* Peak Hours Line Graph */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Peak Hours Distribution</CardTitle>
+              <CardDescription>Patient arrival patterns by hour (Mon-Sat, 8AM-5PM)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart 
+                  data={analytics.patientsPerHour}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="hour" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    interval={0}
+                    tick={{ fontSize: 11 }}
+                  />
+                  <YAxis 
+                    label={{ value: 'Number of Patients', angle: -90, position: 'insideLeft' }}
+                    width={60}
+                  />
+                  <Tooltip />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="patients" 
+                    stroke="#10b981" 
+                    strokeWidth={3}
+                    dot={{ fill: '#10b981', r: 4 }}
+                    activeDot={{ r: 6 }}
+                    name="Patients"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
