@@ -9,15 +9,9 @@ export const PatientProvider = ({ children }) => {
   const [isLoadingFromDB, setIsLoadingFromDB] = useState(true); // NEW: Loading state
   const [patients, setPatients] = useState([]);
 
-<<<<<<< HEAD
-// Listen for storage events to sync patients across tabs
-
-  // Add this useEffect in PatientProvider, after the patients state
-=======
   // ==========================================
   // NEW: LOAD PATIENTS FROM DATABASE ON MOUNT
   // ==========================================
->>>>>>> 10a062b (Add critical backend changes for v4)
   useEffect(() => {
     const loadPatientsFromDatabase = async () => {
       try {
