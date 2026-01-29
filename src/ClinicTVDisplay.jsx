@@ -15,6 +15,7 @@ const ClinicTVDisplay = () => {
     return () => clearInterval(timer);
   }, []);
 
+  //🔴 REPLACE FROM HERE
   // ✅ CRITICAL: Listen for localStorage changes from Dashboard
   useEffect(() => {
     const handleStorageChange = (e) => {
@@ -46,13 +47,16 @@ const ClinicTVDisplay = () => {
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
+  //🔴 REPLACE TO HERE
 
+  //🔴 REPLACE FROM HERE
   // Also sync with context patients (for initial load)
   useEffect(() => {
     if (patients && patients.length > 0) {
       setSyncedPatients(patients);
     }
   }, [patients]);
+  //🔴 REPLACE TO HERE
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
@@ -74,40 +78,41 @@ const ClinicTVDisplay = () => {
 
   // ✅ Use syncedPatients instead of patients
   const doctorsInfo = useMemo(() => {
-    console.log('🔄 Recalculating doctor info with', syncedPatients.length, 'patients');
+  // Guard: If syncedPatients is null or undefined, use an empty array
+  const currentData = syncedPatients || []; 
+  console.log('🔄 Recalculating doctor info with', currentData.length, 'patients');
+  
+  return doctors.map(doctor => {
+    const currentServingPatient = currentData.find(p => 
+      !p.isInactive && 
+      p.assignedDoctor?.id === doctor.id &&
+      p.status === "in progress" &&
+      p.inQueue
+    );
     
-    return doctors.slice(0, 12).map(doctor => {
-      const currentServingPatient = syncedPatients.find(p => 
+    const doctorPatients = currentData
+      .filter(p => 
         !p.isInactive && 
         p.assignedDoctor?.id === doctor.id &&
-        p.status === "in progress" &&
+        p.status === "waiting" &&
         p.inQueue
-      );
-      
-      const doctorPatients = syncedPatients
-        .filter(p => 
-          !p.isInactive && 
-          p.assignedDoctor?.id === doctor.id &&
-          p.status === "waiting" &&
-          p.inQueue
-        )
-        .sort((a, b) => a.queueNo - b.queueNo);
-
-      const info = {
-        doctorId: doctor.id,
-        doctorName: doctor.name,
-        currentServing: currentServingPatient ? currentServingPatient.queueNo : null,
-        waitingNumbers: doctorPatients.slice(0, 3).map(p => p.queueNo)
-      };
-      
-      console.log(`📊 ${doctor.name}:`, {
-        serving: info.currentServing,
-        waiting: info.waitingNumbers
-      });
-      
-      return info;
+      )
+      .sort((a, b) => a.queueNo - b.queueNo);
+    const info = {
+      doctorId: doctor.id,
+      doctorName: doctor.name,
+      currentServing: currentServingPatient ? currentServingPatient.queueNo : null,
+      waitingNumbers: doctorPatients.slice(0, 3).map(p => p.queueNo)
+    };
+    
+    console.log(`📊 ${doctor.name}:`, {
+      serving: info.currentServing,
+      waiting: info.waitingNumbers
     });
-  }, [syncedPatients]);
+    
+    return info;
+  });
+}, [syncedPatients]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-100 via-white to-red-100 p-4">
@@ -134,7 +139,7 @@ const ClinicTVDisplay = () => {
         </div>
 
         {/* Doctors Grid */}
-        <div className="grid grid-cols-4 gap-0">
+        <div className="grid grid-cols-5 gap-0">
           {doctorsInfo.map((doctorInfo, index) => (
             <div 
               key={doctorInfo.doctorId}
