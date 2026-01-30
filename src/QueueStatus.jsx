@@ -93,7 +93,7 @@ useEffect(() => {
   }, [activePatient, isPatientLoggedIn, currentPatientEmail]);
 
   // Always get the latest patient data from the patients array
-  const currentPatient = patients.find(p => p.queueNo === activePatient?.queueNo);
+  const currentPatient = patients?.find(p => p.queueNo === activePatient?.queueNo);
 
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");

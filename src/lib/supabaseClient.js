@@ -43,26 +43,27 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
   try {
     // STEP 1: Create the Patient record
     // We use snake_case keys (phone_num, patient_type) to match your SQL schema
-    const { data: patientData, error: patientError } = await supabase
-      .from('patients')
-      .insert([
-        { 
-          name: formData.name || "Guest Patient",
-          age: formData.age ? parseInt(formData.age) : 0,
-          phone_num: formData.phoneNum, // DB is phone_num
-          patient_type: "appointment",  // DB is patient_type (fixes your error)
-          physician: formData.physician || null,
-          symptoms: formData.symptoms || [],
-          services: formData.services || [],
-          status: 'waiting',
-          appointment_status: 'pending', // DB is appointment_status
-          appointment_datetime: appointmentDateTime, // DB is appointment_datetime
-          is_priority: formData.isPriority || false,
-          priority_type: formData.priorityType || null // DB is priority_type
-        }
-      ])
-      .select()
-      .single();
+    // STEP 1: Update or Create the Patient record
+const { data: patientData, error: patientError } = await supabase
+  .from('patients')
+  .upsert(
+    { 
+      name: formData.name || "Guest Patient",
+      age: formData.age ? parseInt(formData.age) : 0,
+      phone_num: formData.phoneNum, // This is the "unique" key Supabase uses to match
+      patient_type: "appointment",
+      physician: formData.physician || null,
+      symptoms: formData.symptoms || [],
+      services: formData.services || [],
+      status: 'waiting',
+      appointment_status: 'pending',
+      is_priority: formData.isPriority || false,
+      priority_type: formData.priorityType || null 
+    }, 
+    { onConflict: 'phone_num' } // This tells Postgres to look at the phone_num column for matches
+  )
+  .select()
+  .single();
 
     if (patientError) {
       console.error("Step 1 (Patient) failed:", patientError);

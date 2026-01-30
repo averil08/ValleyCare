@@ -101,12 +101,14 @@ const AppointmentPicker = ({
         return 'past-date';
       }
       
-      // Check if any slots are available for this date
+      // Line 109 fix:
       const hasAvailableSlots = timeSlots.some(slot => {
         const testDate = new Date(date);
         const [hours, minutes] = slot.value.split(':');
         testDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        return getAvailableSlots(testDate.toISOString()) > 0;
+        
+        // ADD THIS CHECK: Ensure the function exists before calling it
+        return typeof getAvailableSlots === 'function' ? getAvailableSlots(testDate.toISOString()) > 0 : false;
       });
 
       if (hasAvailableSlots) {
