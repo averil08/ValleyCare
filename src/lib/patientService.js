@@ -81,12 +81,43 @@ export const searchPatient = async (searchTerm) => {
 /**
  * Sync patient to database
  */
-export const syncPatientToDatabase = async (patient) => {
+export const syncPatientToDatabase = async (patientData) => {
   try {
-    const result = await savePatientProfile(patient);
-    return result;
+    const profileData = {
+      // Identity - UPSERT will match on this unique column
+      phone_num: patientData.phoneNum, 
+      
+      // Fields
+      name: patientData.name,
+      age: patientData.age ? parseInt(patientData.age) : 0,
+      patient_type: patientData.type === 'Appointment' ? 'appointment' : 'walk-in',
+      status: patientData.status,
+      appointment_status: patientData.appointmentStatus,
+      in_queue: patientData.inQueue,
+      queue_no: patientData.queueNo,
+      assigned_doctor_name: patientData.assignedDoctor?.name || null,
+      symptoms: patientData.symptoms || [],
+      services: patientData.services || [],
+      is_returning_patient: patientData.isReturningPatient || false,
+      is_inactive: patientData.isInactive || false,
+      
+      // Timestamps
+      called_at: patientData.calledAt || null,
+      queue_exit_time: patientData.queueExitTime || null,
+      completed_at: patientData.completedAt || null,
+      registered_at: patientData.registeredAt || new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('patients')
+      .upsert([profileData], { onConflict: 'phone_num' }) // UPDATES if phone exists
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { success: true, data };
   } catch (error) {
-    console.error('Error syncing patient:', error);
+    console.error('Database Sync Error:', error.message);
     return { success: false, error: error.message };
   }
 };
