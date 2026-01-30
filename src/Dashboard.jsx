@@ -361,10 +361,12 @@ const Dashboard = () => {
   
   const handleCallNext = () => {
     const currentPatient = patients.find(p => 
-      p.status === "in progress" && p.inQueue && !p.isInactive
+    p.status === "in progress" && 
+    p.inQueue && 
+    !p.isInactive &&
+    (p.type !== "Appointment" || p.appointmentStatus === "accepted")
     );
-    
-    // Mark current patient as done if they exist
+  
     if (currentPatient) {
       updatePatientStatus(currentPatient.queueNo, 'done');
     }
@@ -460,8 +462,10 @@ const Dashboard = () => {
   });
 
   const donePatients = (patients || []).filter(p => {
-    if (p.isInactive) return false;
-    return p.status === "done" && p.inQueue;
+  if (p.isInactive) return false;
+  // An appointment can only be 'done' if it was first 'accepted'
+  if (p.type === "Appointment" && p.appointmentStatus !== "accepted") return false;
+  return p.status === "done" && p.inQueue;
   });
 
   const cancelPatients = (patients || []).filter(p => {

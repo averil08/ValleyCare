@@ -18,7 +18,11 @@ const Appointment = () => {
   const { patients, acceptAppointment, rejectAppointment } = useContext(PatientContext);
   
   // Filter appointments (patients with type "Appointment")
-  const appointments = (patients || []).filter(p => p.type === "Appointment");
+  const appointments = (patients || []).filter(p => 
+  p.type === "Appointment" && 
+  p.status !== "done" && 
+  p.status !== "cancelled"
+  );
   
   // Service labels mapping
   const serviceLabels = {
@@ -73,18 +77,23 @@ const Appointment = () => {
     setRejectionDialog({ open: false, appointment: null, reason: "" });
   };
 
-  const formatDateTime = (dateTimeString) => {
-    if (!dateTimeString) return 'N/A';
+const formatDateTime = (dateTimeString) => {
+ 
+  if (!dateTimeString) return 'N/A';
     const date = new Date(dateTimeString);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
+   if (isNaN(date.getTime())) {
+    return 'Invalid Date';
+  }
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+};
 
   return (
     <div className="flex w-full min-h-screen">
@@ -186,7 +195,7 @@ const Appointment = () => {
                           <div className="min-w-0">
                             <p className="text-xs text-gray-500 mb-1">Appointment Time</p>
                             <p className="font-semibold text-sm sm:text-base text-gray-900 break-words">
-                              {formatDateTime(appointment.appointmentDateTime)}
+                              {formatDateTime(appointment.appointmentDateTime || appointment.appointment_datetime)}
                             </p>
                           </div>
                         </div>

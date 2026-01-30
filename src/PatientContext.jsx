@@ -12,6 +12,9 @@ export const PatientProvider = ({ children }) => {
   // ==========================================
   // NEW: LOAD PATIENTS FROM DATABASE ON MOUNT
   // ==========================================
+  // ==========================================
+  // UPDATED: LOAD PATIENTS FROM DATABASE ON MOUNT
+  // ==========================================
   useEffect(() => {
     const loadPatientsFromDatabase = async () => {
       try {
@@ -20,35 +23,47 @@ export const PatientProvider = ({ children }) => {
         
         if (result.success && result.data && result.data.length > 0) {
           // Transform database format to app format
-          const transformedPatients = result.data.map((dbPatient, index) => ({
-            queueNo: index + 1, // Assign queue numbers based on order
+          const transformedPatients = result.data.map((dbPatient) => ({
+            // Use the actual queue_no from the DB, fallback to index if missing
+            queueNo: dbPatient.queue_no || 0, 
             name: dbPatient.name,
             age: dbPatient.age,
             phoneNum: dbPatient.phone_num,
             type: dbPatient.patient_type === 'appointment' ? 'Appointment' : 'Walk-in',
+            appointmentDateTime: dbPatient.appointment_datetime,
             symptoms: dbPatient.symptoms || [],
             services: dbPatient.services || [],
-            status: dbPatient.status || "done", // Historical records are marked as done
-            registeredAt: dbPatient.created_at,
-            assignedDoctor: dbPatient.physician ? { name: dbPatient.physician } : null,
-            inQueue: false, // Historical records are not in active queue
-            calledAt: dbPatient.created_at,
-            queueExitTime: dbPatient.updated_at,
-            completedAt: dbPatient.updated_at,
-            isReturningPatient: false,
-            dbId: dbPatient.id // Store database ID for reference
+            
+            // STATUS PERSISTENCE: Use the real status from DB
+            status: dbPatient.status || "waiting", 
+            appointmentStatus: dbPatient.appointment_status,
+            
+            // QUEUE PERSISTENCE: Use the real in_queue flag from DB
+            inQueue: dbPatient.in_queue !== null 
+              ? dbPatient.in_queue 
+              : (dbPatient.patient_type === 'walk-in' || dbPatient.appointment_status === 'accepted'),
+                        
+            registeredAt: dbPatient.registered_at || dbPatient.created_at,
+            
+            // DOCTOR PERSISTENCE: Use the assigned_doctor_name column
+            assignedDoctor: dbPatient.assigned_doctor_name ? { name: dbPatient.assigned_doctor_name } : null,
+            
+            calledAt: dbPatient.called_at,
+            queueExitTime: dbPatient.queue_exit_time,
+            completedAt: dbPatient.completed_at,
+            isReturningPatient: dbPatient.is_returning_patient || false,
+            isInactive: dbPatient.is_inactive || false,
+            dbId: dbPatient.id 
           }));
 
-          setPatients(transformedPatients);
+          // Sort by queue number so the order is consistent
+          setPatients(transformedPatients.sort((a, b) => a.queueNo - b.queueNo));
           console.log(`✅ Loaded ${transformedPatients.length} patients from database`);
         } else {
-          console.log('📋 No patients in database, starting fresh');
-          // Start with empty array if no data
           setPatients([]);
         }
       } catch (error) {
         console.error('⚠️ Failed to load from database:', error);
-        // Start with empty array if database fails
         setPatients([]);
       } finally {
         setIsLoadingFromDB(false);
@@ -56,7 +71,7 @@ export const PatientProvider = ({ children }) => {
     };
 
     loadPatientsFromDatabase();
-  }, []); // Run once on mount
+  }, []);
 
   // Existing localStorage sync (keep this for cross-tab communication)
   useEffect(() => {
