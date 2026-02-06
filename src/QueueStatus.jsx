@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { PatientContext } from "./PatientContext";
-
+//OUTDATED
 //THIS SHOWS APPOINTMENT (PENDING, REJECTED) AND QUEUEING STATUS: CLINIC UI (CHECKIN) PATIENT UI, JOIN AS GUEST
 const QueueStatus = () => {
   const navigate = useNavigate();
@@ -103,7 +103,7 @@ useEffect(() => {
   const service = currentPatient?.type || "Walk-in";
   const symptoms = currentPatient?.symptoms || [];
   // NEW: Get all patients assigned to the same doctor
-  const doctorPatients = currentPatient?.assignedDoctor 
+  const doctorPatients = currentPatient?.assignedDoctor  
     ? patients.filter(p => 
         !p.isInactive && 
         p.assignedDoctor?.id === currentPatient.assignedDoctor.id &&

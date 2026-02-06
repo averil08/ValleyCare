@@ -13,6 +13,26 @@ const AppointmentPicker = ({
   const [selectedTime, setSelectedTime] = useState("");
   const [timeSlots, setTimeSlots] = useState([]);
 
+  // ✅ ADD THIS NEW useEffect - Initialize from props
+  useEffect(() => {
+    if (selectedDateTime) {
+      const dateTime = new Date(selectedDateTime);
+      
+      // Set the date
+      setSelectedDate(dateTime);
+      
+      // Set the time in HH:MM format
+      const hours = dateTime.getHours().toString().padStart(2, '0');
+      const minutes = dateTime.getMinutes().toString().padStart(2, '0');
+      setSelectedTime(`${hours}:${minutes}`);
+      
+      console.log('📅 Restored appointment picker state:', {
+        date: dateTime.toLocaleDateString(),
+        time: `${hours}:${minutes}`
+      });
+    }
+  }, []); // Empty dependency - only run once on mount
+
   // Define available time slots (8:00 AM - 5:00 PM, 30-minute intervals)
   const generateTimeSlots = () => {
     const slots = [];
@@ -59,8 +79,14 @@ const AppointmentPicker = ({
       const [hours, minutes] = selectedTime.split(':');
       dateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       onDateTimeChange(dateTime.toISOString());
+    } else if (!selectedDate && !selectedTime && selectedDateTime) {
+      // Don't clear if we're just initializing
+      return;
+    } else if (!selectedDate || !selectedTime) {
+      // Clear the parent state if user deselects
+      onDateTimeChange('');
     }
-  }, [selectedDate, selectedTime]);
+  }, [selectedDate, selectedTime, selectedDateTime, onDateTimeChange]);
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
@@ -73,6 +99,12 @@ const AppointmentPicker = ({
 
   const getSlotAvailability = (timeValue) => {
     if (!selectedDate || !timeValue) return 0;
+    
+    // ✅ ADD THIS: Check if function exists
+    if (typeof getAvailableSlots !== 'function') {
+      console.warn('getAvailableSlots not yet available');
+      return 1; // Return default value
+    }
     
     const testDate = new Date(selectedDate);
     const [hours, minutes] = timeValue.split(':');
@@ -120,7 +152,9 @@ const AppointmentPicker = ({
     return null;
   };
 
-  const currentAvailableSlots = getSlotAvailability(selectedTime);
+  const currentAvailableSlots = typeof getAvailableSlots === 'function' 
+  ? getSlotAvailability(selectedTime) 
+  : 1;
 
   return (
     <div className="space-y-6">
@@ -263,7 +297,10 @@ const AppointmentPicker = ({
           >
             <option value="">-- Choose a time slot --</option>
             {timeSlots.map((slot) => {
-              const availableSlots = getSlotAvailability(slot.value);
+              // ✅ ADD THIS: Safe slot availability check
+              const availableSlots = typeof getAvailableSlots === 'function' 
+                ? getSlotAvailability(slot.value) 
+                : 1;
               const isFullyBooked = availableSlots <= 0;
 
               return (

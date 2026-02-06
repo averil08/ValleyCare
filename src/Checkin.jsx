@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useRef, useMemo } from "react";
 import { PatientContext } from "./PatientContext";
 import Sidebar from "@/components/Sidebar";
 import PatientSidebar from "@/components/PatientSidebar";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { QrCode, User, AlertCircle } from "lucide-react";
+import { QrCode, User, AlertCircle, Edit2 } from "lucide-react";
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate, Navigate } from "react-router-dom";
 import Logo from "./assets/logo-valley.png";
@@ -17,6 +17,7 @@ import {
   registerAppointmentPatient
 } from "./lib/supabaseClient";
 
+//OUTDATED FILE
 //THIS IS THE REGISTRATION FORMS: WALK-IN & APPOINTMENT (PATIENT UI AND CLINIC UI)
 function Checkin() {
   //============= CONSTANTS & CONTEXT ==============
@@ -55,6 +56,72 @@ function Checkin() {
     return null;
   };
 
+  //ADDED to preserve data when users navigate to complete their profile
+  const saveFormDataToTemp = () => {
+    const currentEmail = localStorage.getItem('currentPatientEmail');
+    if (currentEmail && isFromPatientSidebar) {
+      const tempData = {
+        symptoms: formData.symptoms,
+        services: formData.services,
+        appointmentDateTime: formData.appointmentDateTime,
+        isPriority: formData.isPriority,
+        priorityType: formData.priorityType,
+        isReturningPatient: formData.isReturningPatient,
+        expandedCategory: expandedCategory,
+        bookingMode: bookingMode,
+        selectedDoctor: selectedDoctor,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`tempFormData_${currentEmail}`, JSON.stringify(tempData));
+      console.log('💾 Saved form data temporarily:', tempData);
+    }
+  };
+
+  const loadFormDataFromTemp = () => {
+    const currentEmail = localStorage.getItem('currentPatientEmail');
+    if (currentEmail && isFromPatientSidebar) {
+      const tempDataStr = localStorage.getItem(`tempFormData_${currentEmail}`);
+      if (tempDataStr) {
+        const tempData = JSON.parse(tempDataStr);
+        
+        // Only restore if data is less than 1 hour old
+        const oneHour = 60 * 60 * 1000;
+        if (Date.now() - tempData.timestamp < oneHour) {
+          console.log('📥 Restoring form data from temp storage:', tempData);
+          
+          setFormData(prev => ({
+            ...prev,
+            symptoms: tempData.symptoms || [],
+            services: tempData.services || [],
+            appointmentDateTime: tempData.appointmentDateTime || '',
+            isPriority: tempData.isPriority || false,
+            priorityType: tempData.priorityType || null,
+            isReturningPatient: tempData.isReturningPatient || false,
+          }));
+
+          if (tempData.expandedCategory) {
+            setExpandedCategory(tempData.expandedCategory);
+          }
+
+          if (tempData.bookingMode) {
+            setBookingMode(tempData.bookingMode);
+          }
+
+          if (tempData.selectedDoctor) {
+            setSelectedDoctor(tempData.selectedDoctor);
+          }
+          
+          return true;
+        } else {
+          // Data is too old, remove it
+          localStorage.removeItem(`tempFormData_${currentEmail}`);
+          console.log('🗑️ Temp form data expired, removed');
+        }
+      }
+    }
+    return false;
+  };
+
   //==================== STATE DECLARATIONS ====================
   const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
@@ -68,6 +135,16 @@ function Checkin() {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState(1);
+  const [bookingMode, setBookingMode] = useState('service');
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  
+  const currentPatientEmail = localStorage.getItem('currentPatientEmail');
+  const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
+  
+  const profileLoadedRef = useRef(false);
+  const tempDataLoadedRef = useRef(false);
+  const appointmentCheckDoneRef = useRef(false);
+
   const [formData, setFormData] = useState({
     name: "",
     age: "",
@@ -97,6 +174,175 @@ function Checkin() {
     { id: "microscopy", label: "Clinical Microscopy & Parasitology", services: [{ id: "urinalysis", label: "Urinalysis" }, { id: "fecalysis", label: "Fecalysis (Stool Test)" }, { id: "pregnancyT", label: "Pregnancy Test" }, { id: "fecal", label: "Fecal Occult Blood (Hidden Blood in Stool)" }, { id: "semen", label: "Semen Analysis" }] },
     { id: "others", label: "Others", services: [{ id: "tsh", label: "TSH (Thyroid Stimulating Hormone)" }, { id: "ft3", label: "FT3 (Free T3 Thyroid Hormone)" }, { id: "75g", label: "75 Grams OGTT (Diabetes Glucose Challenge Test)" }, { id: "t4", label: "T4 (T4 Thyroid Hormone)" }, { id: "t3", label: "T3 (T3 Thyroid Hormone)" }, { id: "psa", label: "PSA (Prostate Health Screening)" }, { id: "totalBilirubin", label: "Total/ Direct Bilirubin (Jaundice Check)" }] },
   ];
+
+  const availableDoctors = [
+    { 
+      id: 1, 
+      name: "Dr. Melissa B. Edic", 
+      specialization: "Pediatrics",
+      schedule: "Thu-Fri: 9AM-5PM, Wed (2nd & 4th): 9AM-3PM",
+      availability: [
+        { days: [4, 5], startHour: 9, endHour: 17 },
+        { days: [3], startHour: 9, endHour: 15, weeksOfMonth: [2, 4] }
+      ]
+    },
+    { 
+      id: 2, 
+      name: "Dr. Genevive Bandiwan-Laking", 
+      specialization: "Pediatrics",
+      schedule: "By Appointment Only",
+      availability: [
+        { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+      ]
+    },
+    { 
+      id: 3, 
+      name: "Dr. Cynthia Moran", 
+      specialization: "Internal Medicine",
+      schedule: "Wed: 9AM-12PM",
+      availability: [
+        { days: [3], startHour: 9, endHour: 12 }
+      ]
+    },
+    { 
+      id: 4, 
+      name: "Dr. Edrian O. Geronimo", 
+      specialization: "Infectious Disease",
+      schedule: "Tue, Thu: 9AM-12PM",
+      availability: [
+        { days: [2, 4], startHour: 9, endHour: 12 }
+      ]
+    },
+    { 
+      id: 5, 
+      name: "Dr. Feb Golocan-Alquiza", 
+      specialization: "Nephrology",
+      schedule: "Mon, Tue, Thu: 1PM-5PM",
+      availability: [
+        { days: [1, 2, 4], startHour: 13, endHour: 17 }
+      ]
+    },
+    { 
+      id: 6, 
+      name: "Dr. Tanya Charissa Diomampo", 
+      specialization: "Nephrology",
+      schedule: "Wed: 1PM-5PM, Sat: 10AM-1PM",
+      availability: [
+        { days: [3], startHour: 13, endHour: 17 },
+        { days: [6], startHour: 10, endHour: 13 }
+      ]
+    },
+    { 
+      id: 7, 
+      name: "Dr. Maricar Josephine A. Geronimo", 
+      specialization: "Nephrology",
+      schedule: "Fri: 1PM-5PM",
+      availability: [
+        { days: [5], startHour: 13, endHour: 17 }
+      ]
+    },
+    { 
+      id: 8, 
+      name: "Dr. Elvira T. Lampacan", 
+      specialization: "OB-GYN",
+      schedule: "Wed, Fri: 9:30AM-12PM, Thu: 1PM-3PM",
+      availability: [
+        { days: [3, 5], startHour: 9.5, endHour: 12 },
+        { days: [4], startHour: 13, endHour: 15 }
+      ]
+    },
+    { 
+      id: 9, 
+      name: "Dr. Clarissa Mae L. Lee", 
+      specialization: "OB-GYN",
+      schedule: "Mon, Tue: 9:30AM-12PM, Sat: 1PM-3PM",
+      availability: [
+        { days: [1, 2], startHour: 9.5, endHour: 12 },
+        { days: [6], startHour: 13, endHour: 15 }
+      ]
+    },
+    { 
+      id: 10, 
+      name: "Dr. Herschel Charisse C. Rivera-Ang", 
+      specialization: "OB-GYN",
+      schedule: "Mon-Wed: 1PM-3PM",
+      availability: [
+        { days: [1, 2, 3], startHour: 13, endHour: 15 }
+      ]
+    },
+    { 
+      id: 11, 
+      name: "Dr. Cecille P. Pating", 
+      specialization: "OB-GYN",
+      schedule: "Thu, Sat: 9:30AM-12PM, Fri: 1PM-3PM",
+      availability: [
+        { days: [4, 6], startHour: 9.5, endHour: 12 },
+        { days: [5], startHour: 13, endHour: 15 }
+      ]
+    },
+    { 
+      id: 12, 
+      name: "Dr. Richard S. Ang", 
+      specialization: "Orthopedics & Urology",
+      schedule: "Mon-Fri: 8AM-5PM",
+      availability: [
+        { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+      ]
+    },
+    { 
+      id: 13, 
+      name: "Dr. Rajiv D. Laoagan", 
+      specialization: "General Surgery",
+      schedule: "Thu: 8AM-5PM, Fri-Sat: 8AM-12PM",
+      availability: [
+        { days: [4], startHour: 8, endHour: 17 },
+        { days: [5, 6], startHour: 8, endHour: 12 }
+      ]
+    },
+    { 
+      id: 14, 
+      name: "Dr. Jefferson Richmond G. Chomenwey",
+      specialization: "General Surgery",
+      schedule: "By Appointment Only",
+      availability: [
+        { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+      ]
+    },
+    { 
+      id: 15, 
+      name: "Dr. Rhea Jeanne L. Awas", 
+      specialization: "ENT",
+      schedule: "Mon-Wed: 8AM-5PM",
+      availability: [
+        { days: [1, 2, 3], startHour: 8, endHour: 17 }
+      ]
+    }
+  ];
+
+  const isDoctorAvailable = (doctor, appointmentDateTime) => {
+    if (!appointmentDateTime) return true;
+    
+    const appointmentDate = new Date(appointmentDateTime);
+    const dayOfWeek = appointmentDate.getDay();
+    const appointmentHour = appointmentDate.getHours() + (appointmentDate.getMinutes() / 60);
+    const weekOfMonth = Math.ceil(appointmentDate.getDate() / 7);
+    
+    return doctor.availability.some(slot => {
+      if (!slot.days.includes(dayOfWeek)) {
+        return false;
+      }
+      
+      if (appointmentHour < slot.startHour || appointmentHour >= slot.endHour) {
+        return false;
+      }
+      
+      if (slot.weeksOfMonth && !slot.weeksOfMonth.includes(weekOfMonth)) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
 
   //==================== EVENT HANDLERS ====================
   const handleNav = () => setNav(!nav);
@@ -136,6 +382,18 @@ function Checkin() {
     });
   };
 
+  const handleDoctorSelect = (doctorId) => {
+    const doctor = availableDoctors.find(d => d.id === doctorId);
+    setSelectedDoctor(doctor);
+    
+    if (doctor && !formData.services.includes('follow-up')) {
+      setFormData(prev => ({
+        ...prev,
+        services: ['follow-up']
+      }));
+    }
+  };
+
   const showMessage = (title, message, isSuccess = true) => {
     document.getElementById("message-box").innerHTML = `
       <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -164,14 +422,14 @@ function Checkin() {
     });
     setExpandedCategory(null);
     setAvailableSlots(1);
+    setBookingMode('service');
+    setSelectedDoctor(null);
   };
 
   const handlePatientSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // FIX: Normalize the data structure before sending to Supabase Client
-    // This ensures both "name" and "fullName" keys exist so no null constraint is violated.
     const dataToSubmit = {
       ...formData,
       name: formData.name || "Guest Patient", 
@@ -179,6 +437,17 @@ function Checkin() {
     };
 
     try {
+      if (isFromPatientSidebar) {
+        if (!formData.name || !formData.age || !formData.phoneNum) {
+          showMessage(
+            "Profile Incomplete", 
+            "Please complete your profile in Settings before booking an appointment.", 
+            false
+          );
+          setIsSubmitting(false);
+          return;
+        }
+      }
       let result;
 
       if (selectedPatientType === "Walk-in") {
@@ -186,6 +455,12 @@ function Checkin() {
       } else if (selectedPatientType === "Appointment") {
         if (!formData.appointmentDateTime) {
           showMessage("Validation Error", "Please select appointment date and time.", false);
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (bookingMode === 'doctor' && !selectedDoctor) {
+          showMessage("Validation Error", "Please select a doctor for your appointment.", false);
           setIsSubmitting(false);
           return;
         }
@@ -233,6 +508,12 @@ function Checkin() {
           priorityType: formData.priorityType,
           isReturningPatient: formData.isReturningPatient,
           patientEmail: currentPatientEmail || null,
+          preferredDoctor: bookingMode === 'doctor' && selectedDoctor ? {
+            id: selectedDoctor.id,
+            name: selectedDoctor.name,
+            specialization: selectedDoctor.specialization
+          } : null,
+          bookingMode: bookingMode,
         };
 
         if (existingPatient && formData.isReturningPatient) {
@@ -265,6 +546,12 @@ function Checkin() {
         showMessage("Success", successMsg, true);
 
         setTimeout(() => {
+          const currentEmail = localStorage.getItem('currentPatientEmail');
+          if (currentEmail) {
+            localStorage.removeItem(`tempFormData_${currentEmail}`);
+            console.log('🗑️ Cleared temp form data after successful submission');
+          }
+
           const params = new URLSearchParams();
           if (isPatientAccess) params.append('view', 'patient');
           if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
@@ -283,17 +570,118 @@ function Checkin() {
   
   //==================== USE EFFECTS ====================
   useEffect(() => {
-    if (formData.appointmentDateTime) {
+    if (selectedDoctor && formData.appointmentDateTime && bookingMode === 'doctor') {
+      const isStillAvailable = isDoctorAvailable(selectedDoctor, formData.appointmentDateTime);
+      if (!isStillAvailable) {
+        console.log(`⚠️ ${selectedDoctor.name} is not available at selected time, clearing selection`);
+        setSelectedDoctor(null);
+      }
+    }
+  }, [formData.appointmentDateTime, selectedDoctor, bookingMode]);
+
+  useEffect(() => {
+    if (formData.appointmentDateTime && typeof getAvailableSlots === 'function') {
       const slots = getAvailableSlots(formData.appointmentDateTime);
       setAvailableSlots(slots);
     }
-  }, [formData.appointmentDateTime, getAvailableSlots, patients]);
+  }, [formData.appointmentDateTime, getAvailableSlots]);
 
+  useEffect(() => {
+    if (isFromPatientSidebar && selectedPatientType && !tempDataLoadedRef.current) {
+      const restored = loadFormDataFromTemp();
+      if (restored) {
+        tempDataLoadedRef.current = true;
+        console.log('✅ Successfully restored previous form selections');
+      }
+    }
+    if (!selectedPatientType) {
+      tempDataLoadedRef.current = false;
+    }
+  }, [isFromPatientSidebar, selectedPatientType]);
+
+  useEffect(() => {
+    if (isFromPatientSidebar && selectedPatientType && !profileLoadedRef.current) {
+      try {
+        const email = localStorage.getItem('currentPatientEmail');
+        if (email) {
+          const userProfileStr = localStorage.getItem(`userProfile_${email}`);
+          if (userProfileStr) {
+            const userProfile = JSON.parse(userProfileStr);
+            
+            console.log('📋 Loading profile data for:', email);
+            console.log('📋 Profile data:', userProfile);
+            
+            setFormData(prev => ({
+              ...prev,
+              name: userProfile.fullName || prev.name,
+              age: userProfile.age || prev.age,
+              phoneNum: userProfile.phoneNumber || prev.phoneNum,
+            }));
+            
+            profileLoadedRef.current = true;
+            console.log('✅ Profile loaded and marked');
+          } else {
+            console.log('⚠️ No profile found for:', email);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading user profile:', error);
+      }
+    }
+    
+    if (!selectedPatientType) {
+      profileLoadedRef.current = false;
+    }
+  }, [isFromPatientSidebar, selectedPatientType]);
+
+  // ✅✅✅ COMPLETELY REWRITTEN - This is the fix!
+  useEffect(() => {
+    // Only check once when component mounts or when we return from settings
+    if (appointmentCheckDoneRef.current) {
+      return; // Already checked, don't check again
+    }
+    
+    // Only check if we're in patient sidebar view and NOT selecting a patient type
+    if (!isFromPatientSidebar || selectedPatientType || !isPatientLoggedIn) {
+      return;
+    }
+    
+    const currentPatientEmail = localStorage.getItem('currentPatientEmail');
+    if (!currentPatientEmail) {
+      return;
+    }
+    
+    // Find existing appointment - do this INSIDE useEffect, not in useMemo
+    const myActiveAppointment = patients.find(p => 
+      p.type === 'Appointment' &&
+      p.patientEmail &&
+      p.patientEmail.toLowerCase().trim() === currentPatientEmail.toLowerCase().trim() &&
+      (p.appointmentStatus === 'pending' || p.appointmentStatus === 'accepted') &&
+      !p.isInactive
+    );
+
+    if (myActiveAppointment) {
+      console.log('✅ Found existing appointment, setting active patient');
+      appointmentCheckDoneRef.current = true;
+      setActivePatient(myActiveAppointment);
+    }
+    
+  // ✅✅✅ KEY FIX: Only depend on length, not the whole array!
+  }, [isFromPatientSidebar, selectedPatientType, isPatientLoggedIn, patients.length]);
+
+  // Reset the ref when patient type is selected (so we can check again if they go back)
+  useEffect(() => {
+    if (selectedPatientType) {
+      appointmentCheckDoneRef.current = false;
+    }
+  }, [selectedPatientType]);
+
+  // ✅ Navigation redirect - simple and clean
   if (activePatient) {
     const params = new URLSearchParams();
     if (isPatientAccess) params.append('view', 'patient');
     if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
-    return <Navigate to={`/qstatus${params.toString() ? '?' + params.toString() : ''}`} />;
+    return <Navigate to={`/qstatus${params.toString() ? '?' + params.toString() : ''}`} replace />;
   }
 
   // === CLINIC VIEW ===
@@ -373,6 +761,7 @@ function Checkin() {
             {selectedPatientType === "Appointment" && (
               <div className="space-y-4 mb-6">
                 <AppointmentPicker
+                  key={formData.appointmentDateTime || 'appointment-picker'}
                   selectedDateTime={formData.appointmentDateTime}
                   onDateTimeChange={(dateTime) => setFormData({ ...formData, appointmentDateTime: dateTime })}
                   getAvailableSlots={getAvailableSlots}
@@ -380,11 +769,145 @@ function Checkin() {
               </div>
             )}
             <form onSubmit={handlePatientSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label htmlFor="name">Full Name *</Label><Input id="name" type="text" value={formData.name} onChange={handleInputChange} required /></div>
-                <div className="space-y-2"><Label htmlFor="age">Age *</Label><Input id="age" type="number" value={formData.age} onChange={handleInputChange} required /></div>
-              </div>
-              <div className="space-y-2"><Label htmlFor="phoneNum">Phone Number *</Label><Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handleInputChange} required /></div>
+              {/* PROFILE INFO - Only show for logged-in users */}
+              {isFromPatientSidebar && (
+                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="bg-green-600 p-2 rounded-full">
+                      <User className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-green-800 mb-1">Booking For:</h3>
+                      <p className="text-sm text-green-700">Your profile information will be used for this appointment</p>
+                    </div>
+                  </div>
+                  
+                  {formData.name && formData.age && formData.phoneNum ? (
+                    <div className="space-y-2 bg-white p-4 rounded-md border border-green-200">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-600 font-medium">Name:</span>
+                        <span className="font-semibold text-gray-900">{formData.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span className="text-sm text-gray-600 font-medium">Age:</span>
+                        <span className="font-semibold text-gray-900">{formData.age} years</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm text-gray-600 font-medium">Phone:</span>
+                        <span className="font-semibold text-gray-900">{formData.phoneNum}</span>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-green-600 border-green-600 hover:bg-green-50"
+                          onClick={() => {
+                            saveFormDataToTemp();
+                            navigate('/patient-settings?from=patient-sidebar');
+                          }}
+                        >
+                          <Edit2 className="w-4 h-4 mr-2" />
+                          Update Profile Information
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-md p-4">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-yellow-800 mb-2">Profile Not Complete</p>
+                          <p className="text-xs text-yellow-700 mb-3">
+                            Please complete your profile to book appointments quickly and easily.
+                          </p>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                            onClick={() => {
+                              console.log('🔘 Complete Profile button clicked');
+                              saveFormDataToTemp();
+                              console.log('✅ Form data saved, navigating to settings...');
+                              setTimeout(() => {
+                                navigate('/patient-settings?from=patient-sidebar');
+                              }, 100);
+                            }}
+                          >
+                            Complete Profile Now
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ADD BOOKING MODE SELECTION FOR APPOINTMENTS */}
+              {selectedPatientType === "Appointment" && (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg">
+                  <Label className="text-blue-800 font-bold mb-3 block">Book your appointment by:</Label>
+                  
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingMode('service');
+                        setSelectedDoctor(null);
+                      }}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        bookingMode === 'service'
+                          ? 'border-blue-600 bg-blue-600 text-white shadow-lg'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center">
+                        <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span className="font-semibold text-sm">Service</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingMode('doctor');
+                        setFormData(prev => ({ ...prev, services: [] }));
+                      }}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        bookingMode === 'doctor'
+                          ? 'border-blue-600 bg-blue-600 text-white shadow-lg'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-blue-400'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center">
+                        <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <span className="font-semibold text-sm">Doctor</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-blue-700">
+                    {bookingMode === 'service' 
+                      ? 'Choose the medical services you need, and we\'ll assign the appropriate doctor.' 
+                      : 'Select a specific doctor you\'d like to see for your appointment.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Only show input fields if NOT from patient sidebar */}
+              {!isFromPatientSidebar && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label htmlFor="name">Full Name *</Label><Input id="name" type="text" value={formData.name} onChange={handleInputChange} required /></div>
+                    <div className="space-y-2"><Label htmlFor="age">Age *</Label><Input id="age" type="number" value={formData.age} onChange={handleInputChange} required /></div>
+                  </div>
+                  <div className="space-y-2"><Label htmlFor="phoneNum">Phone Number *</Label><Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handleInputChange} required /></div>
+                </>
+              )}
 
               <div className="space-y-3 p-4 rounded-lg border-2 border-blue-300 bg-blue-50">
                 <Label className="text-blue-800 font-bold">Are you a new or returning patient? *</Label>
@@ -417,21 +940,97 @@ function Checkin() {
                 ))}
               </div>
 
-              <div className="space-y-3 p-4 rounded-lg border border-green-300 bg-green-50">
-                <Label className="text-green-700 font-bold">Select Services</Label>
-                {serviceCategories.map(cat => (
-                  <div key={cat.id} className="pt-2 border-b last:border-b-0">
-                    <div className="cursor-pointer flex justify-between font-semibold text-green-700" onClick={() => toggleCategory(cat.id)}>{cat.label} <span>{expandedCategory === cat.id ? "▲" : "▼"}</span></div>
-                    {expandedCategory === cat.id && (
-                      <div className="ml-2 mt-2 space-y-2">
-                        {cat.services.map(svc => (
-                          <div key={svc.id} className="flex items-center"><input type="checkbox" id={svc.id} checked={formData.services.includes(svc.id)} onChange={(e) => handleServiceChange(svc.id, e.target.checked)} className="h-4 w-4" /><Label htmlFor={svc.id} className="ml-2">{svc.label}</Label></div>
-                        ))}
+              {/* DOCTOR SELECTION SECTION */}
+              {selectedPatientType === "Appointment" && bookingMode === 'doctor' && (
+                <div className="space-y-3 p-4 rounded-lg border border-indigo-300 bg-indigo-50">
+                  <Label className="text-indigo-800 font-bold">Select Doctor *</Label>
+                  
+                  {!formData.appointmentDateTime && (
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-md p-3 mb-3">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-yellow-800">
+                          Please select an appointment date and time first to see available doctors.
+                        </p>
                       </div>
-                    )}
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {availableDoctors.map(doctor => {
+                      const isAvailable = isDoctorAvailable(doctor, formData.appointmentDateTime);
+                      
+                      return (
+                        <div
+                          key={doctor.id}
+                          onClick={() => isAvailable && handleDoctorSelect(doctor.id)}
+                          className={`p-4 rounded-lg border-2 transition-all ${
+                            !isAvailable
+                              ? 'opacity-50 cursor-not-allowed bg-gray-100 border-gray-300'
+                              : selectedDoctor?.id === doctor.id
+                                ? 'border-indigo-600 bg-indigo-100 shadow-md cursor-pointer'
+                                : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-indigo-50 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-bold text-gray-900">{doctor.name}</h4>
+                                {!isAvailable && formData.appointmentDateTime && (
+                                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                                    Not Available
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">{doctor.specialization}</p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{doctor.schedule}</span>
+                              </div>
+                            </div>
+                            
+                            {selectedDoctor?.id === doctor.id && isAvailable && (
+                              <div className="flex-shrink-0">
+                                <svg className="w-6 h-6 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                  
+                  {selectedDoctor && (
+                    <div className="mt-3 p-3 bg-indigo-100 rounded-md">
+                      <p className="text-sm text-indigo-900">
+                        <strong>Selected:</strong> {selectedDoctor.name}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(selectedPatientType === "Walk-in" || bookingMode === 'service') && (
+                <div className="space-y-3 p-4 rounded-lg border border-green-300 bg-green-50">
+                  <Label className="text-green-700 font-bold">Select Services</Label>
+                  {serviceCategories.map(cat => (
+                    <div key={cat.id} className="pt-2 border-b last:border-b-0">
+                      <div className="cursor-pointer flex justify-between font-semibold text-green-700" onClick={() => toggleCategory(cat.id)}>{cat.label} <span>{expandedCategory === cat.id ? "▲" : "▼"}</span></div>
+                      {expandedCategory === cat.id && (
+                        <div className="ml-2 mt-2 space-y-2">
+                          {cat.services.map(svc => (
+                            <div key={svc.id} className="flex items-center"><input type="checkbox" id={svc.id} checked={formData.services.includes(svc.id)} onChange={(e) => handleServiceChange(svc.id, e.target.checked)} className="h-4 w-4" /><Label htmlFor={svc.id} className="ml-2">{svc.label}</Label></div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="space-y-3">
                 <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg" disabled={isSubmitting || (selectedPatientType === "Appointment" && availableSlots <= 0)}>

@@ -14,8 +14,7 @@ import PatientProfile from "./PatientProfile";
 import Homepage from "./Homepage";
 import AppointmentHistory from "./AppointmentHistory";
 import ClinicTVDisplay from "./ClinicTVDisplay";
-
-
+import PatientSettings from "./PatientSettings";
 
 
 function App() {
@@ -65,6 +64,7 @@ function App() {
           <Route path="/homepage" element={<Homepage />} />
           <Route path="/appointmenthistory" element={<AppointmentHistory />} />
           <Route path="/clinic-tv" element={<ClinicTVDisplay />} />
+          <Route path="/patient-settings" element={<PatientSettings />} />
         </Routes>
       </PatientProvider>
     </Router>

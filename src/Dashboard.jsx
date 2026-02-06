@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { PatientContext } from "./PatientContext";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
+//OUTDATED FILE
 //THIS CONTAINS QUEUE TABLES FOR ALL & SPECIFIC DOCTORS
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -129,7 +129,7 @@ const Dashboard = () => {
     doc.setFont(undefined, 'bold');
     doc.text('Summary Statistics', 14, 86);
     doc.setFont(undefined, 'normal');
-    doc.text(`Current Serving: #${String(currentServing).padStart(3, '0')}`, 14, 92);
+    doc.text(`Current Serving: ${currentServing ? `#${String(currentServing).padStart(3, '0')}` : 'No Patient'}`, 14, 92);
     doc.text(`Average Wait Time: ${avgWaitTime} mins`, 14, 98);
     const totalWaitingForReport = viewMode === 'general' 
   ? totalWaiting 
@@ -359,14 +359,51 @@ const Dashboard = () => {
   };
 
   
-  const handleCallNext = () => {
+ const handleCallNext = () => {
+    // ✅ NEW: If no one is currently being served, start the queue
+    if (!currentServing) {
+      // First check for priority patients
+      const firstPriorityPatient = patients.find(p => 
+        p.status === "waiting" && 
+        p.inQueue && 
+        p.isPriority && 
+        !p.isInactive &&
+        (p.type !== "Appointment" || p.appointmentStatus === "accepted")
+      );
+      
+      if (firstPriorityPatient) {
+        updatePatientStatus(firstPriorityPatient.queueNo, 'in progress');
+        setCurrentServing(firstPriorityPatient.queueNo);
+        return;
+      }
+      
+      // Then check for regular waiting patients
+      const firstWaitingPatient = patients.find(p => 
+        p.status === "waiting" && 
+        p.inQueue && 
+        !p.isPriority && 
+        !p.isInactive &&
+        (p.type !== "Appointment" || p.appointmentStatus === "accepted")
+      );
+      
+      if (firstWaitingPatient) {
+        updatePatientStatus(firstWaitingPatient.queueNo, 'in progress');
+        setCurrentServing(firstWaitingPatient.queueNo);
+        return;
+      }
+      
+      // No patients waiting
+      return;
+    }
+    
+    // ✅ EXISTING LOGIC: Mark current patient as done and call next
     const currentPatient = patients.find(p => 
-    p.status === "in progress" && 
-    p.inQueue && 
-    !p.isInactive &&
-    (p.type !== "Appointment" || p.appointmentStatus === "accepted")
+      p.status === "in progress" && 
+      p.inQueue && 
+      !p.isInactive &&
+      (p.type !== "Appointment" || p.appointmentStatus === "accepted")
     );
-  
+    
     if (currentPatient) {
       updatePatientStatus(currentPatient.queueNo, 'done');
     }
@@ -393,8 +430,8 @@ const Dashboard = () => {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
       setCurrentServing(nextWaitingPatient.queueNo);
     } else {
-      // No more waiting patients, just increment
-      setCurrentServing(prev => prev + 1);
+      // No more waiting patients, reset to null
+      setCurrentServing(null);
     }
   };
 
@@ -444,8 +481,8 @@ const Dashboard = () => {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
       setCurrentServing(nextWaitingPatient.queueNo);
     } else {
-      // No more waiting patients, just increment
-      setCurrentServing(prev => prev + 1);
+      // ADDED CHANGE: Reset to null when no patients left
+      setCurrentServing(null);
     }
   };
 
@@ -526,290 +563,120 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex w-full min-h-screen">
+    <div className="flex w-full min-h-screen overflow-x-hidden">
       <Sidebar nav={nav} handleNav={handleNav} />
 
-      <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 transition-all duration-300">
-        <div className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-            {/* Desktop: Side by side layout */}
-            <div className="hidden sm:flex items-center justify-between mb-3 pt-12 lg:pt-8">
-              <div className="flex items-center gap-3">
-                <div>
-                  <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard</h1>
-                  <p className="text-xs sm:text-sm text-gray-600">De Valley Medical Clinic Queue Management</p>
-                </div>
-              </div>
-              <Button 
-                onClick={() => window.open('/clinic-tv', '_blank')}
-                className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span>TV Display</span>
-              </Button>
-              <Button 
-                onClick={downloadReport}
-                className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Report</span>
-              </Button>
-            </div>
-            {/* Doctor Selector */}
-            <div className="bg-white border-t border-gray-200 pt-11 lg:pt-4 mt-5">
-              <Label className="text-sm font-medium text-gray-700 mb-2 block">Select View Mode:</Label>
-              
-              {/* Mobile: Dropdown View */}
-              <div className="block lg:hidden">
-                <div className="relative">
-                  <button
-                    onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-gray-300 rounded-lg hover:border-green-500 transition-colors"
-                  >
-                    <span className="font-medium text-gray-900">{getCurrentViewLabel()}</span>
-                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {showDoctorDropdown && (
-                      <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
-                      {/* General View Option */}
-                      <button
-                        onClick={() => {
-                          setViewMode('general');
-                          setSelectedDoctor(null);
-                          setShowDoctorDropdown(false);
-                        }}
-                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b ${
-                          viewMode === 'general' ? 'bg-blue-50 font-semibold' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span>General Queue (All Doctors)</span>
-                          {viewMode === 'general' && (
-                            <div className="w-2 h-2 rounded-full bg-blue-600"></div>
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Doctor Options */}
-                      {doctors.map(doctor => {
-                        const patientCount = getDoctorPatientCount(doctor.id);
-                        const doctorStatus = getDoctorStatus(doctor.id);
-                        const isActive = isDoctorActive(doctor.id);
-
-                        return (
-                          <div key={doctor.id} className="border-b last:border-b-0">
-                            <div className="px-4 py-3">
-                              <button
-                                onClick={() => {
-                                  if (isActive) {
-                                    setViewMode('doctor');
-                                    setSelectedDoctor(doctor.id);
-                                    setShowDoctorDropdown(false);
-                                  }
-                                }}
-                                disabled={!isActive}
-                                className={`w-full text-left hover:bg-gray-50 transition-colors p-2 rounded ${
-                                  !isActive ? 'opacity-50 bg-gray-50' : ''
-                                } ${
-                                  selectedDoctor === doctor.id ? 'bg-green-50 font-semibold' : ''
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    {!isActive && <span className="text-sm">⏸</span>}
-                                    <span>{doctor.name}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {isActive && patientCount > 0 && (
-                                      <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
-                                        doctorStatus === 'hasPatients' ? 'bg-blue-600' :
-                                        doctorStatus === 'busy' ? 'bg-orange-600' :
-                                        'bg-gray-600'
-                                      }`}>
-                                        {patientCount}
-                                      </span>
-                                    )}
-                                    {selectedDoctor === doctor.id && (
-                                      <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                                    )}
-                                  </div>
-                                </div>
-                              </button>
-                              <div className="flex items-center gap-2 mt-2">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isActive) {
-                                      stopDoctorQueue(doctor.id);
-                                    } else {
-                                      startDoctorQueue(doctor.id);
-                                    }
-                                  }}
-                                  className={`text-xs px-2 py-1 rounded ${
-                                    isActive 
-                                      ? 'bg-red-100 text-red-600 hover:bg-red-200' 
-                                      : 'bg-green-100 text-green-600 hover:bg-green-200'
-                                  }`}
-                                >
-                                  {isActive ? 'Stop Queue' : 'Start Queue'}
-                                </button>
-                                {!isActive && (
-                                  <span className="text-xs text-gray-500">Inactive</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Legend for mobile */}
-                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Status Legend:</p>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span className="text-gray-600">Has waiting patients</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                      <span className="text-gray-600">Busy (no waiting)</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                      <span className="text-gray-600">⏸ Inactive</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                      <span className="text-gray-600">No patients</span>
-                    </div>
+      <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 transition-all duration-300 overflow-x-hidden">
+        <div className="max-w-[100vw]">
+          <div className="bg-white shadow-sm">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+              {/* Desktop: Side by side layout */}
+              <div className="hidden sm:flex items-center justify-between mb-3 pt-12 lg:pt-8">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard</h1>
+                    <p className="text-xs sm:text-sm text-gray-600">De Valley Medical Clinic Queue Management</p>
                   </div>
                 </div>
+                <Button 
+                  onClick={() => window.open('/clinic-tv', '_blank')}
+                  className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span>TV Display</span>
+                </Button>
+                <Button 
+                  onClick={downloadReport}
+                  className="bg-green-600 hover:bg-green-700 flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Report</span>
+                </Button>
               </div>
+              {/* Doctor Selector */}
+              <div className="bg-white border-t border-gray-200 pt-11 lg:pt-4 mt-5">
+                <Label className="text-sm font-medium text-gray-700 mb-2 block">Select View Mode:</Label>
+                
+                {/* Mobile: Dropdown View */}
+                <div className="block lg:hidden">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-gray-300 rounded-lg hover:border-green-500 transition-colors"
+                    >
+                      <span className="font-medium text-gray-900">{getCurrentViewLabel()}</span>
+                      <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
+                    </button>
 
-              {/* Desktop: Button/Dropdown View */}
-              <div className="hidden lg:block">
-                <div className="relative max-w-2xl">
-                  <button
-                    onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-gray-300 rounded-lg hover:border-blue-500 transition-colors shadow-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-gray-900">{getCurrentViewLabel()}</span>
-                      {viewMode === 'doctor' && selectedDoctor && (() => {
-                        const patientCount = getDoctorPatientCount(selectedDoctor);
-                        const doctorStatus = getDoctorStatus(selectedDoctor);
-                        return patientCount > 0 ? (
-                          <span className={`text-white text-xs px-2.5 py-1 rounded-full font-medium ${
-                            doctorStatus === 'hasPatients' ? 'bg-blue-600' :
-                            doctorStatus === 'busy' ? 'bg-orange-600' :
-                            'bg-gray-600'
-                          }`}>
-                            {patientCount} patient{patientCount !== 1 ? 's' : ''}
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {showDoctorDropdown && (
-                    <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
-                      {/* General View Option */}
-                      <button
-                        onClick={() => {
-                          setViewMode('general');
-                          setSelectedDoctor(null);
-                          setShowDoctorDropdown(false);
-                        }}
-                        className={`w-full text-left px-4 py-3.5 hover:bg-gray-50 transition-colors border-b ${
-                          viewMode === 'general' ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
+                    {showDoctorDropdown && (
+                        <div className="absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                        {/* General View Option */}
+                        <button
+                          onClick={() => {
+                            setViewMode('general');
+                            setSelectedDoctor(null);
+                            setShowDoctorDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b ${
+                            viewMode === 'general' ? 'bg-blue-50 font-semibold' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span>General Queue (All Doctors)</span>
                             {viewMode === 'general' && (
-                              <div className="w-1.5 h-8 bg-blue-600 rounded-full"></div>
+                              <div className="w-2 h-2 rounded-full bg-blue-600"></div>
                             )}
-                            <div>
-                              <span className={`font-medium ${viewMode === 'general' ? 'text-blue-700' : 'text-gray-900'}`}>
-                                General Queue (All Doctors)
-                              </span>
-                              <p className="text-xs text-gray-500 mt-0.5">View all patients across all doctors</p>
-                            </div>
                           </div>
-                          {viewMode === 'general' && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
-                          )}
-                        </div>
-                      </button>
+                        </button>
 
-                      {/* Doctor Options */}
-                      <div className="py-1">
-                        <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Individual Doctors</p>
+                        {/* Doctor Options */}
                         {doctors.map(doctor => {
                           const patientCount = getDoctorPatientCount(doctor.id);
                           const doctorStatus = getDoctorStatus(doctor.id);
                           const isActive = isDoctorActive(doctor.id);
-                          const isSelected = selectedDoctor === doctor.id;
 
                           return (
-                            <div 
-                              key={doctor.id} 
-                              className={`border-b last:border-b-0 ${isSelected ? 'bg-green-50' : ''}`}
-                            >
-                              <div className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center justify-between gap-4">
-                                  {/* Left: Selection Area */}
-                                  <button
-                                    onClick={() => {
-                                      if (isActive) {
-                                        setViewMode('doctor');
-                                        setSelectedDoctor(doctor.id);
-                                        setShowDoctorDropdown(false);
-                                      }
-                                    }}
-                                    disabled={!isActive}
-                                    className="flex-1 flex items-center gap-3 text-left"
-                                  >
-                                    {isSelected && (
-                                      <div className="w-1.5 h-8 bg-green-600 rounded-full"></div>
-                                    )}
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        {!isActive && <span className="text-gray-400">⏸</span>}
-                                        <span className={`font-medium ${
-                                          !isActive ? 'text-gray-400' : 
-                                          isSelected ? 'text-green-700' : 
-                                          'text-gray-900'
-                                        }`}>
-                                          {doctor.name}
-                                        </span>
-                                        {isActive && patientCount > 0 && (
-                                          <span className={`text-white text-xs px-2 py-0.5 rounded-full font-medium ${
-                                            doctorStatus === 'hasPatients' ? 'bg-blue-600' :
-                                            doctorStatus === 'busy' ? 'bg-orange-600' :
-                                            'bg-gray-600'
-                                          }`}>
-                                            {patientCount}
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        {!isActive ? 'Queue not started' : 
-                                        doctorStatus === 'hasPatients' ? 'Has patients waiting' :
-                                        doctorStatus === 'busy' ? 'Busy - no one waiting' :
-                                        'No patients currently'}
-                                      </p>
+                            <div key={doctor.id} className="border-b last:border-b-0">
+                              <div className="px-4 py-3">
+                                <button
+                                  onClick={() => {
+                                    if (isActive) {
+                                      setViewMode('doctor');
+                                      setSelectedDoctor(doctor.id);
+                                      setShowDoctorDropdown(false);
+                                    }
+                                  }}
+                                  disabled={!isActive}
+                                  className={`w-full text-left hover:bg-gray-50 transition-colors p-2 rounded ${
+                                    !isActive ? 'opacity-50 bg-gray-50' : ''
+                                  } ${
+                                    selectedDoctor === doctor.id ? 'bg-green-50 font-semibold' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      {!isActive && <span className="text-sm">⏸</span>}
+                                      <span>{doctor.name}</span>
                                     </div>
-                                  </button>
-
-                                  {/* Right: Control Button */}
+                                    <div className="flex items-center gap-2">
+                                      {isActive && patientCount > 0 && (
+                                        <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
+                                          doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                                          doctorStatus === 'busy' ? 'bg-orange-600' :
+                                          'bg-gray-600'
+                                        }`}>
+                                          {patientCount}
+                                        </span>
+                                      )}
+                                      {selectedDoctor === doctor.id && (
+                                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </button>
+                                <div className="flex items-center gap-2 mt-2">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -819,17 +686,16 @@ const Dashboard = () => {
                                         startDoctorQueue(doctor.id);
                                       }
                                     }}
-                                    className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                    className={`text-xs px-2 py-1 rounded ${
                                       isActive 
-                                        ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+                                        : 'bg-green-100 text-green-600 hover:bg-green-200'
                                     }`}
                                   >
-                                    {isActive ? 'Stop' : 'Start'}
+                                    {isActive ? 'Stop Queue' : 'Start Queue'}
                                   </button>
-
-                                  {isSelected && (
-                                    <div className="w-2.5 h-2.5 rounded-full bg-green-600"></div>
+                                  {!isActive && (
+                                    <span className="text-xs text-gray-500">Inactive</span>
                                   )}
                                 </div>
                               </div>
@@ -837,77 +703,250 @@ const Dashboard = () => {
                           );
                         })}
                       </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Desktop Legend */}
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Status Indicators:</p>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                      <span className="text-gray-600">⏸ Inactive (Not started)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                      <span className="text-gray-600">Has waiting patients</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                      <span className="text-gray-600">Busy (no one waiting)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                      <span className="text-gray-600">No patients</span>
+                    )}
+                  </div>
+
+                  {/* Legend for mobile */}
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Status Legend:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="text-gray-600">Has waiting patients</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <span className="text-gray-600">Busy (no waiting)</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-gray-600">⏸ Inactive</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-gray-600">No patients</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              
-              {/* Note section */}
-              {viewMode === 'doctor' && selectedDoctor && (
-                <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">
-                    <strong>Note:</strong> You are viewing the queue for {doctors.find(d => d.id === selectedDoctor)?.name}. 
-                    Only this doctor's patients will be shown in the tables below.
-                  </p>
+
+                {/* Desktop: Button/Dropdown View */}
+                <div className="hidden lg:block">
+                  <div className="relative w-full">
+                    <button
+                      onClick={() => setShowDoctorDropdown(!showDoctorDropdown)}
+                      className="w-full flex items-center justify-between px-4 py-3 bg-white border-2 border-gray-300 rounded-lg hover:border-blue-500 transition-colors shadow-sm"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-gray-900">{getCurrentViewLabel()}</span>
+                        {viewMode === 'doctor' && selectedDoctor && (() => {
+                          const patientCount = getDoctorPatientCount(selectedDoctor);
+                          const doctorStatus = getDoctorStatus(selectedDoctor);
+                          return patientCount > 0 ? (
+                            <span className={`text-white text-xs px-2.5 py-1 rounded-full font-medium ${
+                              doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                              doctorStatus === 'busy' ? 'bg-orange-600' :
+                              'bg-gray-600'
+                            }`}>
+                              {patientCount} patient{patientCount !== 1 ? 's' : ''}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
+                      <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${showDoctorDropdown ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showDoctorDropdown && (
+                      <div className="absolute z-20 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto">
+                        {/* General View Option */}
+                        <button
+                          onClick={() => {
+                            setViewMode('general');
+                            setSelectedDoctor(null);
+                            setShowDoctorDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-3.5 hover:bg-gray-50 transition-colors border-b ${
+                            viewMode === 'general' ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              {viewMode === 'general' && (
+                                <div className="w-1.5 h-8 bg-blue-600 rounded-full"></div>
+                              )}
+                              <div>
+                                <span className={`font-medium ${viewMode === 'general' ? 'text-blue-700' : 'text-gray-900'}`}>
+                                  General Queue (All Doctors)
+                                </span>
+                                <p className="text-xs text-gray-500 mt-0.5">View all patients across all doctors</p>
+                              </div>
+                            </div>
+                            {viewMode === 'general' && (
+                              <div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+                            )}
+                          </div>
+                        </button>
+
+                        {/* Doctor Options */}
+                        <div className="py-1">
+                          <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Individual Doctors</p>
+                          {doctors.map(doctor => {
+                            const patientCount = getDoctorPatientCount(doctor.id);
+                            const doctorStatus = getDoctorStatus(doctor.id);
+                            const isActive = isDoctorActive(doctor.id);
+                            const isSelected = selectedDoctor === doctor.id;
+
+                            return (
+                              <div 
+                                key={doctor.id} 
+                                className={`border-b last:border-b-0 ${isSelected ? 'bg-green-50' : ''}`}
+                              >
+                                <div className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                                  <div className="flex items-center justify-between gap-4">
+                                    {/* Left: Selection Area */}
+                                    <button
+                                      onClick={() => {
+                                        if (isActive) {
+                                          setViewMode('doctor');
+                                          setSelectedDoctor(doctor.id);
+                                          setShowDoctorDropdown(false);
+                                        }
+                                      }}
+                                      disabled={!isActive}
+                                      className="flex-1 flex items-center gap-3 text-left"
+                                    >
+                                      {isSelected && (
+                                        <div className="w-1.5 h-8 bg-green-600 rounded-full"></div>
+                                      )}
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                          {!isActive && <span className="text-gray-400">⏸</span>}
+                                          <span className={`font-medium ${
+                                            !isActive ? 'text-gray-400' : 
+                                            isSelected ? 'text-green-700' : 
+                                            'text-gray-900'
+                                          }`}>
+                                            {doctor.name}
+                                          </span>
+                                          {isActive && patientCount > 0 && (
+                                            <span className={`text-white text-xs px-2 py-0.5 rounded-full font-medium ${
+                                              doctorStatus === 'hasPatients' ? 'bg-blue-600' :
+                                              doctorStatus === 'busy' ? 'bg-orange-600' :
+                                              'bg-gray-600'
+                                            }`}>
+                                              {patientCount}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          {!isActive ? 'Queue not started' : 
+                                          doctorStatus === 'hasPatients' ? 'Has patients waiting' :
+                                          doctorStatus === 'busy' ? 'Busy - no one waiting' :
+                                          'No patients currently'}
+                                        </p>
+                                      </div>
+                                    </button>
+
+                                    {/* Right: Control Button */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isActive) {
+                                          stopDoctorQueue(doctor.id);
+                                        } else {
+                                          startDoctorQueue(doctor.id);
+                                        }
+                                      }}
+                                      className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                                        isActive 
+                                          ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                      }`}
+                                    >
+                                      {isActive ? 'Stop' : 'Start'}
+                                    </button>
+
+                                    {isSelected && (
+                                      <div className="w-2.5 h-2.5 rounded-full bg-green-600"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Desktop Legend */}
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Status Indicators:</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-gray-600">⏸ Inactive (Not started)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                        <span className="text-gray-600">Has waiting patients</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <span className="text-gray-600">Busy (no one waiting)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="text-gray-600">No patients</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Mobile: Stacked layout */}
-            <div className="sm:hidden space-y-3 mb-3">
-              <div>
-                <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
-                <p className="text-xs text-gray-600">De Valley Medical Clinic Queue</p>
+                
+                {/* Note section */}
+                {viewMode === 'doctor' && selectedDoctor && (
+                  <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800">
+                      <strong>Note:</strong> You are viewing the queue for {doctors.find(d => d.id === selectedDoctor)?.name}. 
+                      Only this doctor's patients will be shown in the tables below.
+                    </p>
+                  </div>
+                )}
               </div>
-              <Button 
-                onClick={() => window.open('/clinic-tv', '_blank')}
-                className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <span>TV Display</span>
-              </Button>
-              <Button 
-                onClick={downloadReport}
-                className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Report</span>
-              </Button>
-            </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm text-gray-600">Medical Staff:</span>
-                <span className="text-xs sm:text-sm font-semibold text-gray-900">12 Doctors Available</span>
+              {/* Mobile: Stacked layout */}
+              <div className="sm:hidden space-y-3 mb-3">
+                <div>
+                  <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
+                  <p className="text-xs text-gray-600">De Valley Medical Clinic Queue</p>
+                </div>
+                <Button 
+                  onClick={() => window.open('/clinic-tv', '_blank')}
+                  className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span>TV Display</span>
+                </Button>
+                <Button 
+                  onClick={downloadReport}
+                  className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Report</span>
+                </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm text-gray-600">Secretary:</span>
-                <span className="text-xs sm:text-sm font-semibold text-gray-900">{secretaryName}</span>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm text-gray-600">Medical Staff:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-gray-900">12 Doctors Available</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm text-gray-600">Secretary:</span>
+                  <span className="text-xs sm:text-sm font-semibold text-gray-900">{secretaryName}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1135,80 +1174,80 @@ const Dashboard = () => {
 
                   {/* Desktop Table View */}
                   <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-blue-100">
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Queue #</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Doctor</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
-                          <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredQueuePatients.map(patient => (
-                          <tr key={patient.queueNo} className="border-b transition-colors hover:bg-blue-50">
-                            <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                            <td className="p-4 align-middle">{patient.name}</td>
-                            <td className="p-4 align-middle">{patient.age}</td>
-                            <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
-                            <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
-                            <td className="p-4 align-middle text-gray-500">{patient.type}</td>
-                            <td className="p-4 align-middle">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
-                                {patient.symptoms && patient.symptoms.length > 0 ? (
-                                  patient.symptoms.map((symptom, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                      {symptom}
-                                    </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-gray-400 text-xs">None</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-4 align-middle">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
-                                {patient.services && patient.services.length > 0 ? (
-                                  patient.services.map((serviceId, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                                      {getServiceLabel(serviceId)}
-                                    </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-gray-400 text-xs">None</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-4 align-middle">
-                              <Badge
-                                variant={
-                                  patient.status === 'done' ? 'default' : 
-                                  patient.status === 'in progress' ? 'secondary' : 
-                                  patient.status === 'cancelled' ? 'destructive' : 
-                                  'outline'
-                                }
-                                className={
-                                  patient.status === 'done'
-                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
-                                    : patient.status === 'in progress'
-                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
-                                    : patient.status === 'cancelled'
-                                    ? 'bg-red-100 text-red-700 hover:bg-red-100'
-                                    : ''
-                                }
-                              >
-                                {patient.status}
-                              </Badge>
-                            </td>
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-blue-100">
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Queue #</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Patient Name</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Age</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Doctor</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Type</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Symptoms</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Services</th>
+                            <th className="border px-4 py-2 text-left text-sm font-medium text-gray-600">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {filteredQueuePatients.map(patient => (
+                            <tr key={patient.queueNo} className="border-b transition-colors hover:bg-blue-50">
+                              <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                              <td className="p-4 align-middle">{patient.name}</td>
+                              <td className="p-4 align-middle">{patient.age}</td>
+                              <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                              <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
+                              <td className="p-4 align-middle text-gray-500">{patient.type}</td>
+                              <td className="p-4 align-middle">
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {patient.symptoms && patient.symptoms.length > 0 ? (
+                                    patient.symptoms.map((symptom, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                        {symptom}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">None</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4 align-middle">
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {patient.services && patient.services.length > 0 ? (
+                                    patient.services.map((serviceId, idx) => (
+                                      <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                        {getServiceLabel(serviceId)}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">None</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4 align-middle">
+                                <Badge
+                                  variant={
+                                    patient.status === 'done' ? 'default' : 
+                                    patient.status === 'in progress' ? 'secondary' : 
+                                    patient.status === 'cancelled' ? 'destructive' : 
+                                    'outline'
+                                  }
+                                  className={
+                                    patient.status === 'done'
+                                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100'
+                                      : patient.status === 'in progress'
+                                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                                      : patient.status === 'cancelled'
+                                      ? 'bg-red-100 text-red-700 hover:bg-red-100'
+                                      : ''
+                                  }
+                                >
+                                  {patient.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                   </div>
                 </>
               )}

@@ -10,10 +10,39 @@ const AppointmentHistory = () => {
   const [nav, setNav] = React.useState(false);
   const handleNav = () => setNav(!nav);
   
-  const { patients, activePatient } = useContext(PatientContext);
+  const { patients, activePatient, setActivePatient } = useContext(PatientContext);
 
   // Get current logged-in patient's email
   const currentPatientEmail = localStorage.getItem('currentPatientEmail');
+
+  // ✅ ADD THIS NEW useEffect - Auto-set activePatient on mount
+  React.useEffect(() => {
+    // ✅ ADD THIS CHECK - Don't run if patients isn't loaded yet
+    if (!patients || patients.length === 0) {
+      console.log('⏳ Waiting for patients to load...');
+      return;
+    }
+
+    if (currentPatientEmail && !activePatient) {
+      // Find the most recent appointment/visit for this patient
+      const normalizedEmail = currentPatientEmail.toLowerCase().trim();
+      
+      const myMostRecentVisit = patients
+        .filter(p => {
+          if (p.isInactive) return false;
+          if (!p.patientEmail) return false;
+          return p.patientEmail.toLowerCase().trim() === normalizedEmail;
+        })
+        .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt))[0];
+
+      if (myMostRecentVisit) {
+        console.log('✅ Auto-setting activePatient:', myMostRecentVisit);
+        setActivePatient(myMostRecentVisit);
+      } else {
+        console.log('⚠️ No visits found for email:', currentPatientEmail);
+      }
+    }
+  }, [currentPatientEmail, patients, activePatient, setActivePatient]);
 
   // Service labels mapping
   const serviceLabels = {
@@ -130,6 +159,36 @@ const AppointmentHistory = () => {
     };
   }, [myAppointments]);
 
+  // ✅ UPDATED: Add loading state and delay the error message
+  const [isCheckingSession, setIsCheckingSession] = React.useState(true);
+
+  React.useEffect(() => {
+    // Give the app time to load session data
+    const timer = setTimeout(() => {
+      setIsCheckingSession(false);
+    }, 500); // Wait 500ms before showing "No Active Session"
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Show loading state while checking session
+  if (isCheckingSession) {
+    return (
+      <div className="flex w-full min-h-screen">
+        <PatientSidebar nav={nav} handleNav={handleNav} />
+        <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 flex items-center justify-center p-4">
+          <Card className="max-w-md">
+            <CardContent className="p-6 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading your profile...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error only after checking session
   if (!activePatient || !currentPatientEmail) {
     return (
       <div className="flex w-full min-h-screen">
