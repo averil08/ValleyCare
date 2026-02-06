@@ -161,7 +161,7 @@ const formatDateTime = (dateTimeString) => {
           ) : (
             <div className="space-y-4">
               {appointments.map((appointment) => (
-                <Card key={appointment.queueNo} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <Card key={appointment.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                   <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 pb-3">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                       <CardTitle className="text-lg sm:text-xl text-green-700">

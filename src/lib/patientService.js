@@ -84,13 +84,13 @@ export const searchPatient = async (searchTerm) => {
 export const syncPatientToDatabase = async (patientData) => {
   try {
     const profileData = {
-      // Identity - UPSERT will match on this unique column
+      // Identity
       phone_num: patientData.phoneNum, 
       
       // Fields
       name: patientData.name,
       age: patientData.age ? parseInt(patientData.age) : 0,
-      patient_type: patientData.type === 'Appointment' ? 'appointment' : 'walk-in',
+      patient_type: (patientData.type || '').toLowerCase() === 'appointment' ? 'appointment' : 'walk-in',
       status: patientData.status,
       appointment_status: patientData.appointmentStatus,
       in_queue: patientData.inQueue,
@@ -108,14 +108,28 @@ export const syncPatientToDatabase = async (patientData) => {
       registered_at: patientData.registeredAt || new Date().toISOString()
     };
 
-    const { data, error } = await supabase
-      .from('patients')
-      .upsert([profileData], { onConflict: 'phone_num' }) // UPDATES if phone exists
-      .select()
-      .single();
+    // ✅ FIX: Check if we are updating an existing row or creating a new one
+    if (patientData.id) {
+      // UPDATE existing patient
+      const { data, error } = await supabase
+        .from('patients')
+        .upsert({ id: patientData.id, ...profileData }, { onConflict: 'id' })
+        .select()
+        .single();
 
-    if (error) throw error;
-    return { success: true, data };
+      if (error) throw error;
+      return { success: true, data };
+    } else {
+      // INSERT new patient (initial registration)
+      const { data, error } = await supabase
+        .from('patients')
+        .insert([profileData])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    }
   } catch (error) {
     console.error('Database Sync Error:', error.message);
     return { success: false, error: error.message };

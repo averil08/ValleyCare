@@ -21,11 +21,11 @@ export const PatientProvider = ({ children }) => {
         console.log('📥 Loading patients from database...');
         const result = await getAllPatientProfiles();
         
-        if (result.success && result.data && result.data.length > 0) {
-          // Transform database format to app format
+        if (result.success && result.data) {
           const transformedPatients = result.data.map((dbPatient) => ({
-            // Use the actual queue_no from the DB, fallback to index if missing
-            queueNo: dbPatient.queue_no || 0, 
+            // ✅ CRITICAL: Use dbId as the primary identifier
+            id: dbPatient.id, 
+            queueNo: dbPatient.queue_no, 
             name: dbPatient.name,
             age: dbPatient.age,
             phoneNum: dbPatient.phone_num,
@@ -33,60 +33,29 @@ export const PatientProvider = ({ children }) => {
             appointmentDateTime: dbPatient.appointment_datetime,
             symptoms: dbPatient.symptoms || [],
             services: dbPatient.services || [],
-            
-            // STATUS PERSISTENCE: Use the real status from DB
-            // ✅ FIX: Reset "in progress" to "waiting" on fresh load
             status: dbPatient.status === "in progress" ? "waiting" : (dbPatient.status || "waiting"),
             appointmentStatus: dbPatient.appointment_status,
-            
-            // QUEUE PERSISTENCE: Use the real in_queue flag from DB
-            inQueue: dbPatient.in_queue !== null 
-              ? dbPatient.in_queue 
-              : (dbPatient.patient_type === 'walk-in' || dbPatient.appointment_status === 'accepted'),
-                        
+            inQueue: dbPatient.in_queue ?? (dbPatient.patient_type === 'walk-in' || dbPatient.appointment_status === 'accepted'),
             registeredAt: dbPatient.registered_at || dbPatient.created_at,
-            
-            // DOCTOR PERSISTENCE: Use the assigned_doctor_name column
-            // DOCTOR PERSISTENCE: Restore full doctor object with ID
             assignedDoctor: dbPatient.assigned_doctor_name 
               ? doctors.find(d => d.name === dbPatient.assigned_doctor_name) || { name: dbPatient.assigned_doctor_name }
               : null,
-            
-            calledAt: dbPatient.called_at,
-            queueExitTime: dbPatient.queue_exit_time,
-            completedAt: dbPatient.completed_at,
-            isReturningPatient: dbPatient.is_returning_patient || false,
             isInactive: dbPatient.is_inactive || false,
-            dbId: dbPatient.id 
           }));
 
-          // Sort by queue number so the order is consistent
-          setPatients(transformedPatients.sort((a, b) => a.queueNo - b.queueNo));
+          // ✅ DE-DUPLICATION: Ensure no double entries by ID
+          setPatients(() => {
+            const uniqueMap = new Map();
+            transformedPatients.forEach(p => uniqueMap.set(p.id, p));
+            return Array.from(uniqueMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
+          });
 
-          // ✅ ADD THIS: Restore currentServing from in-progress patients
-          const inProgressPatient = transformedPatients.find(p => 
-            p.status === "in progress" && 
-            p.inQueue && 
-            !p.isInactive
-          );
-          
-          if (inProgressPatient) {
-            setCurrentServing(inProgressPatient.queueNo);
-            console.log(`✅ Restored current serving: #${inProgressPatient.queueNo}`);
-          } else {
-            setCurrentServing(null);
-            console.log('✅ No patient currently being served');
-          }
-
-          console.log(`✅ Loaded ${transformedPatients.length} patients from database`);
-        } else {
-          setPatients([]);
-          setCurrentServing(null); // ✅ ADD THIS
+          // Restore currentServing
+          const inProgressPatient = transformedPatients.find(p => p.status === "in progress" && !p.isInactive);
+          setCurrentServing(inProgressPatient ? inProgressPatient.queueNo : null);
         }
       } catch (error) {
         console.error('⚠️ Failed to load from database:', error);
-        setPatients([]);
-        setCurrentServing(null); // ✅ ADD THIS
       } finally {
         setIsLoadingFromDB(false);
       }
@@ -248,55 +217,22 @@ export const PatientProvider = ({ children }) => {
   // ==========================================
   // MODIFIED: addPatient - Now syncs to database AND persists
   // ==========================================
-  const addPatient = async (newPatient) => {
+const addPatient = (dbReturnedPatient) => {
+    // We expect dbReturnedPatient to come from the .select() in Checkin.jsx
     setPatients(prev => {
-      const existingPatient = findExistingPatientByName(newPatient.name, newPatient.isReturningPatient);
-      
-      let updatedPatientData = { ...newPatient };
-      
-      if (existingPatient && newPatient.isReturningPatient) {
-        const newNameCapitals = (newPatient.name.match(/[A-Z]/g) || []).length;
-        const existingNameCapitals = (existingPatient.name.match(/[A-Z]/g) || []).length;
-        
-        if (existingNameCapitals >= newNameCapitals) {
-          updatedPatientData.name = existingPatient.name;
-        }
-        
-        updatedPatientData.age = newPatient.age;
-        updatedPatientData.phoneNum = newPatient.phoneNum || existingPatient.phoneNum;
-      }
+      // Check if patient already exists in local state to prevent broadcast loops
+      if (prev.some(p => p.id === dbReturnedPatient.id)) return prev;
 
-      const assignedDoctor = assignDoctor(updatedPatientData.services || [], prev, activeDoctors);
-      
-      // Calculate next queue number (including historical records)
-      const maxQueueNo = prev.length > 0 ? Math.max(...prev.map(p => p.queueNo)) : 0;
-      
-      const patientToAdd = { 
-        ...updatedPatientData,
-        isPriority: updatedPatientData.isPriority || false,
-        priorityType: updatedPatientData.priorityType || null,
-        queueNo: prev.length + 1, 
-        status: updatedPatientData.status || "waiting",
-        registeredAt: new Date().toISOString(),
-        inQueue: true,
-        calledAt: null,
-        queueExitTime: null,
-        completedAt: null,
-        assignedDoctor: assignedDoctor
+      const newPatientEntry = {
+        ...dbReturnedPatient,
+        // Map database fields to App fields
+        phoneNum: dbReturnedPatient.phone_num,
+        type: dbReturnedPatient.patient_type === 'appointment' ? 'Appointment' : 'Walk-in',
+        queueNo: dbReturnedPatient.queue_no,
+        dbId: dbReturnedPatient.id
       };
 
-      // Sync to database (persists forever)
-      syncPatientToDatabase(patientToAdd)
-        .then(result => {
-          if (result.success) {
-            console.log('✅ Patient saved to database permanently');
-          }
-        })
-        .catch(err => {
-          console.error('⚠️ Database sync failed (data only in memory):', err);
-        });
-
-      return [...prev, patientToAdd];
+      return [...prev, newPatientEntry].sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
     });
   };
 

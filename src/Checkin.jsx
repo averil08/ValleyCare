@@ -502,7 +502,6 @@ function Checkin() {
           type: selectedPatientType,
           symptoms: formData.symptoms,
           services: formData.services,
-          queueNo: (patients?.length || 0) + 1,
           appointmentDateTime: formData.appointmentDateTime || undefined,
           isPriority: formData.isPriority,
           priorityType: formData.priorityType,

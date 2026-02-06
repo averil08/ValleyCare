@@ -44,13 +44,14 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
     // STEP 1: Create the Patient record
     // We use snake_case keys (phone_num, patient_type) to match your SQL schema
     // STEP 1: Update or Create the Patient record
+// ✅ NEW CODE (FIXED)
 const { data: patientData, error: patientError } = await supabase
   .from('patients')
-  .upsert(
+  .insert([
     { 
       name: formData.name || "Guest Patient",
       age: formData.age ? parseInt(formData.age) : 0,
-      phone_num: formData.phoneNum, // This is the "unique" key Supabase uses to match
+      phone_num: formData.phoneNum, 
       patient_type: "appointment",
       physician: formData.physician || null,
       symptoms: formData.symptoms || [],
@@ -58,10 +59,10 @@ const { data: patientData, error: patientError } = await supabase
       status: 'waiting',
       appointment_status: 'pending',
       is_priority: formData.isPriority || false,
-      priority_type: formData.priorityType || null 
-    }, 
-    { onConflict: 'phone_num' } // This tells Postgres to look at the phone_num column for matches
-  )
+      priority_type: formData.priorityType || null,
+      patient_email: localStorage.getItem('currentPatientEmail') || null
+    }
+  ])
   .select()
   .single();
 

@@ -1088,7 +1088,7 @@ const Dashboard = () => {
                   {/* Mobile Card View */}
                   <div className="block lg:hidden space-y-4">
                     {filteredQueuePatients.map(patient => (
-                      <Card key={patient.queueNo} className="border-l-4 border-l-blue-200">
+                      <Card key={`active-mob-${patient.queueNo}`} className="border-l-4 border-l-blue-200">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1190,9 +1190,9 @@ const Dashboard = () => {
                         </thead>
                         <tbody>
                           {filteredQueuePatients.map(patient => (
-                            <tr key={patient.queueNo} className="border-b transition-colors hover:bg-blue-50">
-                              <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                              <td className="p-4 align-middle">{patient.name}</td>
+                            <tr key={`active-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-blue-50">
+                            <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                              <td className="p-4 align-middle">{patient.name}</td>                         
                               <td className="p-4 align-middle">{patient.age}</td>
                               <td className="p-4 align-middle text-gray-600">{patient.phoneNum || 'N/A'}</td>
                               <td className="p-4 align-middle text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
@@ -1281,7 +1281,7 @@ const Dashboard = () => {
                   {/* Mobile Card View - NO ACTION BUTTONS */}
                   <div className="block lg:hidden space-y-4">
                    {filteredPriorityPatients.map(patient => (
-                      <Card key={patient.queueNo} className={`border-l-4 ${patient.status === 'waiting' ? 'border-l-yellow-600' : patient.status === 'in progress' ? 'border-l-green-600' : 'border-l-emerald-600'}`}>
+                      <Card key={`priority-mob-${patient.queueNo}`} className={`border-l-4 ${patient.status === 'waiting' ? 'border-l-yellow-600' : patient.status === 'in progress' ? 'border-l-green-600' : 'border-l-emerald-600'}`}>
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1383,7 +1383,7 @@ const Dashboard = () => {
                       </thead>
                       <tbody>
                         {filteredPriorityPatients.map(patient => (
-                          <tr key={patient.queueNo} className="border-b transition-colors hover:bg-yellow-50">
+                          <tr key={`priority-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-yellow-50">
                             <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                             <td className="p-4 align-middle">{patient.name}</td>
                             <td className="p-4 align-middle">{patient.age}</td>
@@ -1474,7 +1474,7 @@ const Dashboard = () => {
                   {/* Mobile Card View */}
                   <div className="block lg:hidden space-y-4">
                     {filteredDonePatients.map(patient => (
-                      <Card key={patient.queueNo} className="border-l-4 border-l-emerald-600">
+                      <Card key={`done-mob-${patient.queueNo}`} className="border-l-4 border-l-emerald-600">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1559,7 +1559,7 @@ const Dashboard = () => {
                       </thead>
                       <tbody>
                         {filteredDonePatients.map(patient => (
-                          <tr key={patient.queueNo} className="border-b transition-colors hover:bg-emerald-50">
+                          <tr key={`done-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-emerald-50">
                             <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                             <td className="p-4 align-middle">{patient.name}</td>
                             <td className="p-4 align-middle">{patient.age}</td>
@@ -1629,7 +1629,7 @@ const Dashboard = () => {
                   {/* Mobile Card View */}
                   <div className="block lg:hidden space-y-4">
                     {filteredCancelPatients.map(patient => (
-                      <Card key={patient.queueNo} className="border-l-4 border-l-red-200">
+                      <Card key={`cancel-${patient.queueNo}`} className="border-l-4 border-l-red-200">
                         <CardContent className="pt-4">
                           <div className="flex justify-between items-start mb-3">
                             <div>
@@ -1714,7 +1714,7 @@ const Dashboard = () => {
                       </thead>
                       <tbody>
                         {filteredCancelPatients.map(patient => (
-                          <tr key={patient.queueNo} className="border-b transition-colors hover:bg-red-50">
+                          <tr key={`cancel-${patient.queueNo}`} className="border-b transition-colors hover:bg-red-50">
                             <td className="p-4 align-middle font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                             <td className="p-4 align-middle">{patient.name}</td>
                             <td className="p-4 align-middle">{patient.age}</td>
