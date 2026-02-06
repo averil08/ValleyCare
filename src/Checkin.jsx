@@ -22,7 +22,7 @@ import {
 function Checkin() {
   //============= CONSTANTS & CONTEXT ==============
   const navigate = useNavigate();
-  const { patients, addPatient, activePatient, setActivePatient, getAvailableSlots } = useContext(PatientContext);
+  const { patients, addPatient, activePatient, setActivePatient, getAvailableSlots, isLoadingFromDB } = useContext(PatientContext);
 
   //=========== HELPER FUNCTIONS (URL PARAMS) ===========
   const getInitialViewMode = () => {
@@ -634,7 +634,7 @@ function Checkin() {
     }
   }, [isFromPatientSidebar, selectedPatientType]);
 
-  // ✅✅✅ COMPLETELY REWRITTEN - This is the fix!
+ // ✅✅✅ COMPLETELY REWRITTEN - This is the fix!
   useEffect(() => {
     // Only check once when component mounts or when we return from settings
     if (appointmentCheckDoneRef.current) {
@@ -761,9 +761,15 @@ function Checkin() {
             {selectedPatientType === "Appointment" && (
               <div className="space-y-4 mb-6">
                 <AppointmentPicker
-                  key={formData.appointmentDateTime || 'appointment-picker'}
+                  key="stable-appointment-picker" // Fixed key stops the reset
                   selectedDateTime={formData.appointmentDateTime}
-                  onDateTimeChange={(dateTime) => setFormData({ ...formData, appointmentDateTime: dateTime })}
+                  onDateTimeChange={(dateTime) => {
+                    setFormData(prev => {
+                      // Only update if the time actually changed
+                      if (prev.appointmentDateTime === dateTime) return prev;
+                      return { ...prev, appointmentDateTime: dateTime };
+                    });
+                  }}
                   getAvailableSlots={getAvailableSlots}
                 />
               </div>
