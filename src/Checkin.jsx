@@ -502,7 +502,7 @@ function Checkin() {
           type: selectedPatientType,
           symptoms: formData.symptoms,
           services: formData.services,
-          queueNo: patients.length + 1,
+          queueNo: (patients?.length || 0) + 1,
           appointmentDateTime: formData.appointmentDateTime || undefined,
           isPriority: formData.isPriority,
           priorityType: formData.priorityType,
@@ -667,7 +667,7 @@ function Checkin() {
     }
     
   // ✅✅✅ KEY FIX: Only depend on length, not the whole array!
-  }, [isFromPatientSidebar, selectedPatientType, isPatientLoggedIn, patients.length]);
+  }, [isFromPatientSidebar, selectedPatientType, isPatientLoggedIn, patients?.length]);
 
   // Reset the ref when patient type is selected (so we can check again if they go back)
   useEffect(() => {
