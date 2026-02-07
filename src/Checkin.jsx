@@ -23,7 +23,7 @@ import {
 function Checkin() {
   //============= CONSTANTS & CONTEXT ==============
   const navigate = useNavigate();
-  const { patients, addPatient, activePatient, setActivePatient, getAvailableSlots, isLoadingFromDB } = useContext(PatientContext);
+  const { patients, addPatient, setActivePatient, activePatient, clearActivePatient, getAvailableSlots, isLoadingFromDB } = useContext(PatientContext);
 
   //=========== HELPER FUNCTIONS (URL PARAMS) ===========
   const getInitialViewMode = () => {
@@ -455,8 +455,11 @@ function Checkin() {
         };
 
         const existingPatient = findExistingPatient();
-
+        const dbPatient = selectedPatientType === "Walk-in" ? result.data : result.patient;
+        const dbId = dbPatient?.id;
         const newPatient = {
+          id: dbId,
+          dbId: dbId,
           name: formData.name || "Guest Patient",
           age: formData.age,
           phoneNum: formData.phoneNum,
@@ -474,6 +477,10 @@ function Checkin() {
             specialization: selectedDoctor.specialization
           } : null,
           bookingMode: bookingMode,
+          status: "waiting",
+          appointmentStatus: selectedPatientType === "Appointment" ? "pending" : null,
+          inQueue: selectedPatientType === "Walk-in", // Only walk-ins go directly to queue
+          queueNo: dbPatient?.queue_no || (selectedPatientType === "Walk-in" ? (Math.max(0, ...patients.map(p => p.queueNo || 0)) + 1) : null)
         };
 
         if (existingPatient && formData.isReturningPatient) {
@@ -548,6 +555,14 @@ function Checkin() {
 
   // ✅ NEW: Auto-save form data whenever it changes
   useEffect(() => {
+    // Determine if we are starting a NEW booking flow
+    const urlParams = new URLSearchParams(window.location.search);
+    const isNewBooking = urlParams.get('type') === 'appointment' || urlParams.get('view') === 'patient';
+
+    if (isNewBooking) {
+      console.log("🧹 New booking detected - clearing active patient session.");
+      clearActivePatient();
+    }
     // Check if user is logged in (has email) and booking an appointment
     const currentEmail = localStorage.getItem('currentPatientEmail');
 

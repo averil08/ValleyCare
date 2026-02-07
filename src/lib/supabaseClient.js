@@ -63,7 +63,19 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
 
   while (attempts < maxAttempts) {
     try {
-      // STEP 1: Create the Patient record
+      // 4.1 GET NEXT QUEUE NUMBER
+      // We must manually calculate the next queue number to ensure it's a real sequence (1, 2, 3...)
+      // and not a high placeholder (900000+).
+      const { data: maxQData } = await supabase
+        .from('patients')
+        .select('queue_no')
+        .lt('queue_no', 900000) // Ignore existing placeholders
+        .order('queue_no', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nextQueueNo = (maxQData?.queue_no || 0) + 1;
+
       const { data: patientData, error: patientError } = await supabase
         .from('patients')
         .insert([
@@ -77,6 +89,7 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
             services: formData.services || [],
             status: 'waiting',
             appointment_status: 'pending',
+            queue_no: nextQueueNo, // Manually assigned real number
             is_priority: formData.isPriority || false,
             priority_type: formData.priorityType || null,
             patient_email: localStorage.getItem('currentPatientEmail') || null,
@@ -121,7 +134,7 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
         throw apptError;
       }
 
-      return { success: true, data: apptData };
+      return { success: true, data: apptData, patient: patientData };
     } catch (error) {
       // If unique violation happened and we haven't exhausted retries, we continue loop
       if ((error.code === '23505' || error.message?.includes('unique_queue_no')) && attempts < maxAttempts - 1) {

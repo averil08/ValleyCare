@@ -100,7 +100,7 @@ const Appointment = () => {
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
   const handleAccept = (appointment) => {
-    acceptAppointment(appointment.queueNo);
+    acceptAppointment(appointment.id);
   };
 
   //replaced the direct reject handler
@@ -126,7 +126,7 @@ const Appointment = () => {
       return;
     }
 
-    rejectAppointment(rejectionDialog.appointment.queueNo, rejectionDialog.reason);
+    rejectAppointment(rejectionDialog.appointment.id, rejectionDialog.reason);
     setRejectionDialog({ open: false, appointment: null, reason: "" });
   };
 

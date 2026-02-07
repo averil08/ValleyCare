@@ -1,6 +1,7 @@
 import React, { createContext, useState, useMemo, useEffect } from "react";
 import { assignDoctor, doctors } from './doctorData';
 import { syncPatientToDatabase, getAllPatientProfiles } from './lib/patientService';
+import { supabase } from './lib/supabaseClient'; // Import Supabase client
 
 export const PatientContext = createContext();
 
@@ -9,60 +10,138 @@ export const PatientProvider = ({ children }) => {
   const [isLoadingFromDB, setIsLoadingFromDB] = useState(true); // NEW: Loading state
   const [patients, setPatients] = useState([]);
 
+  // Helper to transform DB data to App format
+  const transformPatientData = (dbPatient) => ({
+    // ✅ CRITICAL: Use dbId as the primary identifier
+    id: dbPatient.id,
+    queueNo: dbPatient.queue_no,
+    name: dbPatient.name,
+    age: dbPatient.age,
+    phoneNum: dbPatient.phone_num,
+    type: dbPatient.patient_type === 'appointment' ? 'Appointment' : 'Walk-in',
+    appointmentDateTime: dbPatient.appointment_datetime,
+    symptoms: dbPatient.symptoms || [],
+    services: dbPatient.services || [],
+    status: (dbPatient.patient_type === 'appointment' && dbPatient.appointment_status !== 'accepted' && dbPatient.status === 'in progress')
+      ? 'waiting'
+      : (dbPatient.status || "waiting"),
+    appointmentStatus: dbPatient.appointment_status,
+    inQueue: dbPatient.in_queue ?? (dbPatient.patient_type === 'walk-in' || dbPatient.appointment_status === 'accepted'),
+    registeredAt: dbPatient.registered_at || dbPatient.created_at,
+    assignedDoctor: (dbPatient.assigned_doctor_name || dbPatient.physician)
+      ? doctors.find(d => d.name === (dbPatient.assigned_doctor_name || dbPatient.physician)) || { name: (dbPatient.assigned_doctor_name || dbPatient.physician) }
+      : null,
+    isInactive: dbPatient.is_inactive || false,
+    // Keep raw DB ID for reference/updates
+    dbId: dbPatient.id,
+    patientEmail: dbPatient.patient_email // NEW: Add patient email for access control
+  });
+
   // ==========================================
   // NEW: LOAD PATIENTS FROM DATABASE ON MOUNT
   // ==========================================
   // ==========================================
   // UPDATED: LOAD PATIENTS FROM DATABASE ON MOUNT
   // ==========================================
-  useEffect(() => {
-    const loadPatientsFromDatabase = async () => {
-      try {
-        console.log('📥 Loading patients from database...');
-        const result = await getAllPatientProfiles();
+  // ==========================================
+  // UPDATED: LOAD PATIENTS FROM DATABASE 
+  // ==========================================
+  const loadPatientsFromDatabase = async () => {
+    try {
+      console.log('📥 Loading patients from database...');
+      const result = await getAllPatientProfiles();
 
-        if (result.success && result.data) {
-          const transformedPatients = result.data.map((dbPatient) => ({
-            // ✅ CRITICAL: Use dbId as the primary identifier
-            id: dbPatient.id,
-            queueNo: dbPatient.queue_no,
-            name: dbPatient.name,
-            age: dbPatient.age,
-            phoneNum: dbPatient.phone_num,
-            type: dbPatient.patient_type === 'appointment' ? 'Appointment' : 'Walk-in',
-            appointmentDateTime: dbPatient.appointment_datetime,
-            symptoms: dbPatient.symptoms || [],
-            services: dbPatient.services || [],
-            status: dbPatient.status === "in progress" ? "waiting" : (dbPatient.status || "waiting"),
-            appointmentStatus: dbPatient.appointment_status,
-            inQueue: dbPatient.in_queue ?? (dbPatient.patient_type === 'walk-in' || dbPatient.appointment_status === 'accepted'),
-            registeredAt: dbPatient.registered_at || dbPatient.created_at,
-            assignedDoctor: (dbPatient.assigned_doctor_name || dbPatient.physician)
-              ? doctors.find(d => d.name === (dbPatient.assigned_doctor_name || dbPatient.physician)) || { name: (dbPatient.assigned_doctor_name || dbPatient.physician) }
-              : null,
-            isInactive: dbPatient.is_inactive || false,
-          }));
+      if (result.success && result.data) {
+        const transformedPatients = result.data.map(transformPatientData);
 
-          // ✅ DE-DUPLICATION: Ensure no double entries by ID
-          setPatients(() => {
-            const uniqueMap = new Map();
-            transformedPatients.forEach(p => uniqueMap.set(p.id, p));
-            return Array.from(uniqueMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
-          });
+        // ✅ DE-DUPLICATION: Ensure no double entries by ID
+        setPatients(() => {
+          const uniqueMap = new Map();
+          transformedPatients.forEach(p => uniqueMap.set(p.id, p));
+          return Array.from(uniqueMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
+        });
 
-          // Restore currentServing
-          const inProgressPatient = transformedPatients.find(p => p.status === "in progress" && !p.isInactive);
-          setCurrentServing(inProgressPatient ? inProgressPatient.queueNo : null);
-        }
-      } catch (error) {
-        console.error('⚠️ Failed to load from database:', error);
-      } finally {
-        setIsLoadingFromDB(false);
+        // Restore currentServing
+        const inProgressPatient = transformedPatients.find(p => p.status === "in progress" && !p.isInactive);
+        setCurrentServing(inProgressPatient ? inProgressPatient.queueNo : null);
       }
-    };
+    } catch (error) {
+      console.error('⚠️ Failed to load from database:', error);
+    } finally {
+      setIsLoadingFromDB(false);
+    }
+  };
 
+  useEffect(() => {
     loadPatientsFromDatabase();
   }, []);
+
+  // ✅ NEW: Sync activePatient with patients list updates
+  // This ensures that if the patients list is updated via Real-time (e.g. status change to 'accepted'),
+  // the activePatient object also gets updated immediately.
+  useEffect(() => {
+    if (activePatient && patients.length > 0) {
+      const freshData = patients.find(p => p.id === activePatient.id);
+      if (freshData) {
+        // Only update if there are actual changes to avoid infinite loops
+        // We compare relevant fields or just check reference/JSON
+        if (JSON.stringify(activePatient) !== JSON.stringify(freshData)) {
+          console.log("🔄 Syncing activePatient with fresh data from DB/Realtime");
+          setActivePatient(freshData);
+        }
+      }
+    }
+  }, [patients, activePatient]);
+
+  // ==========================================
+  // REAL-TIME SUBSCRIPTION
+  // ==========================================
+  useEffect(() => {
+    console.log("🔌 Setting up Supabase Realtime subscription...");
+
+    const channel = supabase
+      .channel('public:patients')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'patients' },
+        (payload) => {
+          console.log('⚡ Realtime event received:', payload.eventType);
+          // Simple, robust update: Refresh data from DB to ensure state is perfectly synced
+          loadPatientsFromDatabase();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status);
+      });
+
+    return () => {
+      console.log("🔌 Cleaning up Supabase subscription...");
+      supabase.removeChannel(channel);
+    };
+  }, []); // Run once on mount
+
+  // NEW: Persist activePatient to localStorage
+  useEffect(() => {
+    if (activePatient?.id) {
+      localStorage.setItem('activePatientId', activePatient.id);
+    }
+    // REMOVED: The else if (activePatient === null) block to prevent race conditions.
+    // We now rely on explicit clearing via clearActivePatient()
+  }, [activePatient]);
+
+  // NEW: Restore activePatient from localStorage on load
+  useEffect(() => {
+    if (!isLoadingFromDB && !activePatient && patients.length > 0) {
+      const persistedId = localStorage.getItem('activePatientId');
+      if (persistedId) {
+        const foundPatient = patients.find(p => p.id === persistedId);
+        if (foundPatient) {
+          console.log("🔄 Restoring active patient from storage:", foundPatient.name);
+          setActivePatient(foundPatient);
+        }
+      }
+    }
+  }, [isLoadingFromDB, patients, activePatient]);
 
   // Existing localStorage sync (keep this for cross-tab communication)
   useEffect(() => {
@@ -79,7 +158,11 @@ export const PatientProvider = ({ children }) => {
   const [doctorCurrentServing, setDoctorCurrentServing] = useState(() => {
     const initialServing = {};
     patients.forEach(patient => {
-      if (patient.status === 'in progress' && patient.assignedDoctor && !patient.isInactive) {
+      // Robust check: must be in progress, have a doctor, not inactive, AND if appointment, must be accepted
+      const isAcceptedAppointment = patient.type === 'Appointment' && patient.appointmentStatus === 'accepted';
+      const isWalkIn = patient.type !== 'Appointment';
+
+      if (patient.status === 'in progress' && patient.assignedDoctor && !patient.isInactive && (isAcceptedAppointment || isWalkIn)) {
         initialServing[patient.assignedDoctor.id] = patient.queueNo;
       }
     });
@@ -89,7 +172,11 @@ export const PatientProvider = ({ children }) => {
   useEffect(() => {
     const currentServing = {};
     patients.forEach(patient => {
-      if (patient.status === 'in progress' && patient.assignedDoctor && !patient.isInactive) {
+      // Robust check: same filters as initialization
+      const isAcceptedAppointment = patient.type === 'Appointment' && patient.appointmentStatus === 'accepted';
+      const isWalkIn = patient.type !== 'Appointment';
+
+      if (patient.status === 'in progress' && patient.assignedDoctor && !patient.isInactive && (isAcceptedAppointment || isWalkIn)) {
         currentServing[patient.assignedDoctor.id] = patient.queueNo;
       }
     });
@@ -111,7 +198,11 @@ export const PatientProvider = ({ children }) => {
         }
       }
 
-      const updatedPatient = patients.find(p => p.queueNo === activePatient.queueNo);
+      const updatedPatient = patients.find(p => {
+        if (activePatient.id && p.id === activePatient.id) return true;
+        if (activePatient.queueNo !== null && activePatient.queueNo !== undefined && p.queueNo === activePatient.queueNo) return true;
+        return false;
+      });
       if (updatedPatient && JSON.stringify(updatedPatient) !== JSON.stringify(activePatient)) {
         setActivePatient(updatedPatient);
       }
@@ -231,23 +322,42 @@ export const PatientProvider = ({ children }) => {
   // ==========================================
   // MODIFIED: addPatient - Now syncs to database AND persists
   // ==========================================
-  const addPatient = (dbReturnedPatient) => {
-    // We expect dbReturnedPatient to come from the .select() in Checkin.jsx
+  const addPatient = (inputPatient) => {
     setPatients(prev => {
-      // Check if patient already exists in local state to prevent broadcast loops
-      if (prev.some(p => p.id === dbReturnedPatient.id)) return prev;
-
+      // Handle both formats for ID check
+      const id = inputPatient.id || inputPatient.dbId;
+      // Check if patient already exists in local state to prevent duplicates
+      if (id && prev.some(p => p.id === id)) return prev;
       const newPatientEntry = {
-        ...dbReturnedPatient,
-        // Map database fields to App fields
-        phoneNum: dbReturnedPatient.phone_num,
-        type: dbReturnedPatient.patient_type === 'appointment' ? 'Appointment' : 'Walk-in',
-        queueNo: dbReturnedPatient.queue_no,
-        dbId: dbReturnedPatient.id
+        ...inputPatient,
+        // Ensure consistent app-level fields, preferring existing camelCase or falling back to snake_case
+        id: id, // Ensure id is set
+        dbId: id, // Ensure dbId is set
+        phoneNum: inputPatient.phoneNum || inputPatient.phone_num,
+        type: inputPatient.type || (inputPatient.patient_type === 'appointment' ? 'Appointment' : 'Walk-in'),
+        queueNo: inputPatient.queueNo !== undefined ? inputPatient.queueNo : inputPatient.queue_no,
+        appointmentDateTime: inputPatient.appointmentDateTime || inputPatient.appointment_datetime,
+        // Make sure we carry over other important fields
+        name: inputPatient.name,
+        age: inputPatient.age,
+        symptoms: inputPatient.symptoms || [],
+        services: inputPatient.services || [],
+        status: inputPatient.status || "waiting",
+        appointmentStatus: inputPatient.appointmentStatus || inputPatient.appointment_status,
+        inQueue: inputPatient.inQueue !== undefined ? inputPatient.inQueue : (inputPatient.patient_type === 'walk-in')
       };
 
       return [...prev, newPatientEntry].sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
     });
+  };
+
+  // ==========================================
+  // NEW: Explicitly clear active patient
+  // ==========================================
+  const clearActivePatient = () => {
+    console.log('🧹 Clearing active patient session...');
+    setActivePatient(null);
+    localStorage.removeItem('activePatientId');
   };
 
   // ==========================================
@@ -307,47 +417,81 @@ export const PatientProvider = ({ children }) => {
     );
   };
   //ADDED this update
-  const acceptAppointment = (queueNo) => {
-    setPatients(prev =>
-      prev.map(p => {
-        if (p.queueNo !== queueNo) return p;
+  const acceptAppointment = async (patientId) => {
+    try {
+      // 1. Get the patient to check if they already have a valid queue number
+      const patient = patients.find(p => p.id === patientId);
+      if (!patient) {
+        console.error("Patient not found for acceptance");
+        return;
+      }
 
-        // Base updates
-        const updates = {
+      let newQueueNo = patient.queueNo;
+
+      // Only generate a new number if the current one is missing or is a temporary high number
+      if (!newQueueNo || newQueueNo >= 900000) {
+
+        // 1. Calculate the next available queue number based on current patients
+
+        // filtering for only positive real queue numbers (ignoring high temp numbers > 900000)
+        const realQueueNumbers = patients
+          .map(pat => pat.queueNo)
+          .filter(q => q && q > 0 && q < 900000);
+
+        const maxQueueNo = realQueueNumbers.length > 0 ? Math.max(...realQueueNumbers) : 0;
+        newQueueNo = maxQueueNo + 1;
+
+        console.log(`✅ Accepting appointment ${patientId}. Old number invalid/temp. Assigning NEW queue no: ${newQueueNo}`);
+      } else {
+        console.log(`✅ Accepting appointment ${patientId}. Preserving EXISTING queue no: ${newQueueNo}`);
+      }
+
+      // 2. Determine Doctor Assignment - If they preferred a doctor during booking, keep it
+      let assignedDoctor = patient.assignedDoctor;
+      if (!assignedDoctor && patient.bookingMode === 'doctor' && patient.preferredDoctor) {
+        assignedDoctor = doctors.find(d => d.id === patient.preferredDoctor.id);
+      }
+
+      // 3. Prepare updates
+      const updates = {
+        queue_no: newQueueNo,
+        appointment_status: "accepted",
+        in_queue: true,
+        status: "waiting",
+        assigned_doctor_name: assignedDoctor?.name || null
+      };
+
+      // 4. Sync to database via supabase directly for critical update
+      const { error } = await supabase
+        .from('patients')
+        .update(updates)
+        .eq('id', patientId);
+
+      if (error) throw error;
+
+      // 5. Update local state
+      setPatients(prev => prev.map(pat => {
+        if (pat.id !== patientId) return pat;
+        return {
+          ...pat,
+          ...updates,
+          queueNo: newQueueNo,
           appointmentStatus: "accepted",
-          inQueue: true
+          inQueue: true,
+          assignedDoctor: assignedDoctor
         };
+      }));
 
-        // ✅ MODIFIED: If patient has a requested doctor (from DB or local state), assign them immediately
-        // This bypasses the "active doctor" check in assignDoctor
-        const requestedDoctor = p.assignedDoctor ||
-          (p.preferredDoctor && p.bookingMode === 'doctor' ? doctors.find(d => d.id === p.preferredDoctor.id) : null);
-
-        if (requestedDoctor) {
-          updates.assignedDoctor = requestedDoctor;
-          console.log(`✅ Assigned ${p.name} to requested doctor: ${requestedDoctor.name} (ignoring active status)`);
-        } else {
-          // Patient booked by service - assign based on services and active doctors
-          console.log(`ℹ️ No requested doctor for ${p.name}, assigning based on services...`);
-          updates.assignedDoctor = assignDoctor(p.services || [], prev, activeDoctors);
-        }
-
-        const accepted = { ...p, ...updates };
-
-        // Sync to database
-        syncPatientToDatabase(accepted).catch(err => {
-          console.error('⚠️ Database sync failed:', err);
-        });
-
-        return accepted;
-      })
-    );
+    } catch (error) {
+      console.error("Failed to accept appointment:", error);
+    }
   };
 
-  const rejectAppointment = (queueNo, reason) => {
+  const rejectAppointment = (patientId, reason) => {
+    console.log(`❌ Rejecting appointment ${patientId}. Reason: ${reason}`);
     setPatients(prev =>
       prev.map(p => {
-        if (p.queueNo !== queueNo) return p;
+        if (p.id !== patientId) return p;
 
         const rejected = {
           ...p,
@@ -617,15 +761,6 @@ export const PatientProvider = ({ children }) => {
   };
 
   // NEW: Show loading state while fetching from database
-  if (isLoadingFromDB) {
-    return (
-      <PatientContext.Provider value={{ isLoadingFromDB: true }}>
-        {children}
-      </PatientContext.Provider>
-    );
-  }
-
-  // NEW: Show loading state while fetching from database
   // ✅ FIXED: Always provide all functions, even during loading
   return (
     <PatientContext.Provider value={{
@@ -636,6 +771,7 @@ export const PatientProvider = ({ children }) => {
       setCurrentServing,
       activePatient: isLoadingFromDB ? null : activePatient,
       setActivePatient,
+      clearActivePatient,
       updatePatientStatus,
       callNextPatient,
       avgWaitTime,

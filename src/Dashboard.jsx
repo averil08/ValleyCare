@@ -398,6 +398,8 @@ const Dashboard = () => {
     }
 
     // ✅ EXISTING LOGIC: Mark current patient as done and call next
+    // 1. Check if there is ALREADY a patient in progress and mark them as done
+    // This robustness prevents multiple patients from being "in progress" at once
     const currentPatient = patients.find(p =>
       p.status === "in progress" &&
       p.inQueue &&
@@ -410,12 +412,17 @@ const Dashboard = () => {
     }
 
     // First, check if there are any waiting priority patients
+    // 2. Find the NEXT patient to call (Priority -> Regular)
+    // Check for waiting priority patients first
     const nextPriorityPatient = patients.find(p =>
-      p.status === "waiting" && p.inQueue && p.isPriority && !p.isInactive
+      p.status === "waiting" &&
+      p.inQueue &&
+      p.isPriority &&
+      !p.isInactive &&
+      (p.type !== "Appointment" || p.appointmentStatus === "accepted")
     );
 
     if (nextPriorityPatient) {
-      // Call the priority patient first
       updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
       setCurrentServing(nextPriorityPatient.queueNo);
       return;
@@ -1165,31 +1172,31 @@ const Dashboard = () => {
 
                   {/* Desktop Table View */}
                   <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                    <table className="w-full border-collapse relative table-fixed">
+                    <table className="w-full border-collapse relative">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-blue-100 shadow-sm">
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Queue #</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Name</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[5%]">Age</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[10%]">Phone</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Doctor</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Type</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[20%]">Symptoms</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[15%]">Services</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[10%]">Status</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[6%] whitespace-nowrap">Queue #</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[12%] whitespace-nowrap">Name</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[4%] whitespace-nowrap">Age</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Phone</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[14%] whitespace-nowrap">Doctor</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Type</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[18%] whitespace-nowrap">Symptoms</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[16%] whitespace-nowrap">Services</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredQueuePatients.map(patient => (
                           <tr key={`active-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-blue-50">
-                            <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                            <td className="p-2 align-middle text-xs">{patient.name}</td>
-                            <td className="p-2 align-middle text-xs">{patient.age}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-500">{patient.type}</td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs font-semibold whitespace-nowrap">#{String(patient.queueNo).padStart(3, '0')}</td>
+                            <td className="p-4 align-middle text-xs font-medium">{patient.name}</td>
+                            <td className="p-4 align-middle text-xs">{patient.age}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.symptoms && patient.symptoms.length > 0 ? (
                                   patient.symptoms.map((symptom, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -1201,8 +1208,8 @@ const Dashboard = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.services && patient.services.length > 0 ? (
                                   patient.services.map((serviceId, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
@@ -1214,7 +1221,7 @@ const Dashboard = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2 align-middle text-xs">
+                            <td className="p-4 align-middle text-xs">
                               <Badge
                                 variant={
                                   patient.status === 'done' ? 'default' :
@@ -1358,31 +1365,31 @@ const Dashboard = () => {
 
                   {/* Desktop Table View - STATUS COLUMN INSTEAD OF ACTION */}
                   <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                    <table className="w-full border-collapse relative table-fixed">
+                    <table className="w-full border-collapse relative">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-yellow-100 shadow-sm">
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Queue #</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Name</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[5%]">Age</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[10%]">Phone</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Doctor</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Type</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[20%]">Symptoms</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[15%]">Services</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[10%]">Status</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[6%] whitespace-nowrap">Queue #</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[12%] whitespace-nowrap">Name</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[4%] whitespace-nowrap">Age</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Phone</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[14%] whitespace-nowrap">Doctor</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Type</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[18%] whitespace-nowrap">Symptoms</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[16%] whitespace-nowrap">Services</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredPriorityPatients.map(patient => (
                           <tr key={`priority-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-yellow-50">
-                            <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                            <td className="p-2 align-middle text-xs">{patient.name}</td>
-                            <td className="p-2 align-middle text-xs">{patient.age}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-500">{patient.type}</td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs font-semibold whitespace-nowrap">#{String(patient.queueNo).padStart(3, '0')}</td>
+                            <td className="p-4 align-middle text-xs font-medium">{patient.name}</td>
+                            <td className="p-4 align-middle text-xs">{patient.age}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.symptoms && patient.symptoms.length > 0 ? (
                                   patient.symptoms.map((symptom, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -1394,8 +1401,8 @@ const Dashboard = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.services && patient.services.length > 0 ? (
                                   patient.services.map((serviceId, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
@@ -1407,7 +1414,7 @@ const Dashboard = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2 align-middle text-xs">
+                            <td className="p-4 align-middle text-xs">
                               <Badge
                                 variant={
                                   patient.status === 'done' ? 'default' :
@@ -1535,30 +1542,30 @@ const Dashboard = () => {
 
                   {/* Desktop Table View */}
                   <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                    <table className="w-full border-collapse relative table-fixed">
+                    <table className="w-full border-collapse relative">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-emerald-100 shadow-sm">
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Queue #</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Name</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[5%]">Age</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[10%]">Phone</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Doctor</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Type</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[20%]">Symptoms</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[25%]">Services</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[6%] whitespace-nowrap">Queue #</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[12%] whitespace-nowrap">Name</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[4%] whitespace-nowrap">Age</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Phone</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[14%] whitespace-nowrap">Doctor</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Type</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[18%] whitespace-nowrap">Symptoms</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[26%] whitespace-nowrap">Services</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredDonePatients.map(patient => (
                           <tr key={`done-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-emerald-50">
-                            <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                            <td className="p-2 align-middle text-xs">{patient.name}</td>
-                            <td className="p-2 align-middle text-xs">{patient.age}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-500">{patient.type}</td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs font-semibold whitespace-nowrap">#{String(patient.queueNo).padStart(3, '0')}</td>
+                            <td className="p-4 align-middle text-xs font-medium">{patient.name}</td>
+                            <td className="p-4 align-middle text-xs">{patient.age}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.symptoms && patient.symptoms.length > 0 ? (
                                   patient.symptoms.map((symptom, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -1570,8 +1577,8 @@ const Dashboard = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.services && patient.services.length > 0 ? (
                                   patient.services.map((serviceId, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
@@ -1690,30 +1697,30 @@ const Dashboard = () => {
 
                   {/* Desktop Table View */}
                   <div className="hidden lg:block overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                    <table className="w-full border-collapse relative table-fixed">
+                    <table className="w-full border-collapse relative">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-red-100 shadow-sm">
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Queue #</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Name</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[5%]">Age</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[10%]">Phone</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[12%]">Doctor</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[8%]">Type</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[20%]">Symptoms</th>
-                          <th className="border px-2 py-2 text-left text-xs font-medium text-gray-600 w-[25%]">Services</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[6%] whitespace-nowrap">Queue #</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[12%] whitespace-nowrap">Name</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[4%] whitespace-nowrap">Age</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Phone</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[14%] whitespace-nowrap">Doctor</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[10%] whitespace-nowrap">Type</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[18%] whitespace-nowrap">Symptoms</th>
+                          <th className="border px-4 py-2 text-left text-xs font-medium text-gray-600 w-[26%] whitespace-nowrap">Services</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredCancelPatients.map(patient => (
                           <tr key={`cancel-${patient.queueNo}`} className="border-b transition-colors hover:bg-red-50">
-                            <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
-                            <td className="p-2 align-middle text-xs">{patient.name}</td>
-                            <td className="p-2 align-middle text-xs">{patient.age}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
-                            <td className="p-2 align-middle text-xs text-gray-500">{patient.type}</td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs font-semibold whitespace-nowrap">#{String(patient.queueNo).padStart(3, '0')}</td>
+                            <td className="p-4 align-middle text-xs font-medium">{patient.name}</td>
+                            <td className="p-4 align-middle text-xs">{patient.age}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-600">{patient.assignedDoctor?.name || 'Not Assigned'}</td>
+                            <td className="p-4 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.symptoms && patient.symptoms.length > 0 ? (
                                   patient.symptoms.map((symptom, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
@@ -1725,8 +1732,8 @@ const Dashboard = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2 align-middle text-xs">
-                              <div className="flex flex-wrap gap-1 max-w-xs">
+                            <td className="p-4 align-middle text-xs">
+                              <div className="flex flex-wrap gap-1 max-w-[200px]">
                                 {patient.services && patient.services.length > 0 ? (
                                   patient.services.map((serviceId, idx) => (
                                     <Badge key={idx} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
