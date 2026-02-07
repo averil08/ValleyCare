@@ -34,7 +34,7 @@ export const savePatientProfile = async (patientData) => {
 
     if (error) throw error;
     return { success: true, data };
-    
+
   } catch (error) {
     console.error('Error saving patient:', error);
     return { success: false, error: error.message };
@@ -85,8 +85,9 @@ export const syncPatientToDatabase = async (patientData) => {
   try {
     const profileData = {
       // Identity
-      phone_num: patientData.phoneNum, 
-      
+      phone_num: patientData.phoneNum,
+      patient_email: patientData.patientEmail, // ✅ FIX: Sync email to DB
+
       // Fields
       name: patientData.name,
       age: patientData.age ? parseInt(patientData.age) : 0,
@@ -100,7 +101,7 @@ export const syncPatientToDatabase = async (patientData) => {
       services: patientData.services || [],
       is_returning_patient: patientData.isReturningPatient || false,
       is_inactive: patientData.isInactive || false,
-      
+
       // Timestamps
       called_at: patientData.calledAt || null,
       queue_exit_time: patientData.queueExitTime || null,
