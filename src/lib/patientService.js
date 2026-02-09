@@ -79,6 +79,26 @@ export const searchPatient = async (searchTerm) => {
 };
 
 /**
+ * Get max queue number from database
+ */
+export const getMaxQueueNumber = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('patients')
+      .select('queue_no')
+      .order('queue_no', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "Row not found" (empty table)
+    return { success: true, maxQueueNo: data?.queue_no || 0 };
+  } catch (error) {
+    console.error('Error fetching max queue number:', error);
+    return { success: false, error: error.message, maxQueueNo: 0 };
+  }
+};
+
+/**
  * Sync patient to database
  */
 export const syncPatientToDatabase = async (patientData) => {

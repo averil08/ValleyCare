@@ -1,6 +1,6 @@
 import React, { createContext, useState, useMemo, useEffect } from "react";
 import { assignDoctor, doctors } from './doctorData';
-import { syncPatientToDatabase, getAllPatientProfiles } from './lib/patientService';
+import { syncPatientToDatabase, getAllPatientProfiles, getMaxQueueNumber } from './lib/patientService';
 import { supabase } from './lib/supabaseClient'; // Import Supabase client
 
 export const PatientContext = createContext();
@@ -86,6 +86,21 @@ export const PatientProvider = ({ children }) => {
   // the activePatient object also gets updated immediately.
   useEffect(() => {
     if (activePatient && patients.length > 0) {
+      // 1. If active patient is inactive (e.g. requeued/cancelled), try to find their new ticket
+      if (activePatient.isInactive) {
+        const newTicket = patients.find(p =>
+          p.requeued &&
+          p.originalQueueNo === activePatient.queueNo &&
+          !p.isInactive
+        );
+        if (newTicket) {
+          console.log("🔄 Switching to new ticket for requeued patient");
+          setActivePatient(newTicket);
+          return;
+        }
+      }
+
+      // 2. Normal sync: find the freshest version of the active patient
       const freshData = patients.find(p => p.id === activePatient.id);
       if (freshData) {
         // Only update if there are actual changes to avoid infinite loops
@@ -211,6 +226,11 @@ export const PatientProvider = ({ children }) => {
   }, [patients]);
 
   // Sync activePatient (existing logic - keep this)
+  /*
+  // ⚠️ DISABLED: This useEffect causes infinite loops and conflicts with the main sync effect at line 87.
+  // The 'requeued' logic (switching to new ticket) is now better handled by the main sync or manual switching if needed.
+  // Ideally, when a patient is requeued, the old ticket becomes inactive, and the patient logic should naturally 
+  // pickup the new active ticket if we handle it correctly in the main sync.
   useEffect(() => {
     if (activePatient) {
       if (activePatient.isInactive) {
@@ -235,9 +255,13 @@ export const PatientProvider = ({ children }) => {
       }
     }
   }, [patients, activePatient]);
+  */
 
   // ADDED THIS: Auto-assign patients when activeDoctors or patients change
   useEffect(() => {
+    // Prevent running if no active doctors
+    if (activeDoctors.length === 0) return;
+
     const unassignedPatients = patients.filter(p =>
       !p.assignedDoctor &&
       !p.isInactive &&
@@ -246,59 +270,58 @@ export const PatientProvider = ({ children }) => {
       (p.type !== 'Appointment' || p.appointmentStatus === 'accepted')
     );
 
-    if (unassignedPatients.length > 0 && activeDoctors.length > 0) {
-      console.log(`🔄 Found ${unassignedPatients.length} unassigned patients - attempting to assign...`);
+    if (unassignedPatients.length === 0) return;
 
+    // Check if any patient CAN be assigned to avoid useless updates
+    const patientsToUpdate = [];
+
+    unassignedPatients.forEach(patient => {
+      // Skip if pending/rejected
+      if (patient.type === 'Appointment' && patient.appointmentStatus !== 'accepted') return;
+
+      let doctor = null;
+
+      // Preferred doctor check
+      if (patient.preferredDoctor) {
+        const preferred = doctors.find(d => d.id === patient.preferredDoctor.id);
+        if (preferred) doctor = preferred;
+      }
+
+      // Auto-assignment
+      if (!doctor) {
+        doctor = assignDoctor(patient.services || [], patients, activeDoctors);
+      }
+
+      if (doctor) {
+        console.log(`✅ Auto-assigned ${patient.name} (Queue #${patient.queueNo}) to ${doctor.name}`);
+        patientsToUpdate.push({ patient, doctor });
+      }
+    });
+
+    // ONLY update state if we actually have changes
+    if (patientsToUpdate.length > 0) {
       setPatients(prev => {
-        return prev.map(patient => {
-          // Skip if already has a doctor or is inactive/done/cancelled
-          if (patient.assignedDoctor ||
-            patient.isInactive ||
-            patient.status === 'done' ||
-            patient.status === 'cancelled') {
-            return patient;
-          }
+        const nextPatients = [...prev];
+        let hasChanges = false;
 
-          // Skip pending/rejected appointments
-          if (patient.type === 'Appointment' && patient.appointmentStatus !== 'accepted') {
-            return patient;
-          }
-
-          // Try to assign a doctor
-          let doctor = null;
-
-          // ✅ NEW: If patient has a preferred doctor (from "Book by Doctor"), assign them immediately 
-          if (patient.preferredDoctor) {
-            const preferred = doctors.find(d => d.id === patient.preferredDoctor.id);
-            if (preferred) {
-              console.log(`✅ Using preferred doctor for ${patient.name}: ${preferred.name}`);
-              doctor = preferred;
-            }
-          }
-
-          // If no preferred doctor, use auto-assignment algorithm
-          if (!doctor) {
-            doctor = assignDoctor(patient.services || [], prev, activeDoctors);
-          }
-
-          if (doctor) {
-            console.log(`✅ Auto-assigned ${patient.name} (Queue #${patient.queueNo}) to ${doctor.name}`);
-
-            // ✅ Sync to database
+        patientsToUpdate.forEach(({ patient, doctor }) => {
+          const index = nextPatients.findIndex(p => p.id === patient.id || (p.queueNo === patient.queueNo && p.tempId === patient.tempId));
+          if (index !== -1) {
             const updatedPatient = {
-              ...patient,
+              ...nextPatients[index],
               assignedDoctor: doctor
             };
+            nextPatients[index] = updatedPatient;
+            hasChanges = true;
 
+            // Sync to DB
             syncPatientToDatabase(updatedPatient).catch(err => {
               console.error('⚠️ Database sync failed:', err);
             });
-
-            return updatedPatient;
           }
-
-          return patient;
         });
+
+        return hasChanges ? nextPatients : prev;
       });
     }
   }, [patients, activeDoctors]); // Runs whenever patients or activeDoctors change
@@ -561,26 +584,124 @@ export const PatientProvider = ({ children }) => {
       const maxQueueNo = Math.max(...prev.map(p => p.queueNo));
       const newQueueNo = maxQueueNo + 1;
 
+      // 1. Create new patient ticket
+      // CRITICAL: Must remove ID/dbId so database creates a NEW record instead of updating old one
+      const { id, dbId, ...patientDataWithoutId } = cancelledPatient;
+
+      // Add a tempId to track this optimistic update
+      const tempId = `temp-${Date.now()}`;
+
       const newPatient = {
-        ...cancelledPatient,
+        ...patientDataWithoutId,
+        tempId: tempId, // Track this optimistic record
         queueNo: newQueueNo,
         status: "waiting",
         registeredAt: new Date().toISOString(),
         requeued: true,
         originalQueueNo: queueNo,
         inQueue: true,
-        calledAt: null,
+        calledAt: null, // Reset timing
         queueExitTime: null,
-        completedAt: null
+        completedAt: null,
+        isInactive: false // Ensure new ticket is active
       };
 
-      // Sync new requeued patient to database
-      syncPatientToDatabase(newPatient).catch(err => {
-        console.error('⚠️ Database sync failed:', err);
+      // 1b. Sync NEW patient to database with CONFLICT RESOLUTION
+      syncPatientToDatabase(newPatient).then(async (result) => {
+        if (!result.success) {
+          console.log(`⚠️ Initial sync failed: ${result.error}. Checking for queue number conflict...`);
+
+          if (result.error && (result.error.includes("unique_queue_no") || result.error.includes("duplicate key") || result.error.includes("409"))) {
+            console.log("♻️ Queue number conflict detected. Checking if it's a race condition (did we already save?)...");
+
+            // 1. Check who owns the conflicting slot
+            const { data: existingPatient } = await supabase
+              .from('patients')
+              .select('*')
+              .eq('queue_no', newQueueNo)
+              .single();
+
+            // 2. Identify if it's us (Race Condition Success)
+            if (existingPatient &&
+              existingPatient.name === newPatient.name &&
+              existingPatient.phone_num === newPatient.phoneNum) {
+
+              console.log("✅ Conflict was with SELF. Treating as success.", existingPatient);
+
+              // Update local state to match the existing record
+              setPatients(current =>
+                current.map(p =>
+                  (p.tempId === tempId) ? { ...newPatient, id: existingPatient.id } : p
+                ).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0))
+              );
+              return; // Exit, we are done
+            }
+
+            console.log("⚠️ Conflict is real (another patient). Fetching authoritative max queue number...");
+
+            // 3. Genuine Conflict - Retry with new number
+            const maxResult = await getMaxQueueNumber();
+            if (maxResult.success) {
+              const safeQueueNo = maxResult.maxQueueNo + 1;
+              console.log(`✅ Found safe queue number: ${safeQueueNo}. Retrying sync...`);
+
+              const correctedPatient = {
+                ...newPatient,
+                queueNo: safeQueueNo
+              };
+
+              // Retry Sync
+              const retryResult = await syncPatientToDatabase(correctedPatient);
+
+              if (retryResult.success) {
+                console.log("✅ Retry successful! Updating local state with safe queue number.");
+
+                // Update local state to match authoritative DB number
+                setPatients(current =>
+                  current.map(p =>
+                    // Match by tempId to ensure we update the correct optimistic record
+                    (p.tempId === tempId) ? { ...correctedPatient, id: retryResult.data?.id } : p
+                  ).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0))
+                );
+              } else {
+                console.error("❌ Retry failed even with new number:", retryResult.error);
+                // Remove the failed optimistic update to prevent "ghost" duplicates
+                setPatients(current => current.filter(p => p.tempId !== tempId));
+              }
+            }
+          } else {
+            // If error is NOT a conflict (e.g. network error), remove optimisic update to prevent bad state
+            console.error("❌ Sync failed with non-conflict error. removing optimistic record.");
+            setPatients(current => current.filter(p => p.tempId !== tempId));
+          }
+        } else {
+          // Success! Update the temporary record with the real ID from DB
+          if (result.data?.id) {
+            setPatients(current =>
+              current.map(p => p.tempId === tempId ? { ...p, id: result.data.id } : p)
+            );
+          }
+        }
       });
 
+      // 2. Mark OLD ticket as inactive
+      const oldPatient = {
+        ...cancelledPatient,
+        isInactive: true,
+        inQueue: false,
+        status: 'cancelled', // Optional: explicitly mark as cancelled/archived
+        queueExitTime: new Date().toISOString()
+      };
+
+      // 2b. Sync OLD patient to database (CRITICAL FIX)
+      // We must explicitly save the 'isInactive' state so the patient's browser knows to switch
+      syncPatientToDatabase(oldPatient).catch(err => {
+        console.error('⚠️ Database sync failed (old ticket):', err);
+      });
+
+      // 3. Update local state
       const updatedPatients = prev.map(p =>
-        p.queueNo === queueNo ? { ...p, isInactive: true, inQueue: false } : p
+        p.queueNo === queueNo ? oldPatient : p
       );
 
       return [...updatedPatients, newPatient];
