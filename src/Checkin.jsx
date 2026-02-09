@@ -145,6 +145,7 @@ function Checkin() {
   const profileLoadedRef = useRef(false);
   const tempDataLoadedRef = useRef(false);
   const appointmentCheckDoneRef = useRef(false);
+  const sessionClearedRef = useRef(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -300,6 +301,12 @@ function Checkin() {
       return true;
     });
   };
+
+  // Determine if we are starting a NEW booking flow (e.g. from Guest button or Sidebar)
+  const isNewBooking = useMemo(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('type') === 'appointment' || urlParams.get('view') === 'patient';
+  }, [window.location.search]);
 
   //==================== EVENT HANDLERS ====================
   const handleNav = () => setNav(!nav);
@@ -559,16 +566,17 @@ function Checkin() {
     }
   }, [formData.appointmentDateTime, getAvailableSlots]);
 
-  // ✅ NEW: Auto-save form data whenever it changes
+  // ✅ NEW: Clear active patient session ONLY ONCE when entering a new booking flow
   useEffect(() => {
-    // Determine if we are starting a NEW booking flow
-    const urlParams = new URLSearchParams(window.location.search);
-    const isNewBooking = urlParams.get('type') === 'appointment' || urlParams.get('view') === 'patient';
-
-    if (isNewBooking) {
+    if (isNewBooking && !sessionClearedRef.current) {
       console.log("🧹 New booking detected - clearing active patient session.");
       clearActivePatient();
+      sessionClearedRef.current = true;
     }
+  }, [isNewBooking, clearActivePatient]);
+
+  // ✅ NEW: Auto-save form data whenever it changes
+  useEffect(() => {
     // Check if user is logged in (has email) and booking an appointment
     const currentEmail = localStorage.getItem('currentPatientEmail');
 
@@ -594,7 +602,7 @@ function Checkin() {
 
       return () => clearTimeout(timeoutId);
     }
-  }, [formData, expandedCategory, bookingMode, selectedDoctor, selectedPatientType]);
+  }, [formData, expandedCategory, bookingMode, selectedDoctor, selectedPatientType, isNewBooking]);
 
   useEffect(() => {
     // Check validation based on login status rather than just sidebar source
@@ -696,12 +704,14 @@ function Checkin() {
   }, [selectedPatientType]);
 
   // ✅ Navigation redirect - simple and clean
-  if (activePatient) {
+  // GUARD: Do NOT redirect if we are starting a NEW booking flow (e.g. Guest flow or sidebar button)
+  if (activePatient && !isNewBooking) {
     const params = new URLSearchParams();
     if (isPatientAccess) params.append('view', 'patient');
     if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
     return <Navigate to={`/qstatus${params.toString() ? '?' + params.toString() : ''}`} replace />;
   }
+
 
   // === CLINIC VIEW ===
   if (viewMode === 'clinic' && !isPatientAccess) {
