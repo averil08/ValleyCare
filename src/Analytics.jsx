@@ -1242,7 +1242,7 @@ const Analytics = () => {
           {/* Patient Volume Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="lg:col-span-2 shadow-sm border-gray-100">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0 pb-4">
                 <CardDescription className="flex items-center gap-2 font-semibold text-gray-700">
                   {patientStatsType === 'walkin' ? <Activity className="w-5 h-5 text-purple-600" /> :
                     patientStatsType === 'appointment' ? <Calendar className="w-5 h-5 text-orange-600" /> :
@@ -1251,7 +1251,7 @@ const Analytics = () => {
                     patientStatsType === 'appointment' ? "Total Appointments" :
                       "Total No-shows"}
                 </CardDescription>
-                <div className="flex bg-gray-100 p-1 rounded-lg shrink-0 ml-4">
+                <div className="flex bg-gray-100 p-1 rounded-lg shrink-0">
                   <button
                     onClick={() => setPatientStatsType('walkin')}
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all whitespace-nowrap ${patientStatsType === 'walkin' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'
