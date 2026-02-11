@@ -594,6 +594,9 @@ const Dashboard = () => {
     if (p.status === "done" || p.status === "cancelled") return false;
     if (p.isPriority) return false;
 
+    // ✅ FIX: For appointments, only show if it's for today
+    if (p.type === "Appointment" && !isWithinDateRange(p.appointmentDateTime)) return false;
+
     // ✅ FIX: If patient is in an ongoing status, exclude from date filter check for the 'Today' view
     const isOngoing = p.status === "waiting" || p.status === "in progress";
     if (!isOngoing && !isWithinDateRange(p.registeredAt)) return false;
@@ -619,6 +622,9 @@ const Dashboard = () => {
     if (dateFilter !== 'today') return false;
     if (p.isInactive) return false;
     if (p.status === "done" || p.status === "cancelled") return false;
+
+    // ✅ FIX: For appointments, only show if it's for today
+    if (p.type === "Appointment" && !isWithinDateRange(p.appointmentDateTime)) return false;
 
     // ✅ FIX: If priority patient is in an ongoing status, exclude from date filter check for the 'Today' view
     const isOngoing = p.status === "waiting" || p.status === "in progress";
