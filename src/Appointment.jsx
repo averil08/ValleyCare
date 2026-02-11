@@ -22,11 +22,97 @@ import {
 const Appointment = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
+
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
+  // Date Filtering State
+  const getInitialDateFilter = () => {
+    const dayIndex = new Date().getDay();
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const todayName = days[dayIndex];
+    // If Sunday, default to Monday, otherwise current day
+    return todayName === 'sunday' ? 'monday' : todayName;
+  };
+
+  const [dateFilter, setDateFilter] = useState(getInitialDateFilter());
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+
   const { patients, acceptAppointment, rejectAppointment } = useContext(PatientContext);
+
+  // Helper to get label for date filter
+  const getDateFilterLabel = () => {
+    switch (dateFilter) {
+      case 'monday': return 'Monday';
+      case 'tuesday': return 'Tuesday';
+      case 'wednesday': return 'Wednesday';
+      case 'thursday': return 'Thursday';
+      case 'friday': return 'Friday';
+      case 'saturday': return 'Saturday';
+      case 'thisWeek': return 'This Week';
+      case 'custom': return 'Custom Range';
+      case 'all': return 'All Dates';
+      default: return dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1);
+    }
+  };
+
+  // Helper to check if date is within range
+  const isWithinDateRange = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const now = new Date();
+
+    if (dateFilter === 'all') return true;
+
+    if (dateFilter === 'custom') {
+      if (!customStartDate || !customEndDate) return true;
+      const start = new Date(customStartDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999);
+      return date >= start && date <= end;
+    }
+
+    if (dateFilter === 'thisWeek') {
+      // Start of week = Sunday
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      // End of week = Saturday
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+
+      return date >= startOfWeek && date <= endOfWeek;
+    }
+
+    // Handle Day of Week filters (monday, tuesday, etc.)
+    const daysMap = {
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6
+    };
+
+    if (daysMap.hasOwnProperty(dateFilter)) {
+      const targetDayIndex = daysMap[dateFilter];
+      const currentDayIndex = now.getDay();
+
+      // Calculate difference to get the date for the target day of THIS week
+      const diff = targetDayIndex - currentDayIndex;
+      const targetDateStart = new Date(now);
+      targetDateStart.setDate(now.getDate() + diff);
+      targetDateStart.setHours(0, 0, 0, 0);
+
+      const targetDateEnd = new Date(targetDateStart);
+      targetDateEnd.setHours(23, 59, 59, 999);
+
+      return date >= targetDateStart && date <= targetDateEnd;
+    }
+
+    return true;
+  };
 
   // Filter appointments (patients with type "Appointment")
   const allAppointments = (patients || [])
@@ -36,79 +122,37 @@ const Appointment = () => {
       p.status !== "cancelled"
     );
 
-  // Helper function to check if appointment is in the future
-  const isFutureAppointment = (appointment) => {
-    const appointmentDate = new Date(appointment.appointmentDateTime || appointment.appointment_datetime);
-    return appointmentDate > new Date();
-  };
-
-  // Helper function to categorize upcoming appointments
-  const categorizeUpcoming = (appointment) => {
-    const appointmentDate = new Date(appointment.appointmentDateTime || appointment.appointment_datetime);
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const endOfWeek = new Date(now);
-    endOfWeek.setDate(endOfWeek.getDate() + 7);
-
-    // Reset time parts for accurate date comparison
-    const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrowDay = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate());
-
-    if (appointmentDay.getTime() === today.getTime()) {
-      return 'today';
-    } else if (appointmentDay.getTime() === tomorrowDay.getTime()) {
-      return 'tomorrow';
-    } else if (appointmentDate <= endOfWeek) {
-      return 'thisWeek';
-    }
-    return 'later';
-  };
-
-  // Get filtered appointments based on active filter
+  // Get filtered appointments based on criteria
   const getFilteredAppointments = () => {
+    let filtered = allAppointments.filter(a => {
+      const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+      return isWithinDateRange(dateToCheck);
+    });
+
     switch (activeFilter) {
       case 'pending':
-        return allAppointments
+        return filtered
           .filter(a => !a.appointmentStatus || a.appointmentStatus === 'pending')
           .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
 
       case 'accepted':
-        return allAppointments
+        return filtered
           .filter(a => a.appointmentStatus === 'accepted')
           .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
 
       case 'rejected':
-        return allAppointments
+        return filtered
           .filter(a => a.appointmentStatus === 'rejected')
           .sort((a, b) => new Date(b.rejectedAt || b.registeredAt) - new Date(a.rejectedAt || a.registeredAt));
 
-      case 'upcoming':
-        return allAppointments
-          .filter(a => a.appointmentStatus === 'accepted' && isFutureAppointment(a))
-          .sort((a, b) => {
-            const dateA = new Date(a.appointmentDateTime || a.appointment_datetime);
-            const dateB = new Date(b.appointmentDateTime || b.appointment_datetime);
-            return dateA - dateB; // Sort by appointment time, earliest first
-          });
-
       case 'all':
       default:
-        return allAppointments
+        return filtered
           .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
     }
   };
 
   const filteredAppointments = getFilteredAppointments();
-
-  // Group upcoming appointments by category
-  const groupedUpcoming = activeFilter === 'upcoming' ? {
-    today: filteredAppointments.filter(a => categorizeUpcoming(a) === 'today'),
-    tomorrow: filteredAppointments.filter(a => categorizeUpcoming(a) === 'tomorrow'),
-    thisWeek: filteredAppointments.filter(a => categorizeUpcoming(a) === 'thisWeek'),
-    later: filteredAppointments.filter(a => categorizeUpcoming(a) === 'later')
-  } : null;
 
   // Service labels mapping
   const serviceLabels = {
@@ -399,7 +443,7 @@ const Appointment = () => {
               <TableHead className="font-semibold text-gray-700">Doctor/Service</TableHead>
               <TableHead className="font-semibold text-gray-700">Symptoms</TableHead>
               <TableHead className="font-semibold text-gray-700 text-center">Status</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center">Actions</TableHead>
+              <TableHead className="font-semibold text-gray-700 text-center w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -496,12 +540,13 @@ const Appointment = () => {
                 </TableCell>
 
                 <TableCell>
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex items-center justify-center gap-1">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                       onClick={() => handleViewDetails(appointment)}
+                      title="View Details"
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
@@ -511,16 +556,18 @@ const Appointment = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                           onClick={() => handleAccept(appointment)}
+                          title="Accept"
                         >
                           <CheckCircle className="w-4 h-4" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() => handleRejectClick(appointment)}
+                          title="Decline"
                         >
                           <XCircle className="w-4 h-4" />
                         </Button>
@@ -541,7 +588,7 @@ const Appointment = () => {
       <Sidebar nav={nav} handleNav={handleNav} />
 
       {/* MAIN CONTENT */}
-      <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 transition-all duration-300">
+      <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 transition-all duration-300 w-full overflow-x-hidden">
         {/* Header */}
         <div className="bg-white shadow-sm pt-12 lg:pt-3">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
@@ -557,82 +604,168 @@ const Appointment = () => {
 
         {/* Appointments Section */}
         <div className="max-w-7xl mx-auto p-4 sm:p-6">
-          {/* Filter Buttons */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Filter className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">Filter by:</span>
+          {/* Date Filter & Status Filter Controls */}
+          <div className="mb-6 space-y-4">
+            {/* Date Filter */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Date Range:</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 relative">
+                {/* Date Filter Dropdown */}
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    className="min-w-[140px] justify-between"
+                    onClick={() => setShowDateDropdown(!showDateDropdown)}
+                  >
+                    {getDateFilterLabel()}
+                    <span className="ml-2">▼</span>
+                  </Button>
+
+                  {showDateDropdown && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'thisWeek', 'custom', 'all'].map((filter) => (
+                        <button
+                          key={filter}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${dateFilter === filter ? 'text-green-600 font-medium bg-green-50' : 'text-gray-700'}`}
+                          onClick={() => {
+                            setDateFilter(filter);
+                            setShowDateDropdown(false);
+                          }}
+                        >
+                          {filter === 'monday' && 'Monday'}
+                          {filter === 'tuesday' && 'Tuesday'}
+                          {filter === 'wednesday' && 'Wednesday'}
+                          {filter === 'thursday' && 'Thursday'}
+                          {filter === 'friday' && 'Friday'}
+                          {filter === 'saturday' && 'Saturday'}
+                          {filter === 'thisWeek' && 'This Week'}
+                          {filter === 'custom' && 'Custom Range'}
+                          {filter === 'all' && 'All Dates'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom Date Inputs */}
+                {dateFilter === 'custom' && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-gray-400">-</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => setActiveFilter('all')}
-                variant={activeFilter === 'all' ? 'default' : 'outline'}
-                className={activeFilter === 'all'
-                  ? 'bg-green-600 hover:bg-green-700'
-                  : 'hover:bg-gray-100'
-                }
-              >
-                All
-                <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
-                  {allAppointments.length}
-                </Badge>
-              </Button>
 
-              <Button
-                onClick={() => setActiveFilter('pending')}
-                variant={activeFilter === 'pending' ? 'default' : 'outline'}
-                className={activeFilter === 'pending'
-                  ? 'bg-amber-600 hover:bg-amber-700'
-                  : 'hover:bg-gray-100'
-                }
-              >
-                Pending Approval
-                <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
-                  {allAppointments.filter(a => !a.appointmentStatus || a.appointmentStatus === 'pending').length}
-                </Badge>
-              </Button>
+            {/* Status Filters */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="w-4 h-4 text-gray-600" />
+                <span className="text-sm font-medium text-gray-700">Filter by Status:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => setActiveFilter('all')}
+                  variant={activeFilter === 'all' ? 'default' : 'outline'}
+                  className={activeFilter === 'all'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'hover:bg-gray-100'
+                  }
+                >
+                  All
+                  <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
+                    {allAppointments.filter(a => {
+                      const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                      return isWithinDateRange(dateToCheck);
+                    }).length}
+                  </Badge>
+                </Button>
 
-              <Button
-                onClick={() => setActiveFilter('accepted')}
-                variant={activeFilter === 'accepted' ? 'default' : 'outline'}
-                className={activeFilter === 'accepted'
-                  ? 'bg-green-600 hover:bg-green-700'
-                  : 'hover:bg-gray-100'
-                }
-              >
-                Accepted
-                <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
-                  {allAppointments.filter(a => a.appointmentStatus === 'accepted').length}
-                </Badge>
-              </Button>
+                <Button
+                  onClick={() => setActiveFilter('pending')}
+                  variant={activeFilter === 'pending' ? 'default' : 'outline'}
+                  className={activeFilter === 'pending'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'hover:bg-gray-100'
+                  }
+                >
+                  Pending Approval
+                  <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
+                    {/* Note: This count logic needs to be aware of date filtering if we want it to be accurate to the current view, 
+                         or separate if we want it to show global pending. 
+                         Let's keep it simple for now and show count based on *filtered* list if user clicks it,
+                         but usually these badges show total potential matches. 
+                         For now, let's just use the length of what *would* be shown if clicked, roughly. 
+                         Actually, let's just count from the filtered list for simplicity in this specific block context or 
+                         re-calculate. The original code calculated from 'allAppointments'. 
+                         Let's try to preserve the original behavior of showing TOTAL counts for that status, 
+                         ignoring date filter for the badge itself? Or respecting it?
+                         
+                         User asked for "appointments of today". 
+                         If I say "Pending (5)", does that mean 5 pending today or 5 total?
+                         Usually filters are composable. "Today" + "Pending".
+                         So the badge should probably reflect the "Today" count.
+                     */}
+                    {allAppointments.filter(a => {
+                      const matchesStatus = !a.appointmentStatus || a.appointmentStatus === 'pending';
+                      const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                      // To be helpful, let's make the badge count respect the current Date Filter
+                      return matchesStatus && isWithinDateRange(dateToCheck);
+                    }).length}
+                  </Badge>
+                </Button>
 
-              <Button
-                onClick={() => setActiveFilter('rejected')}
-                variant={activeFilter === 'rejected' ? 'default' : 'outline'}
-                className={activeFilter === 'rejected'
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : 'hover:bg-gray-100'
-                }
-              >
-                Not Accepted
-                <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
-                  {allAppointments.filter(a => a.appointmentStatus === 'rejected').length}
-                </Badge>
-              </Button>
+                <Button
+                  onClick={() => setActiveFilter('accepted')}
+                  variant={activeFilter === 'accepted' ? 'default' : 'outline'}
+                  className={activeFilter === 'accepted'
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'hover:bg-gray-100'
+                  }
+                >
+                  Accepted
+                  <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
+                    {allAppointments.filter(a => {
+                      const matchesStatus = a.appointmentStatus === 'accepted';
+                      const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                      return matchesStatus && isWithinDateRange(dateToCheck);
+                    }).length}
+                  </Badge>
+                </Button>
 
-              <Button
-                onClick={() => setActiveFilter('upcoming')}
-                variant={activeFilter === 'upcoming' ? 'default' : 'outline'}
-                className={activeFilter === 'upcoming'
-                  ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'hover:bg-gray-100'
-                }
-              >
-                Upcoming
-                <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
-                  {allAppointments.filter(a => a.appointmentStatus === 'accepted' && isFutureAppointment(a)).length}
-                </Badge>
-              </Button>
+                <Button
+                  onClick={() => setActiveFilter('rejected')}
+                  variant={activeFilter === 'rejected' ? 'default' : 'outline'}
+                  className={activeFilter === 'rejected'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'hover:bg-gray-100'
+                  }
+                >
+                  Not Accepted
+                  <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
+                    {allAppointments.filter(a => {
+                      const matchesStatus = a.appointmentStatus === 'rejected';
+                      const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                      return matchesStatus && isWithinDateRange(dateToCheck);
+                    }).length}
+                  </Badge>
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -643,7 +776,9 @@ const Appointment = () => {
                 <CardDescription>Total Appointments</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-gray-900">{allAppointments.length}</p>
+                <p className="text-3xl font-bold text-gray-900">
+                  {allAppointments.filter(a => isWithinDateRange(a.appointmentDateTime || a.appointment_datetime)).length}
+                </p>
               </CardContent>
             </Card>
 
@@ -653,7 +788,11 @@ const Appointment = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-green-600">
-                  {allAppointments.filter(a => a.appointmentStatus === 'accepted').length}
+                  {allAppointments.filter(a => {
+                    const matchesStatus = a.appointmentStatus === 'accepted';
+                    const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                    return matchesStatus && isWithinDateRange(dateToCheck);
+                  }).length}
                 </p>
               </CardContent>
             </Card>
@@ -664,7 +803,11 @@ const Appointment = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-amber-600">
-                  {allAppointments.filter(a => !a.appointmentStatus || a.appointmentStatus === 'pending').length}
+                  {allAppointments.filter(a => {
+                    const matchesStatus = !a.appointmentStatus || a.appointmentStatus === 'pending';
+                    const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                    return matchesStatus && isWithinDateRange(dateToCheck);
+                  }).length}
                 </p>
               </CardContent>
             </Card>
