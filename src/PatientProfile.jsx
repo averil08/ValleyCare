@@ -30,6 +30,38 @@ const PatientProfile = () => {
   const [isVisitHistoryExpanded, setIsVisitHistoryExpanded] = useState(false);
   const [isPastVisitsModalOpen, setIsPastVisitsModalOpen] = useState(false);
 
+  // Date Filtering State
+  const getInitialDateFilter = () => {
+    if (!patients || patients.length === 0) {
+      const dayIndex = new Date().getDay();
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const todayName = days[dayIndex];
+      return todayName === 'sunday' ? 'monday' : todayName;
+    }
+
+    // Find the most recent registeredAt date among active/non-ignored patients
+    const latestVisit = patients.reduce((latest, visit) => {
+      // Skip logic similar to uniquePatients filtering to find "real" latest visit
+      if (visit.isInactive) return latest;
+      if (visit.type === 'Appointment' && (visit.status === 'pending' || visit.status === 'rejected')) return latest;
+
+      if (!visit.registeredAt) return latest;
+      return new Date(visit.registeredAt) > new Date(latest) ? visit.registeredAt : latest;
+    }, patients[0]?.registeredAt || new Date().toISOString());
+
+    const latestDate = new Date(latestVisit);
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days[latestDate.getDay()];
+
+    // Default to 'monday' if it's 'sunday' as per convention in Appointments page
+    return dayName === 'sunday' ? 'monday' : dayName;
+  };
+
+  const [dateFilter, setDateFilter] = useState(getInitialDateFilter());
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+
   // ✨ NEW: State for visit details modal
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [isVisitDetailModalOpen, setIsVisitDetailModalOpen] = useState(false);
@@ -62,6 +94,68 @@ const PatientProfile = () => {
   const normalizeName = (name) => {
     if (!name) return '';
     return name.toLowerCase().trim();
+  };
+
+  // Helper to get label for date filter
+  const getDateFilterLabel = () => {
+    switch (dateFilter) {
+      case 'monday': return 'Monday';
+      case 'tuesday': return 'Tuesday';
+      case 'wednesday': return 'Wednesday';
+      case 'thursday': return 'Thursday';
+      case 'friday': return 'Friday';
+      case 'saturday': return 'Saturday';
+      case 'thisWeek': return 'This Week';
+      case 'custom': return 'Custom Range';
+      case 'all': return 'All Dates';
+      default: return dateFilter.charAt(0).toUpperCase() + dateFilter.slice(1);
+    }
+  };
+
+  // Helper to check if date is within range
+  const isWithinDateRange = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const now = new Date();
+
+    if (dateFilter === 'all') return true;
+
+    if (dateFilter === 'custom') {
+      if (!customStartDate || !customEndDate) return true;
+      const start = new Date(customStartDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(customEndDate);
+      end.setHours(23, 59, 59, 999);
+      return date >= start && date <= end;
+    }
+
+    if (dateFilter === 'thisWeek') {
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+      endOfWeek.setHours(23, 59, 59, 999);
+      return date >= startOfWeek && date <= endOfWeek;
+    }
+
+    const daysMap = {
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6
+    };
+
+    if (daysMap.hasOwnProperty(dateFilter)) {
+      const targetDayIndex = daysMap[dateFilter];
+      const currentDayIndex = now.getDay();
+      const diff = targetDayIndex - currentDayIndex;
+      const targetDateStart = new Date(now);
+      targetDateStart.setDate(now.getDate() + diff);
+      targetDateStart.setHours(0, 0, 0, 0);
+      const targetDateEnd = new Date(targetDateStart);
+      targetDateEnd.setHours(23, 59, 59, 999);
+      return date >= targetDateStart && date <= targetDateEnd;
+    }
+
+    return true;
   };
 
   // Group patients by unique patient with SIMPLIFIED matching logic
@@ -122,25 +216,53 @@ const PatientProfile = () => {
     });
 
     // Convert to array and sort visits by date
-    return Array.from(patientMap.values()).map(patient => ({
-      ...patient,
-      visits: patient.visits.sort((a, b) =>
-        new Date(b.registeredAt) - new Date(a.registeredAt)
-      ),
-      totalVisits: patient.visits.length,
-      lastVisit: patient.visits[0],
-      firstVisit: patient.visits[patient.visits.length - 1]
-    })).sort((a, b) =>
-      // Sort by most recent visit
-      new Date(b.lastVisit.registeredAt) - new Date(a.lastVisit.registeredAt)
-    );
+    return Array.from(patientMap.values()).map(patient => {
+      // Sort visits by date descending (most recent first)
+      const sortedVisits = patient.visits.sort((a, b) => {
+        const dateA = new Date(a.appointmentDateTime || a.registeredAt);
+        const dateB = new Date(b.appointmentDateTime || b.registeredAt);
+        return dateB - dateA;
+      });
+
+      // Find the most recent completed visit
+      const mostRecentDone = sortedVisits.find(v => v.status === 'done');
+
+      // Definitions for display purposes:
+      // If there's a completed visit, that's the "Last Visit".
+      // Otherwise, the most recent visit overall (which would be an upcoming/accepted one) is used.
+      const lastVisit = mostRecentDone || sortedVisits[0];
+
+      // Find the first (oldest) completed visit
+      const completedVisits = sortedVisits.filter(v => v.status === 'done');
+      const firstVisit = completedVisits.length > 0 ? completedVisits[completedVisits.length - 1] : null;
+
+      return {
+        ...patient,
+        visits: sortedVisits,
+        totalVisits: patient.visits.length,
+        lastVisit: lastVisit,
+        firstVisit: firstVisit
+      };
+    }).sort((a, b) => {
+      // Sort patients by their representative visit date (prioritizing done visits as defined above)
+      const dateA = new Date(a.lastVisit?.appointmentDateTime || a.lastVisit?.registeredAt);
+      const dateB = new Date(b.lastVisit?.appointmentDateTime || b.lastVisit?.registeredAt);
+      return dateB - dateA;
+    });
   }, [patients]);
 
-  // Filter patients based on search
-  const filteredPatients = uniquePatients.filter(patient =>
-    patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (patient.phoneNum && patient.phoneNum.includes(searchTerm))
-  );
+  // Filter patients based on search and date range
+  const filteredPatients = uniquePatients.filter(patient => {
+    const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (patient.phoneNum && patient.phoneNum.includes(searchTerm));
+
+    // Check if the patient's representative "Last Visit" (prioritized as per requirements) 
+    // falls within the selected date range
+    const dateToCheck = patient.lastVisit?.appointmentDateTime || patient.lastVisit?.registeredAt;
+    const matchesDate = isWithinDateRange(dateToCheck);
+
+    return matchesSearch && matchesDate;
+  });
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -266,13 +388,15 @@ const PatientProfile = () => {
           </div>
         </div>
 
-        {/* Last Visit */}
+        {/* Last Visit / Upcoming Appointment */}
         <div className="mb-3 pb-3 border-b">
-          <p className="text-xs text-gray-500 mb-1">Last Visit</p>
+          <p className="text-xs text-gray-500 mb-1">
+            {patient.lastVisit.status === 'done' ? 'Last Visit' : 'Upcoming Appointment'}
+          </p>
           <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-gray-700">
-              {formatDateShort(patient.lastVisit.registeredAt)}
+            <Calendar className={`w-4 h-4 ${patient.lastVisit.status === 'done' ? 'text-gray-400' : 'text-blue-500'}`} />
+            <span className={`text-sm ${patient.lastVisit.status === 'done' ? 'text-gray-700' : 'text-blue-700 font-medium'}`}>
+              {formatDateShort(patient.lastVisit.appointmentDateTime || patient.lastVisit.registeredAt)}
             </span>
           </div>
         </div>
@@ -316,9 +440,9 @@ const PatientProfile = () => {
       <Card
         key={visit.queueNo}
         className={`mb-3 border-l-4 ${visit.status === 'done' ? 'border-l-emerald-600' :
-            visit.status === 'cancelled' ? 'border-l-red-600' :
-              visit.status === 'in progress' ? 'border-l-blue-600' :
-                'border-l-yellow-600'
+          visit.status === 'cancelled' ? 'border-l-red-600' :
+            visit.status === 'in progress' ? 'border-l-blue-600' :
+              'border-l-yellow-600'
           }`}
       >
         <CardContent className="p-4">
@@ -379,15 +503,80 @@ const PatientProfile = () => {
                 </div>
               </div>
 
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                <Input
-                  type="text"
-                  placeholder="Search by name or phone number..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full max-w-md"
-                />
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                <div className="relative w-full max-w-md">
+                  <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search by name or phone number..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-full"
+                  />
+                </div>
+
+                {/* Date Filter Controls - Ported from Appointment.jsx */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 mr-2">
+                    <Calendar className="w-5 h-5 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Last Visit:</span>
+                  </div>
+
+                  <div className="relative">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-w-[140px] justify-between h-10"
+                      onClick={() => setShowDateDropdown(!showDateDropdown)}
+                    >
+                      {getDateFilterLabel()}
+                      <span className="ml-2 text-[10px]">▼</span>
+                    </Button>
+
+                    {showDateDropdown && (
+                      <div className="absolute top-full right-0 lg:left-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'thisWeek', 'custom', 'all'].map((filter) => (
+                          <button
+                            key={filter}
+                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${dateFilter === filter ? 'text-green-600 font-medium bg-green-50' : 'text-gray-700'}`}
+                            onClick={() => {
+                              setDateFilter(filter);
+                              setShowDateDropdown(false);
+                            }}
+                          >
+                            {filter === 'monday' && 'Monday'}
+                            {filter === 'tuesday' && 'Tuesday'}
+                            {filter === 'wednesday' && 'Wednesday'}
+                            {filter === 'thursday' && 'Thursday'}
+                            {filter === 'friday' && 'Friday'}
+                            {filter === 'saturday' && 'Saturday'}
+                            {filter === 'thisWeek' && 'This Week'}
+                            {filter === 'custom' && 'Custom Range'}
+                            {filter === 'all' && 'All Dates'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {dateFilter === 'custom' && (
+                    <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="px-2 py-1.5 h-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                      <span className="text-gray-400">-</span>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="px-2 py-1.5 h-10 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -424,7 +613,7 @@ const PatientProfile = () => {
                             <TableHead className="font-semibold text-gray-700">Age</TableHead>
                             <TableHead className="font-semibold text-gray-700">Contact Number</TableHead>
                             <TableHead className="font-semibold text-gray-700 text-center">Visit Count</TableHead>
-                            <TableHead className="font-semibold text-gray-700">Last Visit</TableHead>
+                            <TableHead className="font-semibold text-gray-700">Last / Upcoming Visit</TableHead>
                             <TableHead className="font-semibold text-gray-700">Assigned Doctor</TableHead>
                             <TableHead className="font-semibold text-gray-700 text-center">Action</TableHead>
                           </TableRow>
@@ -464,9 +653,14 @@ const PatientProfile = () => {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
-                                  <Calendar className="w-4 h-4 text-gray-400" />
-                                  <span className="text-gray-700 text-sm">
-                                    {formatDateShort(patient.lastVisit.registeredAt)}
+                                  <Calendar className={`w-4 h-4 ${patient.lastVisit.status === 'done' ? 'text-gray-400' : 'text-blue-500'}`} />
+                                  <span className={`text-sm ${patient.lastVisit.status === 'done' ? 'text-gray-700' : 'text-blue-700 font-medium'}`}>
+                                    {formatDateShort(patient.lastVisit.appointmentDateTime || patient.lastVisit.registeredAt)}
+                                    {patient.lastVisit.status !== 'done' && (
+                                      <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 bg-blue-50 text-blue-600 border-blue-200">
+                                        Upcoming
+                                      </Badge>
+                                    )}
                                   </span>
                                 </div>
                               </TableCell>
@@ -557,9 +751,9 @@ const PatientProfile = () => {
               <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
                 <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                   <div className="flex-1">
-                    <CardTitle className="flex items-center gap-2 text-blue-900">
+                    <CardTitle className={`flex items-center gap-2 ${selectedPatient.lastVisit.status === 'done' ? 'text-blue-900' : 'text-emerald-900'}`}>
                       <Activity className="w-6 h-6" />
-                      Most Recent Visit Summary
+                      {selectedPatient.lastVisit.status === 'done' ? 'Most Recent Visit Summary' : 'Upcoming Appointment Summary'}
                     </CardTitle>
                   </div>
                   {selectedPatient.visits.length > 1 && (
@@ -700,11 +894,17 @@ const PatientProfile = () => {
               <div className="mt-6 pt-6 border-t grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                   <p className="text-sm text-gray-600 mb-1">First Visit</p>
-                  <p className="font-semibold text-gray-900">{formatDate(selectedPatient.firstVisit.registeredAt)}</p>
+                  <p className="font-semibold text-gray-900">
+                    {selectedPatient.firstVisit ? formatDate(selectedPatient.firstVisit.appointmentDateTime || selectedPatient.firstVisit.registeredAt) : '—'}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Last Visit</p>
-                  <p className="font-semibold text-gray-900">{formatDate(selectedPatient.lastVisit.registeredAt)}</p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    {selectedPatient.lastVisit.status === 'done' ? 'Last Visit' : 'Upcoming Appointment'}
+                  </p>
+                  <p className="font-semibold text-gray-900">
+                    {formatDate(selectedPatient.lastVisit.appointmentDateTime || selectedPatient.lastVisit.registeredAt)}
+                  </p>
                 </div>
               </div>
 
