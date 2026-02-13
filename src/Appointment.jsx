@@ -28,15 +28,7 @@ const Appointment = () => {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
   // Date Filtering State
-  const getInitialDateFilter = () => {
-    const dayIndex = new Date().getDay();
-    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const todayName = days[dayIndex];
-    // If Sunday, default to Monday, otherwise current day
-    return todayName === 'sunday' ? 'monday' : todayName;
-  };
-
-  const [dateFilter, setDateFilter] = useState(getInitialDateFilter());
+  const [dateFilter, setDateFilter] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
