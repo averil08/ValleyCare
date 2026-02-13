@@ -39,7 +39,7 @@ const Dashboard = () => {
 
   // NEW: State for doctor selection
   const storedDoctorId = localStorage.getItem('selectedDoctorId');
-  const [selectedDoctor, setSelectedDoctor] = useState(defaultDoctorId || storedDoctorId || null);
+  const [selectedDoctor, setSelectedDoctor] = useState(defaultDoctorId ? Number(defaultDoctorId) : (storedDoctorId ? Number(storedDoctorId) : null));
   const [viewMode, setViewMode] = useState(
     isDoctor && (defaultDoctorId || storedDoctorId) ? 'doctor' : 'general'
   );
@@ -694,16 +694,18 @@ const Dashboard = () => {
 
   // Helper function to check if a doctor has active or priority patients
   const getDoctorPatientCount = (doctorId) => {
-    const activeCount = queuePatients.filter(p => p.assignedDoctor?.id === doctorId).length;
-    const priorityCount = priorityPatients.filter(p => p.assignedDoctor?.id === doctorId).length;
+    const dId = Number(doctorId);
+    const activeCount = queuePatients.filter(p => p.assignedDoctor?.id === dId).length;
+    const priorityCount = priorityPatients.filter(p => p.assignedDoctor?.id === dId).length;
     return activeCount + priorityCount;
   };
 
   // ADD THIS NEW FUNCTION:
   const getDoctorStatus = (doctorId) => {
+    const dId = Number(doctorId);
     const doctorPatients = patients.filter(p =>
       !p.isInactive &&
-      p.assignedDoctor?.id === doctorId &&
+      p.assignedDoctor?.id === dId &&
       p.status !== "done" &&
       p.status !== "cancelled"
     );

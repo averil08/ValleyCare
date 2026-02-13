@@ -718,23 +718,33 @@ export const PatientProvider = ({ children }) => {
   };
 
   const callNextPatientForDoctor = (doctorId) => {
-    const currentPatientQueueNo = doctorCurrentServing[doctorId];
+    const dId = Number(doctorId);
+    const currentPatientQueueNo = doctorCurrentServing[dId];
 
     if (currentPatientQueueNo) {
       updatePatientStatus(currentPatientQueueNo, 'done');
     }
 
+    // Helper to check if a date is today
+    const isToday = (dateString) => {
+      if (!dateString) return false;
+      const date = new Date(dateString);
+      const now = new Date();
+      return date.toDateString() === now.toDateString();
+    };
+
     const nextPriorityPatient = patients.find(p =>
       p.status === "waiting" &&
       p.inQueue &&
       p.isPriority &&
-      p.assignedDoctor?.id === doctorId &&
-      !p.isInactive
+      p.assignedDoctor?.id === dId &&
+      !p.isInactive &&
+      isToday(p.registeredAt)
     );
 
     if (nextPriorityPatient) {
       updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
-      setDoctorCurrentServingPatient(doctorId, nextPriorityPatient.queueNo);
+      setDoctorCurrentServingPatient(dId, nextPriorityPatient.queueNo);
       return;
     }
 
@@ -742,36 +752,47 @@ export const PatientProvider = ({ children }) => {
       p.status === "waiting" &&
       p.inQueue &&
       !p.isPriority &&
-      p.assignedDoctor?.id === doctorId &&
-      !p.isInactive
+      p.assignedDoctor?.id === dId &&
+      !p.isInactive &&
+      isToday(p.registeredAt)
     );
 
     if (nextWaitingPatient) {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
-      setDoctorCurrentServingPatient(doctorId, nextWaitingPatient.queueNo);
+      setDoctorCurrentServingPatient(dId, nextWaitingPatient.queueNo);
     } else {
-      setDoctorCurrentServingPatient(doctorId, null);
+      setDoctorCurrentServingPatient(dId, null);
     }
   };
 
   const cancelPatientForDoctor = (doctorId) => {
-    const currentPatientQueueNo = doctorCurrentServing[doctorId];
+    const dId = Number(doctorId);
+    const currentPatientQueueNo = doctorCurrentServing[dId];
 
     if (!currentPatientQueueNo) return;
 
     cancelPatient(currentPatientQueueNo);
 
+    // Helper to check if a date is today
+    const isToday = (dateString) => {
+      if (!dateString) return false;
+      const date = new Date(dateString);
+      const now = new Date();
+      return date.toDateString() === now.toDateString();
+    };
+
     const nextPriorityPatient = patients.find(p =>
       p.status === "waiting" &&
       p.inQueue &&
       p.isPriority &&
-      p.assignedDoctor?.id === doctorId &&
-      !p.isInactive
+      p.assignedDoctor?.id === dId &&
+      !p.isInactive &&
+      isToday(p.registeredAt)
     );
 
     if (nextPriorityPatient) {
       updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
-      setDoctorCurrentServingPatient(doctorId, nextPriorityPatient.queueNo);
+      setDoctorCurrentServingPatient(dId, nextPriorityPatient.queueNo);
       return;
     }
 
@@ -779,15 +800,16 @@ export const PatientProvider = ({ children }) => {
       p.status === "waiting" &&
       p.inQueue &&
       !p.isPriority &&
-      p.assignedDoctor?.id === doctorId &&
-      !p.isInactive
+      p.assignedDoctor?.id === dId &&
+      !p.isInactive &&
+      isToday(p.registeredAt)
     );
 
     if (nextWaitingPatient) {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
-      setDoctorCurrentServingPatient(doctorId, nextWaitingPatient.queueNo);
+      setDoctorCurrentServingPatient(dId, nextWaitingPatient.queueNo);
     } else {
-      setDoctorCurrentServingPatient(doctorId, null);
+      setDoctorCurrentServingPatient(dId, null);
     }
   };
 
@@ -798,21 +820,24 @@ export const PatientProvider = ({ children }) => {
   }, [patients, currentServing]);
 
   const startDoctorQueue = (doctorId) => {
+    const dId = Number(doctorId);
     setActiveDoctors(prev => {
-      if (prev.includes(doctorId)) return prev;
-      return [...prev, doctorId];
+      if (prev.includes(dId)) return prev;
+      return [...prev, dId];
     });
   };
 
   const stopDoctorQueue = (doctorId) => {
-    setActiveDoctors(prev => prev.filter(id => id !== doctorId));
+    const dId = Number(doctorId);
+    setActiveDoctors(prev => prev.filter(id => id !== dId));
   };
 
   // REMOVED: reassignPatientsForDoctor - This logic is now handled by the auto-assign useEffect (lines 261-335)
   // to avoid duplication and race conditions.
 
   const isDoctorActive = (doctorId) => {
-    return activeDoctors.includes(doctorId);
+    const dId = Number(doctorId);
+    return activeDoctors.includes(dId);
   };
 
   // NEW: Show loading state while fetching from database
