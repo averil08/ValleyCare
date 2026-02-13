@@ -15,6 +15,7 @@ import Homepage from "./Homepage";
 import AppointmentHistory from "./AppointmentHistory";
 import ClinicTVDisplay from "./ClinicTVDisplay";
 import PatientSettings from "./PatientSettings";
+import DoctorSelection from "./DoctorSelection";
 
 
 function App() {
@@ -47,13 +48,13 @@ function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
-          
+
           {/* Example of Protected Route: If no session, send them to login */}
-          <Route 
-            path="/dashboard" 
-            element={session ? <Dashboard /> : <Navigate to="/login" />} 
+          <Route
+            path="/dashboard"
+            element={session ? <Dashboard /> : <Navigate to="/login" />}
           />
-          
+
           {/* Add your other routes below */}
           <Route path="/signup" element={<Signup />} />
           <Route path="/checkin" element={<Checkin />} />
@@ -65,6 +66,7 @@ function App() {
           <Route path="/appointmenthistory" element={<AppointmentHistory />} />
           <Route path="/clinic-tv" element={<ClinicTVDisplay />} />
           <Route path="/patient-settings" element={<PatientSettings />} />
+          <Route path="/doctor-selection" element={<DoctorSelection />} />
         </Routes>
       </PatientProvider>
     </Router>
