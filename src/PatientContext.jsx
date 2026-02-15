@@ -209,7 +209,20 @@ export const PatientProvider = ({ children }) => {
     return Math.max(0, calculatedAvg + manualWaitTimeAdjustment);
   }, [patients, manualWaitTimeAdjustment]);
 
-  const [activeDoctors, setActiveDoctors] = useState([]);
+  // ✅ NEW: Persist activeDoctors active state
+  const [activeDoctors, setActiveDoctors] = useState(() => {
+    try {
+      const saved = localStorage.getItem('activeDoctors');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to load active doctors", e);
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('activeDoctors', JSON.stringify(activeDoctors));
+  }, [activeDoctors]);
 
   const [doctorCurrentServing, setDoctorCurrentServing] = useState(() => {
     const initialServing = {};
