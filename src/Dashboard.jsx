@@ -902,7 +902,7 @@ const Dashboard = () => {
               <div className="hidden sm:flex items-center justify-between mb-3 pt-12 lg:pt-8">
                 <div className="flex items-center gap-3">
                   <div>
-                    <h1 className="text-lg sm:text-xl font-bold text-gray-900">Dashboard</h1>
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900">{isDoctor ? "Doctor's Dashboard" : "Dashboard"}</h1>
                     <p className="text-xs sm:text-sm text-gray-600">De Valley Medical Clinic Queue Management</p>
                   </div>
                 </div>
