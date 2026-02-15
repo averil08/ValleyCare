@@ -337,6 +337,13 @@ function Checkin() {
     setFormData({ ...formData, [id]: value });
   };
 
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    // Only allow digits and limit to 11 characters
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 11);
+    setFormData({ ...formData, phoneNum: digitsOnly });
+  };
+
   const handleSymptomChange = (symptom, isChecked) => {
     setFormData((prev) => {
       const symptoms = prev.symptoms;
@@ -985,7 +992,7 @@ function Checkin() {
                     <div className="space-y-2"><Label htmlFor="name">Full Name *</Label><Input id="name" type="text" value={formData.name} onChange={handleInputChange} required /></div>
                     <div className="space-y-2"><Label htmlFor="age">Age *</Label><Input id="age" type="number" value={formData.age} onChange={handleInputChange} required /></div>
                   </div>
-                  <div className="space-y-2"><Label htmlFor="phoneNum">Phone Number *</Label><Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handleInputChange} required /></div>
+                  <div className="space-y-2"><Label htmlFor="phoneNum">Phone Number *</Label><Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handlePhoneChange} maxLength={11} pattern="[0-9]*" inputMode="numeric" required /></div>
                 </>
               )}
 
