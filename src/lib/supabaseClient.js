@@ -30,7 +30,9 @@ export const registerWalkInPatient = async (patientData) => {
             symptoms: patientData.symptoms || [],
             services: patientData.services || [],
             days_since_onset: patientData.daysSinceOnSet ? parseInt(patientData.daysSinceOnSet) : null,
-            patient_type: 'walk-in'
+            patient_type: 'walk-in',
+            is_priority: patientData.isPriority || false,
+            priority_type: patientData.priorityType || null
           }
         ])
         .select();

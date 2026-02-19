@@ -668,17 +668,13 @@ const Dashboard = () => {
     if (dateFilter !== 'today') return false;
     if (p.isInactive) return false;
     if (p.status === "done" || p.status === "cancelled") return false;
+    if (!p.isPriority || !p.inQueue) return false;
 
     // ✅ FIX: Strict Type-Aware Date Checks
-
-    // 1. Appointments: Check appointmentDateTime
     if (p.type === "Appointment") {
       return isWithinDateRange(p.appointmentDateTime);
     }
-
-    // 2. Walk-Ins: Check registeredAt
-    // Removed isOngoing bypass - strictly check today's date
-    return isWithinDateRange(p.registeredAt) && p.isPriority && p.inQueue;
+    return isWithinDateRange(p.registeredAt);
   });
 
   // NEW: Filter patients based on selected doctor

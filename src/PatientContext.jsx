@@ -39,7 +39,9 @@ export const PatientProvider = ({ children }) => {
     queueExitTime: dbPatient.queue_exit_time,
     // Keep raw DB ID for reference/updates
     dbId: dbPatient.id,
-    patientEmail: dbPatient.patient_email // NEW: Add patient email for access control
+    patientEmail: dbPatient.patient_email, // NEW: Add patient email for access control
+    isPriority: dbPatient.is_priority || false,
+    priorityType: dbPatient.priority_type || null
   });
 
   // ==========================================
@@ -424,7 +426,10 @@ export const PatientProvider = ({ children }) => {
         services: inputPatient.services || [],
         status: inputPatient.status || "waiting",
         appointmentStatus: inputPatient.appointmentStatus || inputPatient.appointment_status,
-        inQueue: inputPatient.inQueue !== undefined ? inputPatient.inQueue : (inputPatient.patient_type === 'walk-in')
+        inQueue: inputPatient.inQueue !== undefined ? inputPatient.inQueue : (inputPatient.patient_type === 'walk-in'),
+        isPriority: inputPatient.isPriority !== undefined ? inputPatient.isPriority : (inputPatient.is_priority || false),
+        priorityType: inputPatient.priorityType || inputPatient.priority_type || null,
+        registeredAt: inputPatient.registeredAt || inputPatient.registered_at || inputPatient.created_at || new Date().toISOString()
       };
 
       return [...prev, newPatientEntry].sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
