@@ -46,8 +46,8 @@ const DoctorSelection = () => {
         if (password === "doctor123") {
             // Store doctor ID in localStorage
             localStorage.setItem('selectedDoctorId', selectedDoctor.id);
-            // Redirect to dashboard with specific doctor state
-            navigate("/dashboard", { state: { defaultDoctorId: selectedDoctor.id } });
+            // Redirect to the doctor's own dashboard
+            navigate("/doctor-dashboard");
         } else {
             setError("Incorrect password. Please try again.");
         }

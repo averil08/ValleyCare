@@ -26,7 +26,12 @@ const Dashboard = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Error signing out:", err);
+    }
     localStorage.removeItem('userRole');
     localStorage.removeItem('selectedDoctorId');
     // Redirect doctors to landing page, staff to doctor-selection
@@ -731,9 +736,10 @@ const Dashboard = () => {
 
     const patient = selectedPatientForProfile;
     // Find all visits for this patient using their email
-    const patientVisits = patients
-      .filter(p => p.patientEmail && p.patientEmail.toLowerCase().trim() === patient.patientEmail?.toLowerCase().trim())
-      .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+    const targetEmail = (patient.patientEmail || '').toLowerCase().trim();
+    const patientVisits = targetEmail ? patients
+      .filter(p => p.patientEmail && p.patientEmail.toLowerCase().trim() === targetEmail)
+      .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt)) : [];
 
     const formatDate = (dateString) => {
       if (!dateString) return 'N/A';
