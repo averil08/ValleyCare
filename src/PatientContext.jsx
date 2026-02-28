@@ -6,6 +6,21 @@ import { sendAppointmentEmail } from './lib/emailService';
 
 export const PatientContext = createContext();
 
+// SHARED UTILITIES
+const isToday = (dateString) => {
+  if (!dateString) return false;
+  const date = new Date(dateString);
+  const now = new Date();
+  return date.toDateString() === now.toDateString();
+};
+
+const isForToday = (p) => {
+  if (p.type === 'Appointment' && p.appointmentDateTime) {
+    return isToday(p.appointmentDateTime);
+  }
+  return isToday(p.registeredAt);
+};
+
 export const PatientProvider = ({ children }) => {
   const [activePatient, setActivePatient] = useState(null);
   const [isLoadingFromDB, setIsLoadingFromDB] = useState(true); // NEW: Loading state
@@ -84,16 +99,38 @@ export const PatientProvider = ({ children }) => {
       if (result.success && result.data) {
         const transformedPatients = result.data.map(transformPatientData);
 
-        // ✅ DE-DUPLICATION: Ensure no double entries by ID
+
+        // Restore currentServing — ONLY if they were registered today
+        // Stale "in progress" patients from previous days are ignored for currentServing
+        const inProgressPatient = transformedPatients.find(p =>
+          p.status === "in progress" &&
+          !p.isInactive &&
+          isForToday(p)
+        );
+        setCurrentServing(inProgressPatient ? inProgressPatient.queueNo : null);
+
+        // SELF-HEALING: Mark any "in progress" patients from previous days as "done"
+        transformedPatients.forEach(p => {
+          if (p.status === 'in progress' && !p.isInactive && !isForToday(p)) {
+            console.log(`🧹 Auto-clearing stale "in progress" patient #${p.queueNo} (${p.name}) from ${p.registeredAt}`);
+
+            p.status = 'done';
+            p.completedAt = new Date().toISOString();
+            if (!p.queueExitTime) p.queueExitTime = new Date().toISOString();
+
+            // Sync to database
+            syncPatientToDatabase(p).catch(err => {
+              console.error('⚠️ Failed to auto-clear stale patient:', err);
+            });
+          }
+        });
+
+        // Set the patients state with the updated (and possibly healed) list
         setPatients(() => {
           const uniqueMap = new Map();
           transformedPatients.forEach(p => uniqueMap.set(p.id, p));
           return Array.from(uniqueMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
         });
-
-        // Restore currentServing
-        const inProgressPatient = transformedPatients.find(p => p.status === "in progress" && !p.isInactive);
-        setCurrentServing(inProgressPatient ? inProgressPatient.queueNo : null);
 
         // ✅ CRITICAL FIX: Restore active patient synchronously BEFORE hiding loading screen
         const persistedId = localStorage.getItem('activePatientId');
@@ -295,6 +332,8 @@ export const PatientProvider = ({ children }) => {
 
   // ✅ NEW: Dynamic Average Wait Time calculation
   const avgWaitTime = useMemo(() => {
+    if (isLoadingFromDB) return '...';
+
     const queueTimeData = [];
     patients.forEach(p => {
       // Only look at patients who have been called (have both registeredAt and calledAt)
@@ -316,7 +355,7 @@ export const PatientProvider = ({ children }) => {
 
     // Return calculated average + manual adjustment (ensure it doesn't go below 0)
     return Math.max(0, calculatedAvg + manualWaitTimeAdjustment);
-  }, [patients, manualWaitTimeAdjustment]);
+  }, [patients, manualWaitTimeAdjustment, isLoadingFromDB]);
 
   // NEW: Calculate unread cancellations for secretary
   const unreadSecretaryNotificationsCount = useMemo(() => {
@@ -382,7 +421,10 @@ export const PatientProvider = ({ children }) => {
       const isWalkIn = patient.type !== 'Appointment';
 
       if (patient.status === 'in progress' && patient.assignedDoctor && !patient.isInactive && (isAcceptedAppointment || isWalkIn)) {
-        initialServing[patient.assignedDoctor.id] = patient.queueNo;
+        // Only count as current serving if patient is from today
+        if (isForToday(patient)) {
+          initialServing[patient.assignedDoctor.id] = patient.queueNo;
+        }
       }
     });
     return initialServing;
@@ -396,9 +438,10 @@ export const PatientProvider = ({ children }) => {
       const isWalkIn = patient.type !== 'Appointment';
 
       if (patient.status === 'in progress' && patient.assignedDoctor && !patient.isInactive && (isAcceptedAppointment || isWalkIn)) {
-        // Debug log to trace which patient is being selected
-        // console.log(`Debug: Doctor ${patient.assignedDoctor.name} serving Ticket #${patient.queueNo}`);
-        currentServing[patient.assignedDoctor.id] = patient.queueNo;
+        // Only count as current serving if patient is from today
+        if (isForToday(patient)) {
+          currentServing[patient.assignedDoctor.id] = patient.queueNo;
+        }
       }
     });
     setDoctorCurrentServing(currentServing);
@@ -922,21 +965,6 @@ export const PatientProvider = ({ children }) => {
     }
   };
 
-  // Helper to check if a date is today (re-declared here for scope, or move outside)
-  const isToday = (dateString) => {
-    if (!dateString) return false;
-    const date = new Date(dateString);
-    const now = new Date();
-    return date.toDateString() === now.toDateString();
-  };
-
-  // Smart Date Check Helper (re-declared here for scope, or move outside)
-  const isForToday = (p) => {
-    if (p.type === 'Appointment') {
-      return isToday(p.appointmentDateTime);
-    }
-    return isToday(p.registeredAt);
-  };
 
   const callNextPatient = () => {
     // 1. Mark current patient as done
@@ -994,13 +1022,6 @@ export const PatientProvider = ({ children }) => {
       updatePatientStatus(currentPatientQueueNo, 'done');
     }
 
-    // Helper to check if a date is today
-    const isToday = (dateString) => {
-      if (!dateString) return false;
-      const date = new Date(dateString);
-      const now = new Date();
-      return date.toDateString() === now.toDateString();
-    };
 
     // Smart Date Check Helper
     const isForToday = (p) => {
@@ -1050,21 +1071,6 @@ export const PatientProvider = ({ children }) => {
 
     cancelPatient(currentPatientQueueNo);
 
-    // Helper to check if a date is today
-    const isToday = (dateString) => {
-      if (!dateString) return false;
-      const date = new Date(dateString);
-      const now = new Date();
-      return date.toDateString() === now.toDateString();
-    };
-
-    // Smart Date Check Helper
-    const isForToday = (p) => {
-      if (p.type === 'Appointment') {
-        return isToday(p.appointmentDateTime);
-      }
-      return isToday(p.registeredAt);
-    };
 
     const nextPriorityPatient = patients.find(p =>
       p.status === "waiting" &&
