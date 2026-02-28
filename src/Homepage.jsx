@@ -1,16 +1,31 @@
 import React, { useState, useContext } from 'react';
 import PatientSidebar from "@/components/PatientSidebar";
 import { PatientContext } from "./PatientContext";
+import { Bell, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 
 //THIS IS THE PATIENT DASHBOARD IN PATIENT UI
 const Homepage = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
-  const { patients, activePatient } = useContext(PatientContext);
-
+  const { patients, activePatient, notifications, markNotificationsRead, clearNotifications } = useContext(PatientContext);
+  const [showNotifications, setShowNotifications] = useState(false);
   // State for specialization filter and search
   const [selectedSpecialization, setSelectedSpecialization] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Handle ?showNotifications=true from sidebar
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('showNotifications') === 'true') {
+      setShowNotifications(true);
+      markNotificationsRead();
+      // Clean up URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
 
   // Get current day of the week
   const getCurrentDay = () => {
@@ -275,7 +290,7 @@ const Homepage = () => {
 
   return (
     <div className="flex w-full min-h-screen">
-      <PatientSidebar nav={nav} handleNav={handleNav} />
+      <PatientSidebar nav={nav} handleNav={handleNav} hideToggle={true} />
 
       <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 transition-all duration-300">
         <div className="bg-white shadow-sm">
@@ -288,13 +303,177 @@ const Homepage = () => {
                   <p className="text-xs sm:text-sm text-gray-600">De Valley Medical Clinic Queue Management</p>
                 </div>
               </div>
+
+              {/* Notification Icon */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    if (!showNotifications) markNotificationsRead();
+                  }}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors relative"
+                >
+                  <Bell className="h-6 w-6 text-gray-600" />
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <span className="absolute top-0 right-0 block h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white animate-pulse">
+                      {notifications.filter(n => !n.read).length}
+                    </span>
+                  )}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-3 w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-black text-gray-800 uppercase tracking-tight">Recent Activity</h3>
+                        <Badge variant="secondary" className="bg-green-100 text-green-700 text-[10px] font-bold">
+                          {notifications.length}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {notifications.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              clearNotifications();
+                            }}
+                            className="text-[10px] font-bold text-red-500 hover:text-red-700 transition-colors uppercase tracking-wider"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setShowNotifications(false)}
+                          className="text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          <AiOutlineClose size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="max-h-[400px] overflow-y-auto no-scrollbar">
+                      {notifications.length === 0 ? (
+                        <div className="p-10 text-center">
+                          <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Bell className="h-6 w-6 text-gray-200" />
+                          </div>
+                          <p className="text-sm font-bold text-gray-400">All caught up!</p>
+                          <p className="text-[11px] text-gray-300 mt-1">No new notifications at the moment.</p>
+                        </div>
+                      ) : (
+                        notifications.map(notification => (
+                          <div
+                            key={notification.id}
+                            className={`p-4 border-b border-gray-50 last:border-0 hover:bg-gray-50/80 transition-all cursor-default ${!notification.read ? 'bg-green-50/30' : 'bg-white'}`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 shadow-sm ${notification.type === 'accepted' ? 'bg-green-500 ring-4 ring-green-100' : 'bg-red-500 ring-4 ring-red-100'}`}></div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start gap-2 mb-1">
+                                  <span className={`text-[10px] font-black uppercase tracking-widest ${notification.type === 'accepted' ? 'text-green-600' : 'text-red-600'}`}>
+                                    {notification.type === 'accepted' ? 'Appointment Accepted' : 'Appointment Declined'}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">
+                                    {new Date(notification.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                                <p className="text-[13px] font-bold text-gray-800 leading-snug">{notification.message}</p>
+                                <p className="text-[10px] font-medium text-gray-400 mt-2 flex items-center gap-1">
+                                  <Clock size={10} />
+                                  {new Date(notification.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Mobile: Stacked layout */}
-            <div className="sm:hidden space-y-3 mb-3">
+            <div className="sm:hidden flex items-center justify-between mb-4 pt-10 pb-2 px-1">
               <div>
-                <h1 className="text-lg font-bold text-gray-900">Homepage</h1>
-                <p className="text-xs text-gray-600">De Valley Medical Clinic Queue Management</p>
+                <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Homepage</h1>
+                <p className="text-[15px] uppercase text-gray-600 tracking-wider">Valley Care Medical</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Notification Icon */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowNotifications(!showNotifications);
+                      if (!showNotifications) markNotificationsRead();
+                    }}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors relative"
+                  >
+                    <Bell className="h-5 w-5 text-gray-600" />
+                    {notifications.filter(n => !n.read).length > 0 && (
+                      <span className="absolute top-0 right-0 block h-3.5 w-3.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-white animate-pulse">
+                        {notifications.filter(n => !n.read).length}
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                        <h3 className="text-xs font-black text-gray-800 uppercase tracking-tight">Notifications</h3>
+                        <div className="flex items-center gap-3">
+                          {notifications.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                clearNotifications();
+                              }}
+                              className="text-[10px] font-bold text-red-500 uppercase tracking-wider"
+                            >
+                              Clear
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setShowNotifications(false)}
+                            className="text-gray-400"
+                          >
+                            <AiOutlineClose size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto no-scrollbar">
+                        {notifications.length === 0 ? (
+                          <div className="p-8 text-center">
+                            <p className="text-xs font-bold text-gray-400">No notifications yet.</p>
+                          </div>
+                        ) : (
+                          notifications.map(notification => (
+                            <div
+                              key={notification.id}
+                              className={`p-4 border-b border-gray-50 last:border-0 active:bg-gray-50 transition-colors ${!notification.read ? 'bg-green-50/30' : 'bg-white'}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${notification.type === 'accepted' ? 'bg-green-500 ring-2 ring-green-100' : 'bg-red-500 ring-2 ring-red-100'}`}></div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-gray-800 leading-tight">{notification.message}</p>
+                                  <p className="text-[9px] font-medium text-gray-400 mt-1">
+                                    {new Date(notification.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile Hamburger Toggle */}
+                <button
+                  onClick={handleNav}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-600 z-[60]"
+                >
+                  {nav ? <AiOutlineClose size={22} /> : <AiOutlineMenu size={22} />}
+                </button>
               </div>
             </div>
           </div>

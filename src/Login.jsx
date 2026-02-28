@@ -126,6 +126,9 @@ function Login() {
           localStorage.removeItem('isPatientLoggedIn');
         }
 
+        // Ensure no stale guest/previous patient session exists
+        localStorage.removeItem('activePatientId');
+
         showMessage(
           "Login Successful!",
           `Redirecting to your dashboard...`,

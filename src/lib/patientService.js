@@ -117,6 +117,7 @@ export const syncPatientToDatabase = async (patientData) => {
       in_queue: patientData.inQueue,
       queue_no: patientData.queueNo,
       assigned_doctor_name: patientData.assignedDoctor?.name || null,
+      physician: patientData.preferredDoctor?.name || null,
       symptoms: patientData.symptoms || [],
       services: patientData.services || [],
       is_returning_patient: patientData.isReturningPatient || false,

@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
+import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
-import { Calendar, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell } from 'lucide-react';
 //automatic added dialog in components/ui (run npx shadcn@latest add dialog to install + make dialog.jsx)
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 //automatic added textarea in components/ui (run npx shadcn@latest add textarea to install + make textarea.jsx)
@@ -32,8 +33,8 @@ const Appointment = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
-
-  const { patients, acceptAppointment, rejectAppointment } = useContext(PatientContext);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const { patients, acceptAppointment, rejectAppointment, unreadSecretaryNotificationsCount, markSecretaryNotificationsAsRead } = useContext(PatientContext);
 
   // Helper to get label for date filter
   const getDateFilterLabel = () => {
@@ -111,14 +112,22 @@ const Appointment = () => {
   const storedDoctorId = localStorage.getItem('selectedDoctorId');
   const isDoctor = userRole === 'doctor';
 
+  // NEW: Find current doctor for name matching fallback
+  const currentDoctor = isDoctor && storedDoctorId ? doctors.find(d => d.id === Number(storedDoctorId)) : null;
+
   // Filter appointments (patients with type "Appointment")
   const allAppointments = (patients || [])
-    .filter(p =>
-      p.type === "Appointment" &&
-      p.status !== "done" &&
-      p.status !== "cancelled" &&
-      (!isDoctor || (storedDoctorId && p.assignedDoctor?.id === Number(storedDoctorId))) // NEW: Doctor filter
-    );
+    .filter(p => {
+      if (p.type !== "Appointment" || p.status === "done") return false;
+      if (!isDoctor) return true;
+
+      const myId = Number(storedDoctorId);
+      const myName = currentDoctor?.name?.toLowerCase().trim();
+      const patientAssignedName = p.assignedDoctor?.name?.toLowerCase().trim();
+
+      // Match by ID or by trimmed name
+      return p.assignedDoctor?.id === myId || (patientAssignedName && patientAssignedName === myName);
+    });
 
   // Get filtered appointments based on criteria
   const getFilteredAppointments = () => {
@@ -142,6 +151,11 @@ const Appointment = () => {
         return filtered
           .filter(a => a.appointmentStatus === 'rejected')
           .sort((a, b) => new Date(b.rejectedAt || b.registeredAt) - new Date(a.rejectedAt || a.registeredAt));
+
+      case 'cancelled':
+        return filtered
+          .filter(a => a.appointmentStatus === 'cancelled')
+          .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
 
       case 'all':
       default:
@@ -310,6 +324,10 @@ const Appointment = () => {
             <Badge variant="destructive" className="bg-red-600 text-white">
               Not Accepted
             </Badge>
+          ) : appointment.appointmentStatus === 'cancelled' ? (
+            <Badge variant="outline" className="border-gray-400 text-gray-500">
+              Cancelled
+            </Badge>
           ) : (
             <Badge variant="secondary" className="bg-amber-100 text-amber-700">
               Pending
@@ -424,24 +442,24 @@ const Appointment = () => {
   // Render appointment table for desktop
   const renderAppointmentTable = (appointments) => (
     <>
-      {/* Mobile Card View */}
+      {/* Mobile Card View - Show on small to medium screens */}
       <div className="block lg:hidden">
         {appointments.map((appointment) => renderAppointmentCard(appointment))}
       </div>
 
-      {/* Desktop Table View */}
-      <div className="hidden lg:block overflow-x-auto">
+      {/* Desktop Table View - Improved Responsiveness for Large Screens */}
+      <div className="hidden lg:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead className="font-semibold text-gray-700">Queue #</TableHead>
-              <TableHead className="font-semibold text-gray-700">Patient Name</TableHead>
-              <TableHead className="font-semibold text-gray-700">Age</TableHead>
-              <TableHead className="font-semibold text-gray-700">Appointment Time</TableHead>
+              <TableHead className="font-semibold text-gray-700 w-20">Queue</TableHead>
+              <TableHead className="font-semibold text-gray-700">Patient</TableHead>
+              <TableHead className="font-semibold text-gray-700 hidden xl:table-cell w-16 text-center">Age</TableHead>
+              <TableHead className="font-semibold text-gray-700">Schedule</TableHead>
               <TableHead className="font-semibold text-gray-700">Doctor/Service</TableHead>
-              <TableHead className="font-semibold text-gray-700">Symptoms</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center">Status</TableHead>
-              <TableHead className="font-semibold text-gray-700 text-center w-[100px]">Actions</TableHead>
+              <TableHead className="font-semibold text-gray-700 hidden 2xl:table-cell">Symptoms</TableHead>
+              <TableHead className="font-semibold text-gray-700 text-center w-28">Status</TableHead>
+              <TableHead className="font-semibold text-gray-700 text-center w-24">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -450,103 +468,96 @@ const Appointment = () => {
                 key={appointment.id}
                 className="hover:bg-gray-50 transition-colors"
               >
-                <TableCell className="font-medium">
-                  <Badge variant="outline" className="font-mono">
+                <TableCell className="py-3">
+                  <Badge variant="outline" className="font-mono text-xs">
                     #{String(appointment.queueNo).padStart(3, '0')}
                   </Badge>
                 </TableCell>
 
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-gray-400" />
-                    <span className="font-semibold text-gray-900">{appointment.name}</span>
-                  </div>
-                </TableCell>
-
-                <TableCell>
-                  <span className="text-gray-700">{appointment.age} yrs</span>
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-700 text-sm">
-                      {formatDateShort(appointment.appointmentDateTime || appointment.appointment_datetime)}
+                <TableCell className="py-3">
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-gray-900 leading-tight truncate max-w-[120px] xl:max-w-none">
+                      {appointment.name}
+                    </span>
+                    <span className="text-[11px] text-gray-500 xl:hidden">
+                      {appointment.age} yrs
                     </span>
                   </div>
                 </TableCell>
 
-                <TableCell>
+                <TableCell className="hidden xl:table-cell text-center py-3">
+                  <span className="text-gray-700">{appointment.age}</span>
+                </TableCell>
+
+                <TableCell className="py-3">
+                  <span className="text-gray-700 text-xs xl:text-sm">
+                    {formatDateShort(appointment.appointmentDateTime || appointment.appointment_datetime)}
+                  </span>
+                </TableCell>
+
+                <TableCell className="py-3">
                   {appointment.assignedDoctor ? (
-                    <div className="flex items-center gap-2">
-                      <Stethoscope className="w-4 h-4 text-purple-600" />
-                      <span className="text-purple-700 font-medium text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                      <span className="text-purple-700 font-medium text-xs xl:text-sm truncate max-w-[100px] xl:max-w-none">
                         {appointment.assignedDoctor.name}
                       </span>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap gap-1 max-w-xs">
+                    <div className="flex flex-wrap gap-1">
                       {appointment.services && appointment.services.length > 0 ? (
-                        <>
-                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                            {getServiceLabel(appointment.services[0])}
-                          </Badge>
-                          {appointment.services.length > 1 && (
-                            <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600">
-                              +{appointment.services.length - 1} more
-                            </Badge>
-                          )}
-                        </>
+                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-green-50 text-green-700 border-green-200">
+                          {getServiceLabel(appointment.services[0])}
+                          {appointment.services.length > 1 && ` +${appointment.services.length - 1}`}
+                        </Badge>
                       ) : (
-                        <span className="text-gray-400 text-sm">None</span>
+                        <span className="text-gray-400 text-xs">None</span>
                       )}
                     </div>
                   )}
                 </TableCell>
 
-                <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-xs">
+                <TableCell className="hidden 2xl:table-cell py-3">
+                  <div className="flex flex-wrap gap-1">
                     {appointment.symptoms && appointment.symptoms.length > 0 ? (
-                      <>
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                          {appointment.symptoms[0]}
-                        </Badge>
-                        {appointment.symptoms.length > 1 && (
-                          <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600">
-                            +{appointment.symptoms.length - 1} more
-                          </Badge>
-                        )}
-                      </>
+                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200">
+                        {appointment.symptoms[0]}
+                        {appointment.symptoms.length > 1 && ` +${appointment.symptoms.length - 1}`}
+                      </Badge>
                     ) : (
-                      <span className="text-gray-400 text-sm">None</span>
+                      <span className="text-gray-400 text-xs">None</span>
                     )}
                   </div>
                 </TableCell>
 
-                <TableCell className="text-center">
+                <TableCell className="text-center py-3">
                   {appointment.appointmentStatus === 'accepted' ? (
-                    <Badge className="bg-green-600">Accepted</Badge>
+                    <Badge className="bg-green-600 text-[10px] xl:text-xs">Accepted</Badge>
                   ) : appointment.appointmentStatus === 'rejected' ? (
-                    <Badge variant="destructive" className="bg-red-600 text-white">
+                    <Badge variant="destructive" className="bg-red-600 text-white text-[10px] xl:text-xs">
                       Not Accepted
                     </Badge>
+                  ) : appointment.appointmentStatus === 'cancelled' ? (
+                    <Badge variant="outline" className="border-gray-400 text-gray-500 text-[10px] xl:text-xs">
+                      Cancelled
+                    </Badge>
                   ) : (
-                    <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px] xl:text-xs">
                       Pending
                     </Badge>
                   )}
                 </TableCell>
 
-                <TableCell>
+                <TableCell className="py-3">
                   <div className="flex items-center justify-center gap-1">
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                      className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                       onClick={() => handleViewDetails(appointment)}
                       title="View Details"
                     >
-                      <Eye className="w-4 h-4" />
+                      <Eye className="w-3.5 h-3.5" />
                     </Button>
 
                     {(!appointment.appointmentStatus || appointment.appointmentStatus === 'pending') && !isDoctor && (
@@ -554,20 +565,20 @@ const Appointment = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
                           onClick={() => handleAccept(appointment)}
                           title="Accept"
                         >
-                          <CheckCircle className="w-4 h-4" />
+                          <CheckCircle className="w-3.5 h-3.5" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                           onClick={() => handleRejectClick(appointment)}
                           title="Decline"
                         >
-                          <XCircle className="w-4 h-4" />
+                          <XCircle className="w-3.5 h-3.5" />
                         </Button>
                       </>
                     )}
@@ -590,11 +601,96 @@ const Appointment = () => {
         {/* Header */}
         <div className="bg-white shadow-sm pt-12 lg:pt-3">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-6 h-6 text-green-600" />
-              <div>
-                <h1 className="text-xl max-sm:text-base font-bold text-gray-900">Appointment Management</h1>
-                <p className="text-sm text-gray-600">Review and manage patient appointments</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-6 h-6 text-green-600" />
+                <div>
+                  <h1 className="text-xl max-sm:text-base font-bold text-gray-900">Appointment Management</h1>
+                  <p className="text-sm text-gray-600">Review and manage patient appointments</p>
+                </div>
+              </div>
+
+              {/* Notification Bell */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    if (!showNotifications) {
+                      markSecretaryNotificationsAsRead();
+                    }
+                  }}
+                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-all duration-200 focus:outline-none relative group"
+                  title="Cancellations"
+                >
+                  <Bell className={`w-6 h-6 ${unreadSecretaryNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                  {unreadSecretaryNotificationsCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
+                      {unreadSecretaryNotificationsCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notifications Dropdown */}
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-green-600" />
+                        Patient Cancellations
+                      </h3>
+                      <button
+                        onClick={() => setShowNotifications(false)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <XCircle className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-[400px] overflow-y-auto">
+                      {(patients || [])
+                        .filter(p => p.type === "Appointment" && p.status === "cancelled" && p.appointmentStatus === "cancelled")
+                        .sort((a, b) => new Date(b.queueExitTime || b.registeredAt) - new Date(a.queueExitTime || a.registeredAt))
+                        .length > 0 ? (
+                        (patients || [])
+                          .filter(p => p.type === "Appointment" && p.status === "cancelled" && p.appointmentStatus === "cancelled")
+                          .sort((a, b) => new Date(b.queueExitTime || b.registeredAt) - new Date(a.queueExitTime || a.registeredAt))
+                          .map((notif) => (
+                            <div
+                              key={notif.id}
+                              className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-default"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="mt-1 flex-shrink-0 w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                                  <XCircle className="w-4 h-4 text-red-600" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-semibold text-gray-900">
+                                    {notif.name}
+                                  </p>
+                                  <p className="text-xs text-gray-600 mt-0.5">
+                                    Cancelled their appointment for {formatDateTime(notif.appointmentDateTime || notif.appointment_datetime)}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <Clock className="w-3 h-3 text-gray-400" />
+                                    <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
+                                      {new Date(notif.queueExitTime || notif.registeredAt).toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="p-8 text-center">
+                          <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <CheckCircle className="w-6 h-6 text-gray-300" />
+                          </div>
+                          <p className="text-sm text-gray-500 font-medium">No new cancellations</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -763,6 +859,24 @@ const Appointment = () => {
                     }).length}
                   </Badge>
                 </Button>
+
+                <Button
+                  onClick={() => setActiveFilter('cancelled')}
+                  variant={activeFilter === 'cancelled' ? 'default' : 'outline'}
+                  className={activeFilter === 'cancelled'
+                    ? 'bg-gray-600 hover:bg-gray-700 text-white'
+                    : 'hover:bg-gray-100'
+                  }
+                >
+                  Cancelled
+                  <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
+                    {allAppointments.filter(a => {
+                      const matchesStatus = a.appointmentStatus === 'cancelled';
+                      const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
+                      return matchesStatus && isWithinDateRange(dateToCheck);
+                    }).length}
+                  </Badge>
+                </Button>
               </div>
             </div>
           </div>
@@ -821,6 +935,7 @@ const Appointment = () => {
                   {activeFilter === 'pending' && 'No pending appointments'}
                   {activeFilter === 'accepted' && 'No accepted appointments'}
                   {activeFilter === 'rejected' && 'No rejected appointments'}
+                  {activeFilter === 'cancelled' && 'No cancelled appointments'}
                   {activeFilter === 'upcoming' && 'No upcoming appointments'}
                 </p>
               </CardContent>
@@ -893,6 +1008,7 @@ const Appointment = () => {
                   {activeFilter === 'pending' && 'Pending Appointments'}
                   {activeFilter === 'accepted' && 'Accepted Appointments'}
                   {activeFilter === 'rejected' && 'Not Accepted Appointments'}
+                  {activeFilter === 'cancelled' && 'Cancelled Appointments'}
                 </CardTitle>
                 <CardDescription>
                   {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? 's' : ''}
@@ -927,6 +1043,8 @@ const Appointment = () => {
                   <Badge className="bg-green-600">Accepted</Badge>
                 ) : selectedAppointment.appointmentStatus === 'rejected' ? (
                   <Badge variant="destructive" className="bg-red-600 text-white">Not Accepted</Badge>
+                ) : selectedAppointment.appointmentStatus === 'cancelled' ? (
+                  <Badge variant="outline" className="border-gray-400 text-gray-500">Cancelled</Badge>
                 ) : (
                   <Badge variant="secondary" className="bg-amber-100 text-amber-700">Pending</Badge>
                 )}

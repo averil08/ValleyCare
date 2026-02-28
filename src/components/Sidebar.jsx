@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen, NotebookText } from "lucide-react";
+import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen, NotebookText, Bell } from "lucide-react";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import img1 from '../assets/logo-valley.png';
+import { PatientContext } from "../PatientContext";
 
 const Sidebar = ({ nav, handleNav }) => {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const userRole = localStorage.getItem('userRole'); // NEW: Get user role
+  const { unreadSecretaryNotificationsCount } = useContext(PatientContext);
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true);

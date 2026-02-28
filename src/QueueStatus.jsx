@@ -36,6 +36,8 @@ const QueueStatus = () => {
   });
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
   const [showDoneModal, setShowDoneModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Get current logged-in patient's email
   const currentPatientEmail = localStorage.getItem('currentPatientEmail');
@@ -69,6 +71,7 @@ const QueueStatus = () => {
     setActivePatient,
     clearActivePatient,
     requeuePatient,
+    cancelAppointment,
     isLoadingFromDB
   } = useContext(PatientContext);
 
@@ -84,6 +87,7 @@ const QueueStatus = () => {
       return normalizedActiveEmail === normalizedCurrentEmail;
     }
 
+    // Default to false for logged-in users if active patient has no email (Guest protection)
     return false;
   }, [activePatient, isPatientLoggedIn, currentPatientEmail]);
 
@@ -327,8 +331,8 @@ const QueueStatus = () => {
   const peopleAhead = Math.max((queueNumber > 0 ? queueNumber : 0) - currentServing, 0);
   const estimatedWait = avgWaitTime;
 
-  const isAppointmentPending = (currentPatient?.type === 'Appointment' && currentPatient?.appointmentStatus === 'pending') ||
-    (currentPatient?.queueNo >= 900000);
+  const isAppointmentPending = currentPatient?.status !== 'cancelled' && ((currentPatient?.type === 'Appointment' && currentPatient?.appointmentStatus === 'pending') ||
+    (currentPatient?.queueNo >= 900000));
 
   const isAppointmentRejected = currentPatient?.type === 'Appointment' &&
     currentPatient?.appointmentStatus === 'rejected';
@@ -338,10 +342,22 @@ const QueueStatus = () => {
     if (!currentPatient) return
 
     if (isAppointmentPending) return;
+    if (currentPatient.appointmentStatus === "cancelled") {
+      if (showNotification) setShowNotification(false);
+      return;
+    }
 
     const difference = queueNumber - currentServing;
 
     if (currentPatient.status === "cancelled") {
+      // ✅ Patient-initiated cancellation (appointmentStatus is explicitly 'cancelled')
+      if (currentPatient.appointmentStatus === "cancelled") {
+        if (showNotification) setShowNotification(false);
+        return;
+      }
+
+      // ✅ Secretary-initiated cancellation (no-show)
+      // Only show this if we haven't already marked it as a patient cancellation
       setNotificationMessage("Your queue has been cancelled. You didn't show up.");
       setNotificationType("cancelled");
       setShowNotification(true);
@@ -402,6 +418,33 @@ const QueueStatus = () => {
     }
   };
 
+  const handleCancelClick = () => {
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      setShowCancelModal(false);
+      clearActivePatient();
+      await cancelAppointment(currentPatient.id);
+
+      // Fix: Redirect to appointment form if it's a patient, otherwise to appointment page
+      if (isFromPatientSidebar || isPatientLoggedIn) {
+        navigate('/checkin?view=patient&from=patient-sidebar&type=appointment');
+      } else if (isPatientAccess) {
+        navigate('/checkin?view=patient');
+      } else {
+        navigate('/appointment');
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const handleDoneClick = () => {
     setShowDoneModal(true);
   };
@@ -410,20 +453,22 @@ const QueueStatus = () => {
     setShowDoneModal(false);
     clearActivePatient();
 
+    const params = new URLSearchParams();
     if (isFromPatientSidebar) {
-      const params = new URLSearchParams();
       params.append('from', 'patient-sidebar');
       params.append('type', 'appointment');
-      navigate(`/checkin?${params.toString()}`);
-    } else {
-      const params = new URLSearchParams();
-      if (isPatientAccess) params.append('view', 'patient');
-      navigate(`/checkin${params.toString() ? '?' + params.toString() : ''}`);
+    } else if (isPatientAccess) {
+      params.append('view', 'patient');
     }
+    params.append('skipCheck', 'true');
+    navigate(`/checkin${params.toString() ? '?' + params.toString() : ''}`);
   };
 
   const PushNotification = () => {
-    if (!showNotification) return null;
+    if (!showNotification || !currentPatient) return null;
+
+    // Suppress notification if the appointment was cancelled by the patient
+    if (currentPatient.appointmentStatus === "cancelled") return null;
 
     const isCancelled = notificationType === "cancelled";
 
@@ -450,7 +495,7 @@ const QueueStatus = () => {
             </div>
           </div>
 
-          {isCancelled && (
+          {isCancelled && currentPatient.appointmentStatus !== "cancelled" && (
             <div className="mt-3 pl-8">
               <Button
                 onClick={handleRequeue}
@@ -500,6 +545,42 @@ const QueueStatus = () => {
               className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium text-sm sm:text-base"
             >
               Confirm
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const CancelConfirmationModal = () => {
+    if (!showCancelModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+        <div className="bg-white p-4 sm:p-6 md:p-8 rounded-lg shadow-2xl max-w-md w-full animate-fade-in">
+          <div className="flex items-center justify-center mb-4">
+            <AlertCircle className="w-10 h-10 sm:w-12 sm:h-12 text-red-600" />
+          </div>
+          <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-2 text-center">
+            Cancel Appointment
+          </h3>
+          <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 text-center leading-relaxed">
+            Are you sure you want to cancel your appointment? This action cannot be undone.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <button
+              onClick={() => setShowCancelModal(false)}
+              disabled={isCancelling}
+              className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium text-sm sm:text-base disabled:opacity-50"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleConfirmCancel}
+              disabled={isCancelling}
+              className="flex-1 flex items-center justify-center px-4 py-2.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium text-sm sm:text-base disabled:opacity-50"
+            >
+              {isCancelling ? <RefreshCw className="w-5 h-5 animate-spin mr-2" /> : null}
+              {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}
             </button>
           </div>
         </div>
@@ -564,6 +645,7 @@ const QueueStatus = () => {
             <Sidebar nav={nav} handleNav={handleNav} />
           )}
           <DoneConfirmationModal />
+          <CancelConfirmationModal />
           <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 p-3 sm:p-4">
             <div className="max-w-[800px] mt-4 sm:mt-8 md:mt-12 lg:mt-[50px] w-full mx-auto space-y-4 sm:space-y-6">
               <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-6 text-center">
@@ -648,6 +730,18 @@ const QueueStatus = () => {
                     </Button>
                   )}
 
+                  {isPatientLoggedIn && (
+                    <Button
+                      variant="outline"
+                      className="w-full text-xs sm:text-sm md:text-base lg:text-lg border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 py-2.5 sm:py-3"
+                      size="lg"
+                      onClick={handleCancelClick}
+                    >
+                      <XCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+                      Cancel Appointment
+                    </Button>
+                  )}
+
                   <Button
                     variant="outline"
                     className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
@@ -676,6 +770,7 @@ const QueueStatus = () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
         <DoneConfirmationModal />
+        <CancelConfirmationModal />
         <div className="flex-1 p-3 sm:p-4">
           <div className="max-w-[800px] mt-4 sm:mt-8 md:mt-12 lg:mt-[50px] w-full mx-auto space-y-4 sm:space-y-6">
             <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-6 text-center">
@@ -758,6 +853,18 @@ const QueueStatus = () => {
                   >
                     <QrCode className="w-3 h-3 sm:w-4 sm:h-5 mr-1.5 sm:mr-2" />
                     Back to Clinic View
+                  </Button>
+                )}
+
+                {isPatientLoggedIn && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs sm:text-sm md:text-base lg:text-lg border-red-600 text-red-600 hover:bg-red-50 hover:text-red-700 py-2.5 sm:py-3"
+                    size="lg"
+                    onClick={handleCancelClick}
+                  >
+                    <XCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2" />
+                    Cancel Appointment
                   </Button>
                 )}
 

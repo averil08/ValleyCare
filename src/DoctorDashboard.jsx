@@ -1,8 +1,8 @@
-import React, { useState, useContext, useRef, useEffect } from 'react';
+import React, { useState, useContext, useRef, useEffect, useMemo } from 'react';
 import { doctors } from './doctorData';
 import {
     Users, Search, Calendar, Clock, User, ChevronRight, ChevronDown,
-    MoreHorizontal, History, CheckCircle2, Filter, LogOut, Settings,
+    MoreHorizontal, History, CheckCircle2, Filter, LogOut,
     Bell, CalendarDays, Menu, X, Phone, Stethoscope,
     ArrowLeft, DoorOpen
 } from 'lucide-react';
@@ -38,10 +38,11 @@ const DoctorDashboard = () => {
     const [scheduledStatusFilter, setScheduledStatusFilter] = useState('all'); // 'all' | 'pending' | 'accepted' | 'rejected'
     const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-    const { patients } = useContext(PatientContext);
+    const { patients, lastDoctorNotificationCheck, markDoctorNotificationsAsRead } = useContext(PatientContext);
     const dropdownRef = useRef(null);
     const desktopDropdownRef = useRef(null);
     const workspaceRef = useRef(null);
+    const [showNotifications, setShowNotifications] = useState(false);
 
     // Option lists
     const queueDateFilters = ['today', 'thisWeek', 'lastWeek', 'custom'];
@@ -52,11 +53,35 @@ const DoctorDashboard = () => {
         const handleClickOutside = (e) => {
             const inMobile = dropdownRef.current?.contains(e.target);
             const inDesktop = desktopDropdownRef.current?.contains(e.target);
-            if (!inMobile && !inDesktop) setIsFilterOpen(false);
+            const inNotif = e.target.closest('.notif-dropdown-wrapper');
+            if (!inMobile && !inDesktop && !inNotif) {
+                setIsFilterOpen(false);
+                setShowNotifications(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    const doctorNotifications = useMemo(() => {
+        if (!doctorId) return [];
+        return patients.filter(p =>
+            p.type === 'Appointment' &&
+            p.status === 'cancelled' &&
+            p.appointmentStatus === 'cancelled' &&
+            p.assignedDoctor?.id === doctorId
+        ).sort((a, b) => new Date(b.queueExitTime || b.registeredAt) - new Date(a.queueExitTime || a.registeredAt));
+    }, [patients, doctorId]);
+
+    const unreadDoctorNotificationsCount = useMemo(() => {
+        if (!doctorId) return 0;
+        const lastCheck = lastDoctorNotificationCheck[doctorId];
+        if (!lastCheck) return doctorNotifications.length;
+
+        return doctorNotifications.filter(n =>
+            new Date(n.queueExitTime || n.registeredAt) > new Date(lastCheck)
+        ).length;
+    }, [doctorNotifications, lastDoctorNotificationCheck, doctorId]);
 
     useEffect(() => {
         if (selectedPatient && workspaceRef.current) workspaceRef.current.scrollTo(0, 0);
@@ -123,13 +148,50 @@ const DoctorDashboard = () => {
             const e = new Date(apptCustomRange.end); e.setHours(23, 59, 59, 999);
             return date >= s && date <= e;
         }
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        return days[date.getDay()] === apptDateFilter;
+
+        // Fix: Accurate Day-of-Week filtering (mirrors Appointment.jsx)
+        const daysMap = {
+            'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
+        };
+
+        if (daysMap.hasOwnProperty(apptDateFilter)) {
+            const now = new Date();
+            const targetDayIndex = daysMap[apptDateFilter];
+            const currentDayIndex = now.getDay();
+            const diff = targetDayIndex - currentDayIndex;
+
+            const targetDateStart = new Date(now);
+            targetDateStart.setDate(now.getDate() + diff);
+            targetDateStart.setHours(0, 0, 0, 0);
+
+            const targetDateEnd = new Date(targetDateStart);
+            targetDateEnd.setHours(23, 59, 59, 999);
+
+            return date >= targetDateStart && date <= targetDateEnd;
+        }
+
+        return true;
     };
 
     const formatArray = (arr) => (!arr || arr.length === 0) ? 'None' : arr.join(', ');
 
-    const myPatients = (patients || []).filter(p => !p.isInactive && p.assignedDoctor?.id === doctorId);
+    const myPatients = (patients || []).filter(p => {
+        if (p.isInactive) return false;
+
+        const myName = currentDoctor.name?.toLowerCase().trim();
+        const patientAssignedName = p.assignedDoctor?.name?.toLowerCase().trim();
+        const patientPreferredName = p.preferredDoctor?.name?.toLowerCase().trim();
+
+        // Check by ID (preferred) or by trimmed name (fallback)
+        const isAssigned = p.assignedDoctor?.id === doctorId ||
+            (patientAssignedName && patientAssignedName === myName);
+
+        const isPreferred = !p.assignedDoctor &&
+            (p.preferredDoctor?.id === doctorId ||
+                (patientPreferredName && patientPreferredName === myName));
+
+        return isAssigned || isPreferred;
+    });
 
     // ── Queue patients — mirrors Dashboard.jsx rules ──────────────────────
 
@@ -175,7 +237,6 @@ const DoctorDashboard = () => {
     const allAppointmentPatients = myPatients.filter(p =>
         p.type === 'Appointment' &&
         p.status !== 'done' &&
-        p.status !== 'cancelled' &&
         p.appointmentDateTime &&
         isApptDateInFilter(p.appointmentDateTime)
     );
@@ -186,6 +247,7 @@ const DoctorDashboard = () => {
         if (scheduledStatusFilter === 'pending') return !p.appointmentStatus || p.appointmentStatus === 'pending';
         if (scheduledStatusFilter === 'accepted') return p.appointmentStatus === 'accepted';
         if (scheduledStatusFilter === 'rejected') return p.appointmentStatus === 'rejected';
+        if (scheduledStatusFilter === 'cancelled') return p.appointmentStatus === 'cancelled';
         return true;
     });
 
@@ -194,6 +256,7 @@ const DoctorDashboard = () => {
     const apptPendingCount = allAppointmentPatients.filter(p => !p.appointmentStatus || p.appointmentStatus === 'pending').length;
     const apptAcceptedCount = allAppointmentPatients.filter(p => p.appointmentStatus === 'accepted').length;
     const apptRejectedCount = allAppointmentPatients.filter(p => p.appointmentStatus === 'rejected').length;
+    const apptCancelledCount = allAppointmentPatients.filter(p => p.appointmentStatus === 'cancelled').length;
 
     const currentList = activeTab === 'queue' ? queuePatients : appointmentPatients;
     const doctorPatients = currentList.filter(p =>
@@ -277,13 +340,24 @@ const DoctorDashboard = () => {
 
     /* ─── Patient Detail Panel (shared) ─── */
     const PatientDetail = ({ patient }) => {
-        // Find all visits for this patient using their email
+        // Find all visits for this patient using Email or Phone
         const targetEmail = (patient.patientEmail || '').toLowerCase().trim();
-        let patientVisits = targetEmail ? (patients || [])
-            .filter(p => p.patientEmail && p.patientEmail.toLowerCase().trim() === targetEmail)
-            .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt)) : [];
+        const targetPhone = (patient.phoneNum || '').trim();
+        const targetName = (patient.name || '').toLowerCase().trim();
 
-        // Fallback: If no history exists (or patient has no email), display the current appointment as a visit log
+        let patientVisits = (patients || [])
+            .filter(p => {
+                // Match by Email
+                if (targetEmail && p.patientEmail && p.patientEmail.toLowerCase().trim() === targetEmail) return true;
+                // Match by Phone (if no email match)
+                if (targetPhone && p.phoneNum && p.phoneNum.trim() === targetPhone) return true;
+                // Strict Name match if neither email/phone matched (optional, can be risky but useful for walk-ins)
+                if (!targetEmail && !targetPhone && p.name && p.name.toLowerCase().trim() === targetName) return true;
+                return false;
+            })
+            .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+
+        // Fallback: If no history exists, display the current appointment as a visit log
         if (patientVisits.length === 0) {
             patientVisits = [patient];
         }
@@ -337,7 +411,11 @@ const DoctorDashboard = () => {
                                             {patient.isPriority && <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider rounded-md" >Priority</Badge>}
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-slate-100">
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 pt-4 border-t border-slate-100">
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Age & Contact</p>
+                                            <p className="text-sm font-black text-slate-800">{patient.age} yrs • {patient.phoneNum || 'N/A'}</p>
+                                        </div>
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Assigned Doctor</p>
                                             <p className="text-sm font-black text-slate-800 truncate">{patient.assignedDoctor?.name || 'Unassigned'}</p>
@@ -345,6 +423,25 @@ const DoctorDashboard = () => {
                                         <div>
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Services</p>
                                             <p className="text-sm font-black text-slate-800 truncate">{formatArray(patient.services || ['General Consultation'])}</p>
+                                        </div>
+                                        <div className="col-span-2 lg:col-span-3">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Clinical Visit Reason / Symptoms</p>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {patient.symptoms && patient.symptoms.length > 0 ? (
+                                                    patient.symptoms.map((s, i) => (
+                                                        <Badge key={i} variant="outline" className="text-[9px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 border-none rounded-md px-1.5 py-0.5">
+                                                            {s}
+                                                        </Badge>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-xs font-bold text-slate-400 italic">Routine check-up / consultation</p>
+                                                )}
+                                                {patient.daysSinceOnset && (
+                                                    <Badge variant="outline" className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 border-none rounded-md px-1.5 py-0.5 ml-2">
+                                                        Onset: {patient.daysSinceOnset} days
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -513,6 +610,7 @@ const DoctorDashboard = () => {
         { key: 'pending', label: 'Pending', count: apptPendingCount, pill: 'bg-amber-500 text-white shadow-amber-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-amber-50 hover:text-amber-700' },
         { key: 'accepted', label: 'Accepted', count: apptAcceptedCount, pill: 'bg-emerald-600 text-white shadow-emerald-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700' },
         { key: 'rejected', label: 'Not Accepted', count: apptRejectedCount, pill: 'bg-rose-500 text-white shadow-rose-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600' },
+        { key: 'cancelled', label: 'Cancelled', count: apptCancelledCount, pill: 'bg-red-600 text-white shadow-red-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600' },
     ];
 
     const ScheduledStatusFilter = () => (
@@ -595,6 +693,64 @@ const DoctorDashboard = () => {
         </div>
     );
 
+    const NotificationsDropdown = () => (
+        <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                <h3 className="font-black text-slate-800 text-[10px] uppercase tracking-widest flex items-center gap-2">
+                    <Bell className="w-3.5 h-3.5 text-emerald-600" />
+                    Cancellations
+                </h3>
+                <button
+                    onClick={() => {
+                        markDoctorNotificationsAsRead(doctorId);
+                        setShowNotifications(false);
+                    }}
+                    className="text-[10px] font-black text-emerald-600 hover:text-emerald-700 uppercase tracking-widest"
+                >
+                    Clear All
+                </button>
+            </div>
+
+            <div className="max-h-80 overflow-y-auto no-scrollbar">
+                {doctorNotifications.length > 0 ? (
+                    doctorNotifications.map((notif) => (
+                        <div
+                            key={notif.id}
+                            className="p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-default"
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5 flex-shrink-0 w-7 h-7 rounded-xl bg-rose-50 flex items-center justify-center">
+                                    <X className="w-3.5 h-3.5 text-rose-600" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-black text-slate-900 leading-tight">
+                                        Patient {notif.name}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-slate-500 mt-1 leading-relaxed">
+                                        Cancelled their appointment request for {new Date(notif.appointmentDateTime || notif.appointment_datetime).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                        <Clock className="w-3 h-3 text-slate-300" />
+                                        <span className="text-[9px] text-slate-300 font-black uppercase tracking-wider">
+                                            {new Date(notif.queueExitTime || notif.registeredAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="p-8 text-center">
+                        <div className="w-10 h-10 bg-slate-50 rounded-[14px] flex items-center justify-center mx-auto mb-3">
+                            <CheckCircle2 className="w-5 h-5 text-slate-200" />
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">No cancellations</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+
     return (
         <div className="flex flex-col h-screen bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden">
 
@@ -611,9 +767,25 @@ const DoctorDashboard = () => {
                             {selectedPatient && (
                                 <span className="text-xs font-black text-slate-600 truncate max-w-[180px]">{selectedPatient.name}</span>
                             )}
-                            <Button variant="ghost" size="icon" className="text-slate-400 h-8 w-8">
-                                <Bell className="w-4 h-4" />
-                            </Button>
+                            <div className="relative notif-dropdown-wrapper">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                        setShowNotifications(!showNotifications);
+                                        if (!showNotifications) markDoctorNotificationsAsRead(doctorId);
+                                    }}
+                                    className="text-slate-400 h-8 w-8 relative"
+                                >
+                                    <Bell className={`w-4 h-4 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                                    {unreadDoctorNotificationsCount > 0 && (
+                                        <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white ring-1 ring-white">
+                                            {unreadDoctorNotificationsCount}
+                                        </span>
+                                    )}
+                                </Button>
+                                {showNotifications && mobileView === 'detail' && <NotificationsDropdown />}
+                            </div>
                         </div>
                     ) : (
                         /* List view — full doctor card header */
@@ -634,9 +806,25 @@ const DoctorDashboard = () => {
                                     <Button variant="ghost" size="icon" onClick={handleLogoutClick} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-xl">
                                         <LogOut className="w-4 h-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="text-slate-400 h-8 w-8">
-                                        <Bell className="w-4 h-4" />
-                                    </Button>
+                                    <div className="relative notif-dropdown-wrapper">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => {
+                                                setShowNotifications(!showNotifications);
+                                                if (!showNotifications) markDoctorNotificationsAsRead(doctorId);
+                                            }}
+                                            className="text-slate-400 h-8 w-8 relative"
+                                        >
+                                            <Bell className={`w-4 h-4 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                                            {unreadDoctorNotificationsCount > 0 && (
+                                                <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white ring-1 ring-white">
+                                                    {unreadDoctorNotificationsCount}
+                                                </span>
+                                            )}
+                                        </Button>
+                                        {showNotifications && mobileView !== 'detail' && <NotificationsDropdown />}
+                                    </div>
                                 </div>
                             </div>
                             {/* Stats row */}
@@ -752,22 +940,27 @@ const DoctorDashboard = () => {
                                 >
                                     <LogOut className="w-4 h-4 ml-0.5" />
                                 </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 h-8 w-8 rounded-xl shrink-0"
-                                    title="Notifications"
-                                >
-                                    <Bell className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 h-8 w-8 rounded-xl shrink-0"
-                                    title="Settings"
-                                >
-                                    <Settings className="w-4 h-4" />
-                                </Button>
+                                <div className="relative notif-dropdown-wrapper">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => {
+                                            setShowNotifications(!showNotifications);
+                                            if (!showNotifications) markDoctorNotificationsAsRead(doctorId);
+                                        }}
+                                        className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 h-8 w-8 rounded-xl shrink-0 relative"
+                                        title="Notifications"
+                                    >
+                                        <Bell className={`w-4 h-4 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                                        {unreadDoctorNotificationsCount > 0 && (
+                                            <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white ring-1 ring-white">
+                                                {unreadDoctorNotificationsCount}
+                                            </span>
+                                        )}
+                                    </Button>
+                                    {showNotifications && <NotificationsDropdown />}
+                                </div>
+
                             </div>
                         </div>
                         <div className="relative group">

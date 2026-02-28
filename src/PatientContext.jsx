@@ -1,7 +1,8 @@
-import React, { createContext, useState, useMemo, useEffect } from "react";
+import React, { createContext, useState, useMemo, useEffect, useRef } from "react";
 import { assignDoctor, doctors } from './doctorData';
 import { syncPatientToDatabase, getAllPatientProfiles, getMaxQueueNumber } from './lib/patientService';
 import { supabase } from './lib/supabaseClient'; // Import Supabase client
+import { sendAppointmentEmail } from './lib/emailService';
 
 export const PatientContext = createContext();
 
@@ -9,6 +10,27 @@ export const PatientProvider = ({ children }) => {
   const [activePatient, setActivePatient] = useState(null);
   const [isLoadingFromDB, setIsLoadingFromDB] = useState(true); // NEW: Loading state
   const [patients, setPatients] = useState([]);
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('patientNotifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const patientsRef = useRef([]); // NEW: Ref to track latest patients without re-subscribing
+
+  // NEW: Secretary Notification Check Timestamp
+  const [lastSecretaryNotificationCheck, setLastSecretaryNotificationCheck] = useState(() => {
+    return localStorage.getItem('lastSecretaryNotificationCheck') || new Date().toISOString();
+  });
+
+  // NEW: Doctor Notification Check Timestamp (Object keyed by doctorId)
+  const [lastDoctorNotificationCheck, setLastDoctorNotificationCheck] = useState(() => {
+    const saved = localStorage.getItem('lastDoctorNotificationCheck');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Persist notifications to localStorage
+  useEffect(() => {
+    localStorage.setItem('patientNotifications', JSON.stringify(notifications));
+  }, [notifications]);
 
   // Helper to transform DB data to App format
   const transformPatientData = (dbPatient) => ({
@@ -41,7 +63,8 @@ export const PatientProvider = ({ children }) => {
     dbId: dbPatient.id,
     patientEmail: dbPatient.patient_email, // NEW: Add patient email for access control
     isPriority: dbPatient.is_priority || false,
-    priorityType: dbPatient.priority_type || null
+    priorityType: dbPatient.priority_type || null,
+    daysSinceOnset: dbPatient.days_since_onset || null
   });
 
   // ==========================================
@@ -99,6 +122,7 @@ export const PatientProvider = ({ children }) => {
   // This ensures that if the patients list is updated via Real-time (e.g. status change to 'accepted'),
   // the activePatient object also gets updated immediately.
   useEffect(() => {
+    patientsRef.current = patients; // Sync ref with state
     if (activePatient && patients.length > 0) {
       // 1. If active patient is inactive (e.g. requeued/cancelled), try to find their new ticket
       if (activePatient.isInactive) {
@@ -140,6 +164,37 @@ export const PatientProvider = ({ children }) => {
         { event: '*', schema: 'public', table: 'patients' },
         (payload) => {
           console.log('⚡ Realtime event received:', payload.eventType);
+
+          // NEW: Notification Logic for Patients
+          if (payload.eventType === 'UPDATE') {
+            const oldData = payload.old;
+            const newData = payload.new;
+            const currentUserEmail = localStorage.getItem('currentPatientEmail')?.toLowerCase();
+
+            if (currentUserEmail && newData.patient_email?.toLowerCase() === currentUserEmail) {
+              // Get old status from state ref instead of relying on payload.old
+              const oldPatient = patientsRef.current.find(p => p.id === newData.id);
+              const oldStatus = oldPatient?.appointmentStatus || 'pending'; // fallback
+
+              const newStatus = newData.appointment_status;
+
+              // Check if appointment status changed from pending to accepted/rejected
+              if (oldStatus === 'pending' && (newStatus === 'accepted' || newStatus === 'rejected')) {
+                const message = newStatus === 'accepted'
+                  ? `Your appointment for ${new Date(newData.appointment_datetime).toLocaleDateString()} has been ACCEPTED.`
+                  : `Your appointment for ${new Date(newData.appointment_datetime).toLocaleDateString()} has been DECLINED. Reason: ${newData.rejection_reason || 'No reason provided'}`;
+
+                setNotifications(prev => [{
+                  id: Date.now(),
+                  message,
+                  type: newStatus,
+                  timestamp: new Date().toISOString(),
+                  read: false
+                }, ...prev]);
+              }
+            }
+          }
+
           // Simple, robust update: Refresh data from DB to ensure state is perfectly synced
           loadPatientsFromDatabase();
         }
@@ -170,8 +225,58 @@ export const PatientProvider = ({ children }) => {
       if (persistedId) {
         const foundPatient = patients.find(p => p.id === persistedId);
         if (foundPatient) {
+          // ACCOUNT VALIDATION:
+          const currentEmail = localStorage.getItem('currentPatientEmail');
+          const isLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
+
+          if (isLoggedIn && currentEmail) {
+            const normalizedFoundEmail = (foundPatient.patientEmail || '').toLowerCase().trim();
+            const normalizedCurrentEmail = currentEmail.toLowerCase().trim();
+
+            if (normalizedFoundEmail && normalizedFoundEmail !== normalizedCurrentEmail) {
+              console.log("🚫 Restored patient belongs to another account. Clearing.");
+              localStorage.removeItem('activePatientId');
+              return;
+            }
+          }
+
           console.log("🔄 Restoring active patient from storage:", foundPatient.name);
           setActivePatient(foundPatient);
+        }
+      }
+    }
+  }, [isLoadingFromDB, patients, activePatient]);
+
+  // NEW: Automatic session discovery for logged-in patients
+  useEffect(() => {
+    const isLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
+    const currentEmail = localStorage.getItem('currentPatientEmail');
+
+    if (!isLoadingFromDB && isLoggedIn && currentEmail && patients.length > 0) {
+      const normalizedCurrentEmail = currentEmail.toLowerCase().trim();
+
+      // OPTION 1: Validate existing session
+      if (activePatient && activePatient.patientEmail) {
+        const normalizedActiveEmail = activePatient.patientEmail.toLowerCase().trim();
+        if (normalizedActiveEmail !== normalizedCurrentEmail) {
+          console.log("⚠️ Active patient belongs to another account. Clearing session.");
+          clearActivePatient();
+          return;
+        }
+      }
+
+      // OPTION 2: Auto-discover session if none active
+      if (!activePatient) {
+        const myActiveAppointment = patients.find(p =>
+          p.patientEmail &&
+          p.patientEmail.toLowerCase().trim() === normalizedCurrentEmail &&
+          (p.appointmentStatus === 'pending' || p.appointmentStatus === 'accepted' || p.inQueue) &&
+          !p.isInactive
+        );
+
+        if (myActiveAppointment) {
+          console.log('✅ Found account-linked active appointment, auto-activating:', myActiveAppointment.name);
+          setActivePatient(myActiveAppointment);
         }
       }
     }
@@ -213,11 +318,61 @@ export const PatientProvider = ({ children }) => {
     return Math.max(0, calculatedAvg + manualWaitTimeAdjustment);
   }, [patients, manualWaitTimeAdjustment]);
 
-  // activeDoctors is intentionally NOT persisted to localStorage.
-  // The secretary must explicitly start each doctor's queue at the beginning of each session.
-  // Persisting across page loads caused stale assignments (e.g. a doctor active yesterday
-  // would still be treated as active today, assigning new patients prematurely).
-  const [activeDoctors, setActiveDoctors] = useState([]);
+  // NEW: Calculate unread cancellations for secretary
+  const unreadSecretaryNotificationsCount = useMemo(() => {
+    const userRole = localStorage.getItem('userRole');
+    // Only show for secretary/staff/admin
+    if (userRole !== 'secretary' && userRole !== 'staff' && userRole !== 'admin') return 0;
+
+    return patients.filter(p =>
+      p.type === 'Appointment' &&
+      p.status === 'cancelled' &&
+      p.appointmentStatus === 'cancelled' &&
+      new Date(p.queueExitTime || p.registeredAt || p.created_at) > new Date(lastSecretaryNotificationCheck)
+    ).length;
+  }, [patients, lastSecretaryNotificationCheck]);
+
+  const markSecretaryNotificationsAsRead = () => {
+    const now = new Date().toISOString();
+    setLastSecretaryNotificationCheck(now);
+    localStorage.setItem('lastSecretaryNotificationCheck', now);
+  };
+
+  const markDoctorNotificationsAsRead = (doctorId) => {
+    if (!doctorId) return;
+    const now = new Date().toISOString();
+    setLastDoctorNotificationCheck(prev => {
+      const updated = { ...prev, [doctorId]: now };
+      localStorage.setItem('lastDoctorNotificationCheck', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // ✅ UPDATED: activeDoctors is now persisted to localStorage for refresh retention.
+  // It includes a daily reset safeguard to prevent stale assignments from previous days.
+  const [activeDoctors, setActiveDoctors] = useState(() => {
+    const saved = localStorage.getItem('active-doctors-sync');
+    if (saved) {
+      try {
+        const { date, ids } = JSON.parse(saved);
+        // Only restore if it was saved today
+        if (date === new Date().toDateString()) {
+          return ids;
+        }
+      } catch (e) {
+        console.error("Error parsing activeDoctors from localStorage", e);
+      }
+    }
+    return [];
+  });
+
+  // Keep localStorage in sync with activeDoctors state
+  useEffect(() => {
+    localStorage.setItem('active-doctors-sync', JSON.stringify({
+      date: new Date().toDateString(),
+      ids: activeDoctors
+    }));
+  }, [activeDoctors]);
 
   const [doctorCurrentServing, setDoctorCurrentServing] = useState(() => {
     const initialServing = {};
@@ -370,7 +525,7 @@ export const PatientProvider = ({ children }) => {
 
     const bookedCount = patients.filter(p => {
       if (!p.appointmentDateTime) return false;
-      if (p.appointmentStatus === 'rejected') return false;
+      if (p.appointmentStatus === 'rejected' || p.appointmentStatus === 'cancelled') return false;
       const pDate = new Date(p.appointmentDateTime);
       pDate.setMinutes(pDate.getMinutes() < 30 ? 0 : 30, 0, 0);
       return pDate.getTime() === targetDate.getTime();
@@ -596,6 +751,13 @@ export const PatientProvider = ({ children }) => {
         };
       }));
 
+      // 6. Send Email Notification
+      sendAppointmentEmail(patient, 'accepted', {
+        queueNo: newQueueNo,
+        doctor: assignedDoctor?.name,
+        dateTime: patient.appointmentDateTime || patient.appointment_datetime
+      });
+
     } catch (error) {
       console.error("Failed to accept appointment:", error);
     }
@@ -635,8 +797,53 @@ export const PatientProvider = ({ children }) => {
         };
       }));
 
+      // 3. Send Email Notification
+      const patientData = patients.find(p => p.id === patientId);
+      if (patientData) {
+        sendAppointmentEmail(patientData, 'rejected', {
+          reason: reason
+        });
+      }
+
     } catch (error) {
       console.error("Failed to reject appointment:", error);
+    }
+  };
+
+  const cancelAppointment = async (patientId) => {
+    try {
+      console.log(`❌ Cancelling appointment ${patientId}`);
+
+      const cancelledAt = new Date().toISOString();
+      const updates = {
+        appointment_status: "cancelled",
+        status: "cancelled",
+        in_queue: false,
+        queue_exit_time: cancelledAt
+      };
+
+      // 1. Sync to database via supabase directly
+      const { error } = await supabase
+        .from('patients')
+        .update(updates)
+        .eq('id', patientId);
+
+      if (error) throw error;
+
+      // 2. Update local state
+      setPatients(prev => prev.map(p => {
+        if (p.id !== patientId) return p;
+        return {
+          ...p,
+          appointmentStatus: "cancelled",
+          status: "cancelled",
+          inQueue: false,
+          queueExitTime: cancelledAt
+        };
+      }));
+
+    } catch (error) {
+      console.error("Failed to cancel appointment:", error);
     }
   };
 
@@ -906,6 +1113,14 @@ export const PatientProvider = ({ children }) => {
     setActiveDoctors(prev => prev.filter(id => id !== dId));
   };
 
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
+  const markNotificationsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
   // REMOVED: reassignPatientsForDoctor - This logic is now handled by the auto-assign useEffect (lines 261-335)
   // to avoid duplication and race conditions.
 
@@ -937,6 +1152,7 @@ export const PatientProvider = ({ children }) => {
       requeuePatient,
       acceptAppointment,
       rejectAppointment,
+      cancelAppointment,
       getDoctorCurrentServing,
       setDoctorCurrentServingPatient,
       callNextPatientForDoctor,
@@ -946,6 +1162,13 @@ export const PatientProvider = ({ children }) => {
       stopDoctorQueue,
       isDoctorActive,
       isLoadingFromDB, // Expose loading state
+      notifications,
+      clearNotifications,
+      markNotificationsRead,
+      unreadSecretaryNotificationsCount,
+      markSecretaryNotificationsAsRead,
+      lastDoctorNotificationCheck,
+      markDoctorNotificationsAsRead
     }}>
       {children}
     </PatientContext.Provider>

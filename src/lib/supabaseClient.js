@@ -97,7 +97,8 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
             is_priority: formData.isPriority || false,
             priority_type: formData.priorityType || null,
             patient_email: localStorage.getItem('currentPatientEmail') || null,
-            appointment_datetime: appointmentDateTime
+            appointment_datetime: appointmentDateTime,
+            days_since_onset: formData.daysSinceOnSet ? parseInt(formData.daysSinceOnSet) : null
           }
         ])
         .select()

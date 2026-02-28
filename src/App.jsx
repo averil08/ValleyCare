@@ -19,6 +19,7 @@ import DoctorSelection from "./DoctorSelection";
 import DoctorDashboard from "./DoctorDashboard";
 import PatientDetails from "./PatientDetails";
 import ResetPassword from "./ResetPassword";
+import Notifications from "./Notifications";
 
 
 function App() {
@@ -73,6 +74,7 @@ function App() {
           <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
           <Route path="/patient-details" element={<PatientDetails />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/notifications" element={<Notifications />} />
         </Routes>
       </PatientProvider>
     </Router>

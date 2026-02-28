@@ -3,9 +3,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { Users, ChartNoAxesCombined, TicketCheck, Calendar, DoorOpen, NotebookText, CircleUserRound, Settings } from "lucide-react";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 import img1 from '../assets/logo-valley.png';
-import  { PatientContext } from '../PatientContext'; 
+import { PatientContext } from '../PatientContext';
 
-const PatientSidebar = ({ nav, handleNav }) => {
+const PatientSidebar = ({ nav, handleNav, hideToggle = false }) => {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -18,13 +18,13 @@ const PatientSidebar = ({ nav, handleNav }) => {
 
   const handleConfirmLogout = () => {
     setShowLogoutModal(false);
-    
+
     // ✅ NEW: Clear patient identity data on logout
     localStorage.removeItem('currentPatientEmail');
     localStorage.removeItem('isPatientLoggedIn');
-     // ✅ ADD THIS: Clear active patient session
+    // ✅ ADD THIS: Clear active patient session
     setActivePatient(null);
-    
+
     // Navigate to home
     navigate("/");
   };
@@ -42,13 +42,13 @@ const PatientSidebar = ({ nav, handleNav }) => {
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={() => navigate("/homepage")}>
-            <Users className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            <Users className="w-5 h-5 text-green-600 group-hover:text-white" />
             Patient Homepage
           </li>
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={() => navigate("/checkin?view=patient&from=patient-sidebar&type=appointment")}>
-            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" />
             Book Appointment
           </li>
 
@@ -56,8 +56,8 @@ const PatientSidebar = ({ nav, handleNav }) => {
             <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" />
             Patient Profile
           </li>
-          <li 
-            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" 
+          <li
+            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer"
             onClick={() => navigate("/patient-settings")}>
             <Settings className="w-5 h-5 text-green-600 group-hover:text-white" />
             Profile Settings
@@ -65,18 +65,20 @@ const PatientSidebar = ({ nav, handleNav }) => {
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={handleLogoutClick}>
-            <DoorOpen className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            <DoorOpen className="w-5 h-5 text-green-600 group-hover:text-white" />
             Log Out
           </li>
         </ul>
       </div>
 
       {/* MOBILE HAMBURGER ICON */}
-      <div
-        className="md:hidden fixed top-10 right-10 z-50 pt-1"
-        onClick={handleNav}>
-        {nav ? <AiOutlineClose size={24} /> : <AiOutlineMenu size={24} />}
-      </div>
+      {!hideToggle && (
+        <div
+          className="md:hidden fixed top-10 right-10 z-50 pt-1"
+          onClick={handleNav}>
+          {nav ? <AiOutlineClose size={24} /> : <AiOutlineMenu size={24} />}
+        </div>
+      )}
 
       {/* MOBILE SIDEBAR */}
       <div
@@ -87,21 +89,21 @@ const PatientSidebar = ({ nav, handleNav }) => {
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={() => navigate("/homepage")}>
-            <Users className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            <Users className="w-5 h-5 text-green-600 group-hover:text-white" />
             Patient Homepage
           </li>
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={() => navigate("/checkin?view=patient&from=patient-sidebar&type=appointment")}>
-            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            <Calendar className="w-5 h-5 text-green-600 group-hover:text-white" />
             Book Appointment
           </li>
           <li className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" onClick={() => navigate("/appointmenthistory")}>
             <NotebookText className="w-5 h-5 text-green-600 group-hover:text-white" />
             Patient Profile
           </li>
-          <li 
-            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer" 
+          <li
+            className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white hover:cursor-pointer"
             onClick={() => navigate("/patient-settings")}>
             <Settings className="w-5 h-5 text-green-600 group-hover:text-white" />
             Profile Settings
@@ -109,7 +111,7 @@ const PatientSidebar = ({ nav, handleNav }) => {
           <li
             className="group p-4 flex items-center gap-2 hover:bg-green-600 hover:text-white cursor-pointer"
             onClick={handleLogoutClick}>
-            <DoorOpen className="w-5 h-5 text-green-600 group-hover:text-white" /> 
+            <DoorOpen className="w-5 h-5 text-green-600 group-hover:text-white" />
             Log Out
           </li>
         </ul>

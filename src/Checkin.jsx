@@ -142,6 +142,10 @@ function Checkin() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('from') === 'patient-sidebar';
   });
+  const [skipCheck] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('skipCheck') === 'true';
+  });
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState(1);
@@ -483,8 +487,8 @@ function Checkin() {
         s === 'Other' ? `Other: ${formData.otherSymptomText}` : s
       ),
       services: bookingMode === 'doctor' ? [] : formData.services,
-      // Do NOT write a doctor name to the DB at submit time for doctor-mode.
-      physician: finalDoctor?.name || null,
+      // Fix: Persist preferred doctor to physician column in DB
+      physician: bookingMode === 'doctor' ? selectedDoctor?.name : (finalDoctor?.name || null),
       assignedDoctorName: finalDoctor?.name || null
     };
 
@@ -578,6 +582,7 @@ function Checkin() {
           priorityType: formData.priorityType,
           isReturningPatient: formData.isReturningPatient,
           patientEmail: currentPatientEmail || null,
+          daysSinceOnset: formData.daysSinceOnSet || null,
           // Store the doctor choice as preferredDoctor for deferred assignment
           preferredDoctor: bookingMode === 'doctor' && selectedDoctor ? {
             id: selectedDoctor.id,
@@ -670,12 +675,13 @@ function Checkin() {
 
   // ✅ NEW: Clear active patient session ONLY ONCE when entering a new booking flow
   useEffect(() => {
-    if (isNewBooking && !sessionClearedRef.current) {
-      console.log("🧹 New booking detected - clearing active patient session.");
+    // Only clear if NOT logged in (Guests). Logged-in patients should rely on DB state.
+    if (isNewBooking && !sessionClearedRef.current && !isPatientLoggedIn) {
+      console.log("🧹 New booking detected - clearing guest active patient session.");
       clearActivePatient();
       sessionClearedRef.current = true;
     }
-  }, [isNewBooking, clearActivePatient]);
+  }, [isNewBooking, clearActivePatient, isPatientLoggedIn]);
 
   // ✅ NEW: Auto-save form data whenever it changes
   useEffect(() => {
@@ -770,40 +776,9 @@ function Checkin() {
     }
   }, [selectedPatientType]); // Run when patient type changes
 
-  // ✅✅✅ COMPLETELY REWRITTEN - This is the fix!
-  useEffect(() => {
-    // Only check once when component mounts or when we return from settings
-    if (appointmentCheckDoneRef.current) {
-      return; // Already checked, don't check again
-    }
-
-    // Only check if we're in patient sidebar view and NOT selecting a patient type
-    if (!isFromPatientSidebar || selectedPatientType || !isPatientLoggedIn) {
-      return;
-    }
-
-    const currentPatientEmail = localStorage.getItem('currentPatientEmail');
-    if (!currentPatientEmail) {
-      return;
-    }
-
-    // Find existing appointment - do this INSIDE useEffect, not in useMemo
-    const myActiveAppointment = patients.find(p =>
-      p.type === 'Appointment' &&
-      p.patientEmail &&
-      p.patientEmail.toLowerCase().trim() === currentPatientEmail.toLowerCase().trim() &&
-      (p.appointmentStatus === 'pending' || p.appointmentStatus === 'accepted') &&
-      !p.isInactive
-    );
-
-    if (myActiveAppointment) {
-      console.log('✅ Found existing appointment, setting active patient');
-      appointmentCheckDoneRef.current = true;
-      setActivePatient(myActiveAppointment);
-    }
-
-    // ✅✅✅ KEY FIX: Only depend on length, not the whole array!
-  }, [isFromPatientSidebar, selectedPatientType, isPatientLoggedIn, patients?.length]);
+  // ✅ AUTO-DISCOVERY MOVED TO CONTEXT
+  // The logic to find and set the active patient for logged-in users
+  // is now handled centrally in PatientContext.jsx to support all pages.
 
   // ✅ FORCE CLEAR SESSION ON MOUNT IF CLINIC VIEW
   useEffect(() => {
@@ -821,9 +796,8 @@ function Checkin() {
   }, [selectedPatientType]);
 
   // ✅ Navigation redirect - simple and clean
-  // GUARD: Do NOT redirect if we are starting a NEW booking flow (e.g. Guest flow or sidebar button)
-  // ALSO: Do NOT redirect if we are in 'clinic' view (so staff can scan QR codes despite active patient session)
-  if (activePatient && !isNewBooking && viewMode !== 'clinic') {
+  // GUARD: Do NOT redirect if we are in 'clinic' view or if user explicitly clicked 'Done' (skipCheck)
+  if (activePatient && viewMode !== 'clinic' && !skipCheck) {
     const params = new URLSearchParams();
     if (isPatientAccess) params.append('view', 'patient');
     if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
