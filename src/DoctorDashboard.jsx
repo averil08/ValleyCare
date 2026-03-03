@@ -21,6 +21,7 @@ const DoctorDashboard = () => {
     const storedDoctorId = localStorage.getItem('selectedDoctorId');
     const doctorId = storedDoctorId ? Number(storedDoctorId) : null;
     const currentDoctor = doctors.find(d => d.id === doctorId) || { name: "Dr. Ricardo Jose", id: null };
+    const isAppointmentOnlyDoctor = currentDoctor?.schedule === 'By Appointment Only';
 
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [expandedVisitId, setExpandedVisitId] = useState(null);
@@ -37,8 +38,13 @@ const DoctorDashboard = () => {
     const [queueStatusFilter, setQueueStatusFilter] = useState('active'); // 'active' | 'done' | 'cancelled'
     const [scheduledStatusFilter, setScheduledStatusFilter] = useState('all'); // 'all' | 'pending' | 'accepted' | 'rejected'
     const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const [showDeclineAllModal, setShowDeclineAllModal] = useState(false);
+    const [isDecliningAll, setIsDecliningAll] = useState(false);
+    const [isRejecting, setIsRejecting] = useState(false);
+    const [rejectionReason, setRejectionReason] = useState("");
+    const [showIndividualDeclineModal, setShowIndividualDeclineModal] = useState(false);
 
-    const { patients, lastDoctorNotificationCheck, markDoctorNotificationsAsRead } = useContext(PatientContext);
+    const { patients, lastDoctorNotificationCheck, markDoctorNotificationsAsRead, rejectAppointment, acceptAppointment } = useContext(PatientContext);
     const dropdownRef = useRef(null);
     const desktopDropdownRef = useRef(null);
     const workspaceRef = useRef(null);
@@ -105,6 +111,48 @@ const DoctorDashboard = () => {
 
     const handleCancelLogout = () => {
         setShowLogoutModal(false);
+    };
+
+    const handleDeclineAll = async () => {
+        if (isDecliningAll) return;
+        setIsDecliningAll(true);
+        try {
+            // Get the pending appointments currently visible under the active date filter
+            const pendingToDecline = allAppointmentPatients.filter(p =>
+                !p.appointmentStatus || p.appointmentStatus === 'pending'
+            );
+            await Promise.all(
+                pendingToDecline.map(p => rejectAppointment(p.id, 'Your appointment has been declined due to the doctor’s unavailability. Please check your email or the homepage for schedule updates.'))
+            );
+        } catch (err) {
+            console.error('Decline All failed:', err);
+        } finally {
+            setIsDecliningAll(false);
+            setShowDeclineAllModal(false);
+        }
+    };
+
+    const handleAcceptIndividual = async (patientId) => {
+        try {
+            await acceptAppointment(patientId);
+            // Optionally, we could show a success toast here
+        } catch (err) {
+            console.error('Accept appointment failed:', err);
+        }
+    };
+
+    const handleRejectIndividual = async () => {
+        if (!selectedPatient || !rejectionReason.trim()) return;
+        setIsRejecting(true);
+        try {
+            await rejectAppointment(selectedPatient.id, rejectionReason);
+            setShowIndividualDeclineModal(false);
+            setRejectionReason("");
+        } catch (err) {
+            console.error('Reject appointment failed:', err);
+        } finally {
+            setIsRejecting(false);
+        }
     };
 
     // ── Date-in-filter helpers ────────────────────────────────────────────
@@ -362,6 +410,17 @@ const DoctorDashboard = () => {
             patientVisits = [patient];
         }
 
+        // Find upcoming accepted appointments (future date)
+        const now = new Date();
+        const upcomingAppointments = patientVisits
+            .filter(v =>
+                v.type === 'Appointment' &&
+                v.appointmentStatus === 'accepted' &&
+                v.appointmentDateTime &&
+                new Date(v.appointmentDateTime) > now
+            )
+            .sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime));
+
         const formatDate = (dateString) => {
             if (!dateString) return 'N/A';
             return new Date(dateString).toLocaleString('en-US', {
@@ -448,6 +507,93 @@ const DoctorDashboard = () => {
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* ── Upcoming Appointment Banner ── */}
+                    {upcomingAppointments.length > 0 && (
+                        <Card className="border-none shadow-xl shadow-blue-200/30 rounded-3xl overflow-hidden bg-white mb-4">
+                            <div className="h-1.5 w-full bg-gradient-to-r from-blue-400 to-indigo-500" />
+                            <CardContent className="p-5 sm:p-6">
+                                <div className="flex items-center gap-2.5 mb-4">
+                                    <div className="p-2 bg-blue-50 rounded-xl">
+                                        <CalendarDays className="w-4 h-4 text-blue-600" />
+                                    </div>
+                                    <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">
+                                        Upcoming {upcomingAppointments.length === 1 ? 'Appointment' : 'Appointments'}
+                                    </h3>
+                                </div>
+                                <div className="space-y-3">
+                                    {upcomingAppointments.map((appt, i) => (
+                                        <div key={appt.id || i} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 rounded-2xl border border-blue-100/60">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                <div className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl bg-white border border-blue-100 shadow-sm shrink-0">
+                                                    <span className="text-[9px] font-black text-blue-400 uppercase leading-none">
+                                                        {new Date(appt.appointmentDateTime).toLocaleDateString('en-US', { month: 'short' })}
+                                                    </span>
+                                                    <span className="text-xl font-black text-blue-700 leading-none mt-0.5">
+                                                        {new Date(appt.appointmentDateTime).getDate()}
+                                                    </span>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-black text-slate-800">
+                                                        {new Date(appt.appointmentDateTime).toLocaleDateString('en-US', {
+                                                            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                                                        })}
+                                                    </p>
+                                                    <p className="text-xs font-bold text-blue-600 mt-0.5 flex items-center gap-1.5">
+                                                        <Clock className="w-3 h-3" />
+                                                        {new Date(appt.appointmentDateTime).toLocaleTimeString('en-US', {
+                                                            hour: 'numeric', minute: '2-digit', hour12: true
+                                                        })}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                                                {appt.assignedDoctor?.name && (
+                                                    <Badge variant="outline" className="text-[9px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border-none rounded-md px-2 py-0.5">
+                                                        <Stethoscope className="w-3 h-3 mr-1" />
+                                                        {appt.assignedDoctor.name}
+                                                    </Badge>
+                                                )}
+                                                {appt.services && appt.services.length > 0 && appt.services.slice(0, 2).map((s, si) => (
+                                                    <Badge key={si} variant="outline" className="text-[9px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 border-none rounded-md px-1.5 py-0.5">
+                                                        {s}
+                                                    </Badge>
+                                                ))}
+                                                {appt.services && appt.services.length > 2 && (
+                                                    <Badge variant="outline" className="text-[9px] font-black uppercase tracking-wider text-slate-500 bg-slate-100 border-none rounded-md px-1.5 py-0.5">
+                                                        +{appt.services.length - 2}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* ── Appointment Actions (for Pending only) ── */}
+                    {isAppointmentOnlyDoctor && patient.type === 'Appointment' && (!patient.appointmentStatus || patient.appointmentStatus === 'pending') && (
+                        <div className="flex gap-3 mb-4 sticky top-0 z-20">
+                            <Button
+                                onClick={() => handleAcceptIndividual(patient.id)}
+                                className="flex-1 h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 group transition-all"
+                            >
+                                <CheckCircle2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                Accept Appointment
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    setRejectionReason("");
+                                    setShowIndividualDeclineModal(true);
+                                }}
+                                className="flex-1 h-12 rounded-2xl bg-white border border-rose-100 text-rose-600 hover:bg-rose-50 font-black text-xs uppercase tracking-widest shadow-sm flex items-center justify-center gap-2 group transition-all"
+                            >
+                                <X className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                                Decline Request
+                            </Button>
+                        </div>
+                    )}
 
                     {/* ── Clinical Visit Logs ── */}
                     <Card className="border-none shadow-xl shadow-slate-200/30 rounded-3xl overflow-hidden bg-white">
@@ -555,6 +701,12 @@ const DoctorDashboard = () => {
                                                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Completed At</p>
                                                                         <p className="text-xs font-black text-slate-700">{formatDate(visit.completedAt)}</p>
                                                                     </div>
+                                                                    {visit.type === 'Appointment' && visit.appointmentDateTime && (
+                                                                        <div>
+                                                                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Appointment Date</p>
+                                                                            <p className="text-xs font-black text-blue-700">{formatDate(visit.appointmentDateTime)}</p>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </TableCell>
                                                         </TableRow>
@@ -613,20 +765,37 @@ const DoctorDashboard = () => {
         { key: 'cancelled', label: 'Cancelled', count: apptCancelledCount, pill: 'bg-red-600 text-white shadow-red-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600' },
     ];
 
+    // Pending appointments currently visible (for Decline All)
+    const visiblePendingCount = allAppointmentPatients.filter(p =>
+        !p.appointmentStatus || p.appointmentStatus === 'pending'
+    ).length;
+
     const ScheduledStatusFilter = () => (
-        <div className="flex gap-1.5 px-3 pb-2 pt-1 flex-wrap">
-            {scheduledFilterOptions.map(opt => (
+        <div className="flex flex-col gap-1.5 px-3 pb-2 pt-1">
+            <div className="flex gap-1.5 flex-wrap">
+                {scheduledFilterOptions.map(opt => (
+                    <button
+                        key={opt.key}
+                        onClick={() => setScheduledStatusFilter(opt.key)}
+                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm justify-center ${scheduledStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
+                    >
+                        {opt.label}
+                        <span className={`text-[9px] font-black px-1 py-0.5 rounded-full leading-none ${scheduledStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
+                            {opt.count}
+                        </span>
+                    </button>
+                ))}
+            </div>
+            {/* Decline All — only for appointment-only doctors, when viewing Pending */}
+            {isAppointmentOnlyDoctor && scheduledStatusFilter === 'pending' && visiblePendingCount > 0 && (
                 <button
-                    key={opt.key}
-                    onClick={() => setScheduledStatusFilter(opt.key)}
-                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm justify-center ${scheduledStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
+                    onClick={() => setShowDeclineAllModal(true)}
+                    className="w-full mt-0.5 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border border-rose-100 transition-all shadow-sm"
                 >
-                    {opt.label}
-                    <span className={`text-[9px] font-black px-1 py-0.5 rounded-full leading-none ${scheduledStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
-                        {opt.count}
-                    </span>
+                    <X className="w-3 h-3" />
+                    Decline All ({visiblePendingCount})
                 </button>
-            ))}
+            )}
         </div>
     );
 
@@ -995,19 +1164,31 @@ const DoctorDashboard = () => {
                         )}
                         {/* Appointment status filter pills — Schedule tab only */}
                         {activeTab === 'appointments' && (
-                            <div className="flex gap-1.5 mt-3 flex-wrap">
-                                {scheduledFilterOptions.map(opt => (
+                            <div className="flex flex-col gap-1.5 mt-3">
+                                <div className="flex gap-1.5 flex-wrap">
+                                    {scheduledFilterOptions.map(opt => (
+                                        <button
+                                            key={opt.key}
+                                            onClick={() => setScheduledStatusFilter(opt.key)}
+                                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm justify-center ${scheduledStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
+                                        >
+                                            {opt.label}
+                                            <span className={`text-[9px] font-black px-1 py-0.5 rounded-full leading-none ${scheduledStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
+                                                {opt.count}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {/* Decline All — desktop: appointment-only doctors, Pending view, at least 1 pending */}
+                                {isAppointmentOnlyDoctor && scheduledStatusFilter === 'pending' && visiblePendingCount > 0 && (
                                     <button
-                                        key={opt.key}
-                                        onClick={() => setScheduledStatusFilter(opt.key)}
-                                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm justify-center ${scheduledStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
+                                        onClick={() => setShowDeclineAllModal(true)}
+                                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border border-rose-100 transition-all shadow-sm"
                                     >
-                                        {opt.label}
-                                        <span className={`text-[9px] font-black px-1 py-0.5 rounded-full leading-none ${scheduledStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
-                                            {opt.count}
-                                        </span>
+                                        <X className="w-3 h-3" />
+                                        Decline All ({visiblePendingCount})
                                     </button>
-                                ))}
+                                )}
                             </div>
                         )}
                     </div>
@@ -1057,7 +1238,7 @@ const DoctorDashboard = () => {
                             </div>
 
                             {/* ── Context-sensitive date filter dropdown (desktop) ── */}
-                            <div className="relative shrink-0" ref={dropdownRef}>
+                            <div className="relative shrink-0" ref={desktopDropdownRef}>
                                 <Button
                                     onClick={() => setIsFilterOpen(!isFilterOpen)}
                                     variant="outline"
@@ -1176,6 +1357,106 @@ const DoctorDashboard = () => {
                             >
                                 Log Out
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* INDIVIDUAL DECLINE CONFIRMATION MODAL */}
+            {showIndividualDeclineModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full mx-auto animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
+                        <div className="p-7">
+                            <div className="flex items-center justify-center mb-5">
+                                <div className="w-16 h-16 rounded-[20px] bg-rose-50 flex items-center justify-center shadow-inner">
+                                    <XCircle className="w-8 h-8 text-rose-600" />
+                                </div>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 mb-2 text-center tracking-tight">
+                                Decline Appointment?
+                            </h3>
+                            <p className="text-slate-500 mb-4 text-center font-bold text-sm leading-relaxed">
+                                Please provide a reason for declining <span className="text-rose-600 font-black">{selectedPatient?.name}</span>'s appointment request.
+                            </p>
+
+                            <textarea
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                placeholder="e.g., Doctor is unavailable on this date, Please choose another slot..."
+                                className="w-full h-24 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-rose-500 focus:outline-none resize-none mb-6 placeholder:text-slate-300"
+                            />
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowIndividualDeclineModal(false);
+                                        setRejectionReason("");
+                                    }}
+                                    disabled={isRejecting}
+                                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-black text-sm uppercase tracking-widest disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleRejectIndividual}
+                                    disabled={isRejecting || !rejectionReason.trim()}
+                                    className="flex-1 px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors font-black text-sm uppercase tracking-widest shadow-lg shadow-rose-200 disabled:opacity-60 flex items-center justify-center gap-2"
+                                >
+                                    {isRejecting ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                            Declining...
+                                        </>
+                                    ) : 'Confirm Decline'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* DECLINE ALL CONFIRMATION MODAL */}
+            {showDeclineAllModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full mx-auto animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+                        <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
+                        <div className="p-7">
+                            <div className="flex items-center justify-center mb-5">
+                                <div className="w-16 h-16 rounded-[20px] bg-rose-50 flex items-center justify-center shadow-inner">
+                                    <X className="w-8 h-8 text-rose-600" />
+                                </div>
+                            </div>
+                            <h3 className="text-xl font-black text-slate-800 mb-2 text-center tracking-tight">
+                                Decline All Pending Requests?
+                            </h3>
+                            <p className="text-slate-500 mb-1 text-center font-bold text-sm leading-relaxed">
+                                This will reject all <span className="text-rose-600 font-black">{visiblePendingCount} pending</span> appointment request{visiblePendingCount !== 1 ? 's' : ''} within the current date filter.
+                            </p>
+                            <p className="text-slate-400 mb-6 text-center text-xs font-bold">
+                                Patients will be notified by email. This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowDeclineAllModal(false)}
+                                    disabled={isDecliningAll}
+                                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-black text-sm uppercase tracking-widest disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeclineAll}
+                                    disabled={isDecliningAll}
+                                    className="flex-1 px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors font-black text-sm uppercase tracking-widest shadow-lg shadow-rose-200 disabled:opacity-60 flex items-center justify-center gap-2"
+                                >
+                                    {isDecliningAll ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                            Declining...
+                                        </>
+                                    ) : 'Decline All'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -413,7 +413,7 @@ const Appointment = () => {
             View
           </Button>
 
-          {(!appointment.appointmentStatus || appointment.appointmentStatus === 'pending') && !isDoctor && (
+          {(!appointment.appointmentStatus || appointment.appointmentStatus === 'pending') && (
             <>
               <Button
                 size="sm"
@@ -560,7 +560,7 @@ const Appointment = () => {
                       <Eye className="w-3.5 h-3.5" />
                     </Button>
 
-                    {(!appointment.appointmentStatus || appointment.appointmentStatus === 'pending') && !isDoctor && (
+                    {(!appointment.appointmentStatus || appointment.appointmentStatus === 'pending') && (
                       <>
                         <Button
                           size="sm"

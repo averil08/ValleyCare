@@ -57,7 +57,7 @@ const PatientProfile = () => {
     return dayName === 'sunday' ? 'monday' : dayName;
   };
 
-  const [dateFilter, setDateFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState(getInitialDateFilter());
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
@@ -227,10 +227,20 @@ const PatientProfile = () => {
       // Find the most recent completed visit
       const mostRecentDone = sortedVisits.find(v => v.status === 'done');
 
+      // Find the soonest upcoming (future, accepted) appointment
+      const now = new Date();
+      const upcomingAppointment = sortedVisits
+        .filter(v =>
+          v.type === 'Appointment' &&
+          v.appointmentStatus === 'accepted' &&
+          new Date(v.appointmentDateTime) > now
+        )
+        .sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime))[0] || null;
+
       // Definitions for display purposes:
-      // If there's a completed visit, that's the "Last Visit".
-      // Otherwise, the most recent visit overall (which would be an upcoming/accepted one) is used.
-      const lastVisit = mostRecentDone || sortedVisits[0];
+      // If there's a future upcoming appointment, show it (takes priority so "Upcoming" badge appears).
+      // Otherwise, fall back to the most recent completed visit, then the most recent visit overall.
+      const lastVisit = upcomingAppointment || mostRecentDone || sortedVisits[0];
 
       // Find the first (oldest) completed visit
       const completedVisits = sortedVisits.filter(v => v.status === 'done');
@@ -241,7 +251,9 @@ const PatientProfile = () => {
         visits: sortedVisits,
         totalVisits: patient.visits.length,
         lastVisit: lastVisit,
-        firstVisit: firstVisit
+        firstVisit: firstVisit,
+        // True only when a genuine future accepted appointment was found
+        isUpcoming: upcomingAppointment !== null
       };
     }).sort((a, b) => {
       // Sort patients by their representative visit date (prioritizing done visits as defined above)
@@ -391,11 +403,11 @@ const PatientProfile = () => {
         {/* Last Visit / Upcoming Appointment */}
         <div className="mb-3 pb-3 border-b">
           <p className="text-xs text-gray-500 mb-1">
-            {patient.lastVisit.status === 'done' ? 'Last Visit' : 'Upcoming Appointment'}
+            {patient.isUpcoming ? 'Upcoming Appointment' : 'Last Visit'}
           </p>
           <div className="flex items-center gap-2">
-            <Calendar className={`w-4 h-4 ${patient.lastVisit.status === 'done' ? 'text-gray-400' : 'text-blue-500'}`} />
-            <span className={`text-sm ${patient.lastVisit.status === 'done' ? 'text-gray-700' : 'text-blue-700 font-medium'}`}>
+            <Calendar className={`w-4 h-4 ${patient.isUpcoming ? 'text-blue-500' : 'text-gray-400'}`} />
+            <span className={`text-sm ${patient.isUpcoming ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
               {formatDateShort(patient.lastVisit.appointmentDateTime || patient.lastVisit.registeredAt)}
             </span>
           </div>
@@ -653,10 +665,10 @@ const PatientProfile = () => {
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center gap-2">
-                                  <Calendar className={`w-4 h-4 ${patient.lastVisit.status === 'done' ? 'text-gray-400' : 'text-blue-500'}`} />
-                                  <span className={`text-sm ${patient.lastVisit.status === 'done' ? 'text-gray-700' : 'text-blue-700 font-medium'}`}>
+                                  <Calendar className={`w-4 h-4 ${patient.isUpcoming ? 'text-blue-500' : 'text-gray-400'}`} />
+                                  <span className={`text-sm ${patient.isUpcoming ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
                                     {formatDateShort(patient.lastVisit.appointmentDateTime || patient.lastVisit.registeredAt)}
-                                    {patient.lastVisit.status !== 'done' && (
+                                    {patient.isUpcoming && (
                                       <Badge variant="outline" className="ml-2 text-[10px] py-0 h-4 bg-blue-50 text-blue-600 border-blue-200">
                                         Upcoming
                                       </Badge>
@@ -751,9 +763,9 @@ const PatientProfile = () => {
               <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
                 <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                   <div className="flex-1">
-                    <CardTitle className={`flex items-center gap-2 ${selectedPatient.lastVisit.status === 'done' ? 'text-blue-900' : 'text-emerald-900'}`}>
+                    <CardTitle className={`flex items-center gap-2 ${selectedPatient.isUpcoming ? 'text-emerald-900' : 'text-blue-900'}`}>
                       <Activity className="w-6 h-6" />
-                      {selectedPatient.lastVisit.status === 'done' ? 'Most Recent Visit Summary' : 'Upcoming Appointment Summary'}
+                      {selectedPatient.isUpcoming ? 'Upcoming Appointment Summary' : 'Most Recent Visit Summary'}
                     </CardTitle>
                   </div>
                   {selectedPatient.visits.length > 1 && (
@@ -900,7 +912,7 @@ const PatientProfile = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">
-                    {selectedPatient.lastVisit.status === 'done' ? 'Last Visit' : 'Upcoming Appointment'}
+                    {selectedPatient.isUpcoming ? 'Upcoming Appointment' : 'Last Visit'}
                   </p>
                   <p className="font-semibold text-gray-900">
                     {formatDate(selectedPatient.lastVisit.appointmentDateTime || selectedPatient.lastVisit.registeredAt)}

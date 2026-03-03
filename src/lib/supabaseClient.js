@@ -32,7 +32,8 @@ export const registerWalkInPatient = async (patientData) => {
             days_since_onset: patientData.daysSinceOnSet ? parseInt(patientData.daysSinceOnSet) : null,
             patient_type: 'walk-in',
             is_priority: patientData.isPriority || false,
-            priority_type: patientData.priorityType || null
+            priority_type: patientData.priorityType || null,
+            patient_email: patientData.patientEmail || null
           }
         ])
         .select();
@@ -96,7 +97,7 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
             queue_no: nextQueueNo, // Manually assigned real number
             is_priority: formData.isPriority || false,
             priority_type: formData.priorityType || null,
-            patient_email: localStorage.getItem('currentPatientEmail') || null,
+            patient_email: formData.patientEmail || localStorage.getItem('currentPatientEmail') || null,
             appointment_datetime: appointmentDateTime,
             days_since_onset: formData.daysSinceOnSet ? parseInt(formData.daysSinceOnSet) : null
           }

@@ -175,6 +175,7 @@ function Checkin() {
     priorityType: null,
     isReturningPatient: false,
     otherSymptomText: "",
+    patientEmail: "",
   });
   const [touched, setTouched] = useState({});
   const [errors, setErrors] = useState({});
@@ -348,7 +349,7 @@ function Checkin() {
 
   const validateField = (id, value) => {
     let error = "";
-    if (!value && ['firstName', 'lastName', 'age', 'phoneNum'].includes(id)) {
+    if (!value && ['firstName', 'lastName', 'age', 'phoneNum', 'patientEmail'].includes(id)) {
       error = "This field is required.";
     } else if (id === "phoneNum" && value) {
       if (!/^\d{11}$/.test(value)) {
@@ -358,6 +359,11 @@ function Checkin() {
       }
     } else if (id === "age" && value && (value <= 0 || value > 150)) {
       error = "Please enter a valid age.";
+    } else if (id === "patientEmail" && value) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(value)) {
+        error = "Please enter a valid email address.";
+      }
     }
     return error;
   };
@@ -450,6 +456,7 @@ function Checkin() {
       priorityType: null,
       isReturningPatient: false,
       otherSymptomText: "",
+      patientEmail: "",
     });
     setExpandedCategory(null);
     setAvailableSlots(1);
@@ -494,7 +501,7 @@ function Checkin() {
 
     try {
       if (isFromPatientSidebar) {
-        if ((!formData.firstName && !formData.lastName) || !formData.age || !formData.phoneNum) {
+        if ((!formData.firstName && !formData.lastName) || !formData.age || !formData.phoneNum || !formData.patientEmail) {
           showMessage(
             "Profile Incomplete",
             "Please complete your profile in Settings before booking an appointment.",
@@ -516,6 +523,20 @@ function Checkin() {
           setIsSubmitting(false);
           return;
         }
+      }
+
+      if (formData.patientEmail) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.patientEmail)) {
+          showMessage("Validation Error", "Please enter a valid email address.", false);
+          setIsSubmitting(false);
+          return;
+        }
+      } else if (!isPatientLoggedIn) {
+        // Required for Guests
+        showMessage("Validation Error", "Email is required.", false);
+        setIsSubmitting(false);
+        return;
       }
 
       let result;
@@ -581,7 +602,7 @@ function Checkin() {
           isPriority: formData.isPriority,
           priorityType: formData.priorityType,
           isReturningPatient: formData.isReturningPatient,
-          patientEmail: currentPatientEmail || null,
+          patientEmail: formData.patientEmail || currentPatientEmail || null,
           daysSinceOnset: formData.daysSinceOnSet || null,
           // Store the doctor choice as preferredDoctor for deferred assignment
           preferredDoctor: bookingMode === 'doctor' && selectedDoctor ? {
@@ -736,6 +757,7 @@ function Checkin() {
             lastName: loadedLastName || prev.lastName,
             age: userProfile.age || prev.age,
             phoneNum: userProfile.phoneNumber || prev.phoneNum,
+            patientEmail: userProfile.email || prev.patientEmail,
           }));
 
           profileLoadedRef.current = true;
@@ -1067,6 +1089,11 @@ function Checkin() {
                       <Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handlePhoneChange} onBlur={handleBlur} className={touched.phoneNum && errors.phoneNum ? "border-red-500" : ""} maxLength={11} minLength={11} pattern="[0-9]{11}" inputMode="numeric" required />
                       {touched.phoneNum && errors.phoneNum && <p className="text-xs text-red-500 mt-1">{errors.phoneNum}</p>}
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="patientEmail">Email Address <span className="text-red-600">*</span></Label>
+                    <Input id="patientEmail" type="email" value={formData.patientEmail} onChange={handleInputChange} onBlur={handleBlur} className={touched.patientEmail && errors.patientEmail ? "border-red-500" : ""} required placeholder="e.g. juan@example.com" />
+                    {touched.patientEmail && errors.patientEmail && <p className="text-xs text-red-500 mt-1">{errors.patientEmail}</p>}
                   </div>
                 </>
               )}
