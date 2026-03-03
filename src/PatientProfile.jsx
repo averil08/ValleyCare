@@ -57,7 +57,7 @@ const PatientProfile = () => {
     return dayName === 'sunday' ? 'monday' : dayName;
   };
 
-  const [dateFilter, setDateFilter] = useState(getInitialDateFilter());
+  const [dateFilter, setDateFilter] = useState("all");
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
