@@ -816,9 +816,10 @@ export const PatientProvider = ({ children }) => {
       }));
 
       // 6. Send Email Notification
+      const doctorName = assignedDoctor ? assignedDoctor.name : (patient.assignedDoctor?.name || 'Assigned Physician');
       sendAppointmentEmail(patient, 'accepted', {
         queueNo: newQueueNo,
-        doctor: assignedDoctor?.name,
+        doctor: doctorName,
         dateTime: patient.appointmentDateTime || patient.appointment_datetime
       });
 
@@ -865,7 +866,9 @@ export const PatientProvider = ({ children }) => {
       const patientData = patients.find(p => p.id === patientId);
       if (patientData) {
         sendAppointmentEmail(patientData, 'rejected', {
-          reason: reason
+          reason: reason,
+          doctor: patientData.assignedDoctor?.name || 'Assigned Physician',
+          dateTime: patientData.appointmentDateTime || patientData.appointment_datetime
         });
       }
 
