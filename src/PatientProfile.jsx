@@ -132,6 +132,93 @@ const PatientProfile = () => {
     return true;
   };
 
+  const getVisitStatusCategory = (appointment) => {
+    if (!appointment) return 'unknown';
+    if (appointment.type === 'Appointment') {
+      if (appointment.appointmentStatus === 'pending') {
+        return 'pending';
+      } else if (appointment.appointmentStatus === 'rejected') {
+        return 'not-approved';
+      } else if (appointment.appointmentStatus === 'accepted') {
+        if (appointment.status === 'done') {
+          return 'completed';
+        } else if (appointment.status === 'in progress') {
+          return 'in-progress';
+        } else if (appointment.status === 'cancelled') {
+          return 'cancelled';
+        } else {
+          // Both 'waiting' and default accepted are 'upcoming'
+          return 'upcoming';
+        }
+      }
+    }
+
+    // Walk-in status (or any other type like 'Walk-in')
+    if (appointment.status === 'done') {
+      return 'completed';
+    } else if (appointment.status === 'in progress') {
+      return 'in-progress';
+    } else if (appointment.status === 'cancelled') {
+      return 'cancelled';
+    } else {
+      // Default for active/waiting walk-ins
+      return 'upcoming';
+    }
+  };
+
+  const getStatusBadge = (visit) => {
+    const category = typeof visit === 'string' ? visit : getVisitStatusCategory(visit);
+
+    const styles = {
+      'waiting': 'bg-yellow-100 text-yellow-700 border-yellow-300',
+      'in-progress': 'bg-blue-100 text-blue-700 border-blue-300',
+      'completed': 'bg-emerald-100 text-emerald-700 border-emerald-300',
+      'cancelled': 'bg-red-100 text-red-700 border-red-300',
+      'pending': 'bg-amber-100 text-amber-700 border-amber-300',
+      'not-approved': 'bg-gray-100 text-gray-700 border-gray-300',
+      'upcoming': 'bg-blue-100 text-blue-700 border-blue-300'
+    };
+    return styles[category] || 'bg-gray-100 text-gray-700 border-gray-300';
+  };
+
+  const getStatusLabel = (visit) => {
+    const category = typeof visit === 'string' ? visit : getVisitStatusCategory(visit);
+    const labels = {
+      'waiting': 'Waiting',
+      'in-progress': 'In Progress',
+      'completed': 'Completed',
+      'cancelled': 'Cancelled',
+      'pending': 'Pending',
+      'not-approved': 'Not Accepted',
+      'upcoming': 'Upcoming'
+    };
+    return labels[category] || category;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatDateShort = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+
+
   // Group patients by unique patient with SIMPLIFIED matching logic
   const uniquePatients = useMemo(() => {
     if (!patients || !Array.isArray(patients)) return [];
@@ -141,18 +228,18 @@ const PatientProfile = () => {
       // Skip inactive patients
       if (visit.isInactive) return;
 
-      // Skip pending or rejected appointments from patient profile
-      if (visit.type === 'Appointment' &&
-        (visit.appointmentStatus === 'pending' || visit.appointmentStatus === 'rejected')) {
-        return;
-      }
+      // Filter: only valid statuses for patient history
+      const category = getVisitStatusCategory(visit);
+      if (category === 'unknown') return;
 
-      // For returning patients, use exact name match as the key
-      // For new patients, use name + first visit date to ensure uniqueness
+      // Primary identification: Use email if available to group all records from the same account.
+      // Fall back to normalized name for walk-ins or records without email.
       const normalizedName = normalizeName(visit.name);
+      const email = visit.patientEmail ? visit.patientEmail.toLowerCase().trim() : '';
+      const key = email || normalizedName;
 
-      // Use normalized name as the primary key
-      const key = normalizedName;
+      // Skip records that have neither name nor email
+      if (!key) return;
 
       if (!patientMap.has(key)) {
         // Create new patient profile
@@ -211,20 +298,28 @@ const PatientProfile = () => {
         )
         .sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime))[0] || null;
 
+      // Find the most recent visit that is either "in progress" or "done"
+      const mostRecentActiveVisit = sortedVisits.find(v => ['in-progress', 'completed'].includes(getVisitStatusCategory(v)));
+
       // Definitions for display purposes:
-      // If there's a future upcoming appointment, show it (takes priority so "Upcoming" badge appears).
+      // If there's a future upcoming appointment, show it (takes priority so "Upcoming" badge appears in the patient list).
       // Otherwise, fall back to the most recent completed visit, then the most recent visit overall.
       const lastVisit = upcomingAppointment || mostRecentDone || sortedVisits[0];
 
       // Find the first (oldest) completed visit
-      const completedVisits = sortedVisits.filter(v => v.status === 'done');
+      const completedVisits = sortedVisits.filter(v => getVisitStatusCategory(v) === 'completed');
       const firstVisit = completedVisits.length > 0 ? completedVisits[completedVisits.length - 1] : null;
+
+      // Group active visits for the "Most Recent Visit Summary" card (excluding upcoming)
+      const validSummaryVisits = sortedVisits.filter(v => ['in-progress', 'completed'].includes(getVisitStatusCategory(v)));
 
       return {
         ...patient,
         visits: sortedVisits,
+        validSummaryVisits: validSummaryVisits,
         totalVisits: patient.visits.length,
         lastVisit: lastVisit,
+        mostRecentActiveVisit: mostRecentActiveVisit,
         firstVisit: firstVisit,
         // True only when a genuine future accepted appointment was found
         isUpcoming: upcomingAppointment !== null
@@ -250,37 +345,7 @@ const PatientProfile = () => {
     return matchesSearch && matchesDate;
   });
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
 
-  const formatDateShort = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getStatusBadge = (status) => {
-    const styles = {
-      'waiting': 'bg-yellow-100 text-yellow-700 border-yellow-300',
-      'in progress': 'bg-blue-100 text-blue-700 border-blue-300',
-      'done': 'bg-emerald-100 text-emerald-700 border-emerald-300',
-      'cancelled': 'bg-red-100 text-red-700 border-red-300'
-    };
-    return styles[status] || 'bg-gray-100 text-gray-700 border-gray-300';
-  };
 
   const saveDiagnosis = (queueNo, diagnosis) => {
     setDiagnoses(prev => ({
@@ -318,7 +383,7 @@ const PatientProfile = () => {
     if (!selectedPatient) return [];
     if (visitStatusFilter === 'all') return selectedPatient.visits;
 
-    return selectedPatient.visits.filter(visit => visit.status === visitStatusFilter);
+    return selectedPatient.visits.filter(visit => getVisitStatusCategory(visit) === visitStatusFilter);
   }, [selectedPatient, visitStatusFilter]);
 
   // ✨ NEW: Calculate visit status counts
@@ -327,10 +392,12 @@ const PatientProfile = () => {
 
     return {
       all: selectedPatient.visits.length,
-      waiting: selectedPatient.visits.filter(v => v.status === 'waiting').length,
-      'in progress': selectedPatient.visits.filter(v => v.status === 'in progress').length,
-      done: selectedPatient.visits.filter(v => v.status === 'done').length,
-      cancelled: selectedPatient.visits.filter(v => v.status === 'cancelled').length,
+      'in-progress': selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'in-progress').length,
+      completed: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'completed').length,
+      cancelled: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'cancelled').length,
+      pending: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'pending').length,
+      'not-approved': selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'not-approved').length,
+      upcoming: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'upcoming').length,
     };
   }, [selectedPatient]);
 
@@ -436,8 +503,8 @@ const PatientProfile = () => {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h4 className="font-bold text-gray-900">Visit #{visitNumber}</h4>
-                <Badge className={getStatusBadge(visit.status)}>
-                  {visit.status}
+                <Badge className={getStatusBadge(visit)}>
+                  {getStatusLabel(visit)}
                 </Badge>
               </div>
               <p className="text-sm text-gray-600">Queue #{String(visit.queueNo).padStart(3, '0')}</p>
@@ -732,17 +799,20 @@ const PatientProfile = () => {
 
         <div className="max-w-5xl mx-auto p-4 sm:p-6 space-y-6">
           {/* MOST RECENT VISIT SUMMARY */}
-          {selectedPatient.visits.length > 0 && (
+          {selectedPatient.mostRecentActiveVisit && (
             <Card className="border-t-4 border-t-blue-600 shadow-lg">
               <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100">
                 <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                   <div className="flex-1">
-                    <CardTitle className={`flex items-center gap-2 ${selectedPatient.isUpcoming ? 'text-emerald-900' : 'text-blue-900'}`}>
+                    <CardTitle className="flex items-center gap-2 text-blue-900">
                       <Activity className="w-6 h-6" />
-                      {selectedPatient.isUpcoming ? 'Upcoming Appointment Summary' : 'Most Recent Visit Summary'}
+                      Most Recent Visit Summary
+                      <Badge className={`ml-2 ${getStatusBadge(selectedPatient.mostRecentActiveVisit)}`}>
+                        {getStatusLabel(selectedPatient.mostRecentActiveVisit)}
+                      </Badge>
                     </CardTitle>
                   </div>
-                  {selectedPatient.visits.length > 1 && (
+                  {selectedPatient.validSummaryVisits.length > 1 && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -750,8 +820,8 @@ const PatientProfile = () => {
                       className="flex items-center gap-2 bg-white hover:bg-blue-50 w-full sm:w-auto flex-shrink-0"
                     >
                       <History className="w-4 h-4" />
-                      <span className="hidden sm:inline">View Past Visits</span>
-                      <span className="sm:hidden">Past Visits</span>
+                      <span className="hidden sm:inline">View More Summaries</span>
+                      <span className="sm:hidden">More Summaries</span>
                     </Button>
                   )}
                 </div>
@@ -764,8 +834,8 @@ const PatientProfile = () => {
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Assigned Doctor</p>
                       <p className="font-semibold text-gray-900">
-                        {selectedPatient.lastVisit.assignedDoctor
-                          ? selectedPatient.lastVisit.assignedDoctor.name
+                        {selectedPatient.mostRecentActiveVisit.assignedDoctor
+                          ? selectedPatient.mostRecentActiveVisit.assignedDoctor.name
                           : 'Not assigned'}
                       </p>
                     </div>
@@ -776,11 +846,11 @@ const PatientProfile = () => {
                     <Activity className="w-5 h-5 text-red-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 mb-1">
-                        Symptoms ({selectedPatient.lastVisit.symptoms?.length || 0})
+                        Symptoms ({selectedPatient.mostRecentActiveVisit.symptoms?.length || 0})
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        {selectedPatient.lastVisit.symptoms && selectedPatient.lastVisit.symptoms.length > 0 ? (
-                          selectedPatient.lastVisit.symptoms.slice(0, 2).map((symptom, i) => (
+                        {selectedPatient.mostRecentActiveVisit.symptoms && selectedPatient.mostRecentActiveVisit.symptoms.length > 0 ? (
+                          selectedPatient.mostRecentActiveVisit.symptoms.slice(0, 2).map((symptom, i) => (
                             <Badge
                               key={i}
                               variant="outline"
@@ -792,9 +862,9 @@ const PatientProfile = () => {
                         ) : (
                           <p className="font-semibold text-gray-900">None</p>
                         )}
-                        {selectedPatient.lastVisit.symptoms && selectedPatient.lastVisit.symptoms.length > 2 && (
+                        {selectedPatient.mostRecentActiveVisit.symptoms && selectedPatient.mostRecentActiveVisit.symptoms.length > 2 && (
                           <span className="text-xs text-gray-600">
-                            +{selectedPatient.lastVisit.symptoms.length - 2} more
+                            +{selectedPatient.mostRecentActiveVisit.symptoms.length - 2} more
                           </span>
                         )}
                       </div>
@@ -806,11 +876,11 @@ const PatientProfile = () => {
                     <FileText className="w-5 h-5 text-purple-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 mb-1">
-                        Services ({selectedPatient.lastVisit.services?.length || 0})
+                        Services ({selectedPatient.mostRecentActiveVisit.services?.length || 0})
                       </p>
                       <div className="flex flex-wrap gap-1">
-                        {selectedPatient.lastVisit.services && selectedPatient.lastVisit.services.length > 0 ? (
-                          selectedPatient.lastVisit.services.slice(0, 2).map((serviceId, i) => (
+                        {selectedPatient.mostRecentActiveVisit.services && selectedPatient.mostRecentActiveVisit.services.length > 0 ? (
+                          selectedPatient.mostRecentActiveVisit.services.slice(0, 2).map((serviceId, i) => (
                             <Badge
                               key={i}
                               variant="outline"
@@ -822,9 +892,9 @@ const PatientProfile = () => {
                         ) : (
                           <p className="font-semibold text-gray-900">None</p>
                         )}
-                        {selectedPatient.lastVisit.services && selectedPatient.lastVisit.services.length > 2 && (
+                        {selectedPatient.mostRecentActiveVisit.services && selectedPatient.mostRecentActiveVisit.services.length > 2 && (
                           <span className="text-xs text-gray-600">
-                            +{selectedPatient.lastVisit.services.length - 2} more
+                            +{selectedPatient.mostRecentActiveVisit.services.length - 2} more
                           </span>
                         )}
                       </div>
@@ -837,9 +907,9 @@ const PatientProfile = () => {
                   <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-lg border border-purple-100">
                     <Clock className="w-5 h-5 text-purple-600 flex-shrink-0" />
                     <div>
-                      <p className="text-xs text-purple-500 mb-1 font-semibold">Scheduled Date & Time</p>
+                      <p className="text-xs text-purple-500 mb-1 font-semibold">Visit Date & Time</p>
                       <p className="font-bold text-gray-900">
-                        {selectedPatient.lastVisit.appointmentDateTime ? formatDate(selectedPatient.lastVisit.appointmentDateTime) : formatDate(selectedPatient.lastVisit.registeredAt)}
+                        {selectedPatient.mostRecentActiveVisit.appointmentDateTime ? formatDate(selectedPatient.mostRecentActiveVisit.appointmentDateTime) : formatDate(selectedPatient.mostRecentActiveVisit.registeredAt)}
                       </p>
                     </div>
                   </div>
@@ -951,27 +1021,43 @@ const PatientProfile = () => {
                     </Button>
                     <Button
                       size="sm"
-                      variant={visitStatusFilter === 'waiting' ? 'default' : 'outline'}
-                      onClick={() => setVisitStatusFilter('waiting')}
-                      className={visitStatusFilter === 'waiting' ? 'bg-yellow-600 hover:bg-yellow-700' : 'border-yellow-300 text-yellow-700 hover:bg-yellow-50'}
+                      variant={visitStatusFilter === 'pending' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('pending')}
+                      className={visitStatusFilter === 'pending' ? 'bg-amber-600 hover:bg-amber-700' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}
                     >
-                      Waiting ({visitStatusCounts.waiting})
+                      Pending ({visitStatusCounts.pending || 0})
                     </Button>
                     <Button
                       size="sm"
-                      variant={visitStatusFilter === 'in progress' ? 'default' : 'outline'}
-                      onClick={() => setVisitStatusFilter('in progress')}
-                      className={visitStatusFilter === 'in progress' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
+                      variant={visitStatusFilter === 'in-progress' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('in-progress')}
+                      className={visitStatusFilter === 'in-progress' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
                     >
-                      In Progress ({visitStatusCounts['in progress']})
+                      In Progress ({visitStatusCounts['in-progress'] || 0})
                     </Button>
                     <Button
                       size="sm"
-                      variant={visitStatusFilter === 'done' ? 'default' : 'outline'}
-                      onClick={() => setVisitStatusFilter('done')}
-                      className={visitStatusFilter === 'done' ? 'bg-emerald-600 hover:bg-emerald-700' : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'}
+                      variant={visitStatusFilter === 'completed' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('completed')}
+                      className={visitStatusFilter === 'completed' ? 'bg-emerald-600 hover:bg-emerald-700' : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'}
                     >
-                      Completed ({visitStatusCounts.done})
+                      Completed ({visitStatusCounts.completed || 0})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={visitStatusFilter === 'upcoming' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('upcoming')}
+                      className={visitStatusFilter === 'upcoming' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
+                    >
+                      Upcoming ({visitStatusCounts.upcoming || 0})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={visitStatusFilter === 'not-approved' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('not-approved')}
+                      className={visitStatusFilter === 'not-approved' ? 'bg-gray-600 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}
+                    >
+                      Not Accepted ({visitStatusCounts['not-approved'] || 0})
                     </Button>
                     <Button
                       size="sm"
@@ -979,7 +1065,7 @@ const PatientProfile = () => {
                       onClick={() => setVisitStatusFilter('cancelled')}
                       className={visitStatusFilter === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'border-red-300 text-red-700 hover:bg-red-50'}
                     >
-                      Cancelled ({visitStatusCounts.cancelled})
+                      Cancelled ({visitStatusCounts.cancelled || 0})
                     </Button>
                   </div>
                 </div>
@@ -1063,8 +1149,8 @@ const PatientProfile = () => {
                                 </TableCell>
 
                                 <TableCell className="text-center">
-                                  <Badge className={getStatusBadge(visit.status)}>
-                                    {visit.status}
+                                  <Badge className={getStatusBadge(visit)}>
+                                    {getStatusLabel(visit)}
                                   </Badge>
                                 </TableCell>
 
@@ -1150,8 +1236,8 @@ const PatientProfile = () => {
             <div className="space-y-4 mt-4">
               {/* Status Badges */}
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className={getStatusBadge(selectedVisit.status)}>
-                  {selectedVisit.status}
+                <Badge className={getStatusBadge(selectedVisit)}>
+                  {getStatusLabel(selectedVisit)}
                 </Badge>
                 <Badge variant="outline" className={
                   selectedVisit.type === 'Walk-in' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-purple-50 text-purple-700 border-purple-300'
@@ -1272,24 +1358,29 @@ const PatientProfile = () => {
               Past Visit Summaries
             </DialogTitle>
             <DialogDescription>
-              Historical visit summaries for {selectedPatient?.name} (excluding most recent visit)
+              Historical visit summaries for {selectedPatient?.name} (In Progress or Completed visits)
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
-            {selectedPatient?.visits.slice(1).length > 0 ? (
-              selectedPatient.visits.slice(1).map((visit, idx) => (
+            {selectedPatient?.validSummaryVisits.slice(1).length > 0 ? (
+              selectedPatient.validSummaryVisits.slice(1).map((visit, idx) => (
                 <Card key={visit.queueNo} className="border-l-4 border-l-blue-500">
                   <CardContent className="p-5">
                     {/* Visit Header - Scheduled Time */}
-                    <div className="flex items-center gap-2 mb-4 p-2 bg-purple-50 rounded border border-purple-100">
-                      <Clock className="w-5 h-5 text-purple-600" />
-                      <div>
-                        <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider">Scheduled Date & Time</p>
-                        <p className="text-base font-bold text-purple-900">
-                          {visit.appointmentDateTime ? formatDate(visit.appointmentDateTime) : formatDate(visit.registeredAt)}
-                        </p>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2 p-2 bg-purple-50 rounded border border-purple-100 flex-1">
+                        <Clock className="w-5 h-5 text-purple-600" />
+                        <div>
+                          <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider">Visit Date & Time</p>
+                          <p className="text-base font-bold text-purple-900">
+                            {visit.appointmentDateTime ? formatDate(visit.appointmentDateTime) : formatDate(visit.registeredAt)}
+                          </p>
+                        </div>
                       </div>
+                      <Badge className={`ml-3 ${getStatusBadge(visit)}`}>
+                        {getStatusLabel(visit)}
+                      </Badge>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

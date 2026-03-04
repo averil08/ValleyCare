@@ -59,33 +59,9 @@ const AppointmentHistory = () => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // Filter appointments by current logged-in patient's email based on PROVIDED LOGIC
-  const myAppointments = React.useMemo(() => {
-    if (!currentPatientEmail) return [];
-
-    // Normalize email for comparison
-    const normalizedCurrentEmail = currentPatientEmail.toLowerCase().trim();
-
-    return patients
-      .filter(p => {
-        // Skip inactive patients
-        if (p.isInactive) return false;
-
-        // ✅ Only show appointments that belong to the current logged-in patient
-        // Match by patientEmail field
-        if (p.patientEmail) {
-          const normalizedPatientEmail = p.patientEmail.toLowerCase().trim();
-          return normalizedPatientEmail === normalizedCurrentEmail;
-        }
-
-        // For backward compatibility: if no patientEmail, don't show
-        return false;
-      })
-      .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
-  }, [patients, currentPatientEmail]);
-
-  // ✨ NEW: Helper function to get appointment status category
+  // ✨ Helper function to get appointment status category
   const getAppointmentStatusCategory = (appointment) => {
+    if (!appointment) return 'unknown';
     if (appointment.type === 'Appointment') {
       if (appointment.appointmentStatus === 'pending') {
         return 'pending';
@@ -99,7 +75,7 @@ const AppointmentHistory = () => {
         } else if (appointment.status === 'cancelled') {
           return 'cancelled';
         } else {
-          return 'confirmed';
+          return 'upcoming';
         }
       }
     }
@@ -112,9 +88,42 @@ const AppointmentHistory = () => {
     } else if (appointment.status === 'cancelled') {
       return 'cancelled';
     } else {
-      return 'confirmed';
+      return 'upcoming';
     }
   };
+
+  // Filter appointments by current logged-in patient's email
+  const myAppointments = React.useMemo(() => {
+    if (!currentPatientEmail) return [];
+
+    const normalizedCurrentEmail = currentPatientEmail.toLowerCase().trim();
+
+    return patients
+      .filter(p => {
+        if (p.isInactive) return false;
+
+        if (p.patientEmail) {
+          const normalizedPatientEmail = p.patientEmail.toLowerCase().trim();
+          if (normalizedPatientEmail !== normalizedCurrentEmail) return false;
+
+          // ✨ Filter: include all valid status categories
+          const category = getAppointmentStatusCategory(p);
+          return ['completed', 'in-progress', 'upcoming', 'pending', 'cancelled', 'not-approved'].includes(category);
+        }
+
+        return false;
+      })
+      .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+  }, [patients, currentPatientEmail]);
+
+  // Valid status categories for the "Summaries" view
+  const validSummaryAppointments = React.useMemo(() => {
+    return myAppointments.filter(a =>
+      ['upcoming', 'in-progress', 'completed'].includes(getAppointmentStatusCategory(a))
+    );
+  }, [myAppointments]);
+
+
 
   // ✨ NEW: Filter appointments based on selected status
   const filteredAppointments = React.useMemo(() => {
@@ -150,37 +159,26 @@ const AppointmentHistory = () => {
   };
 
   const getStatusBadge = (appointment) => {
-    if (appointment.type === 'Appointment') {
-      if (appointment.appointmentStatus === 'pending') {
-        return <Badge className="bg-amber-100 text-amber-700">Pending Approval</Badge>;
-      } else if (appointment.appointmentStatus === 'rejected') {
-        return <Badge variant="destructive" className="bg-red-600 text-white">Not Approved</Badge>;
-      } else if (appointment.appointmentStatus === 'accepted') {
-        if (appointment.status === 'done') {
-          return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>;
-        } else if (appointment.status === 'in progress') {
-          return <Badge className="bg-blue-100 text-blue-700">In Progress</Badge>;
-        } else if (appointment.status === 'cancelled') {
-          return <Badge className="bg-red-100 text-red-700">Cancelled</Badge>;
-        } else {
-          return <Badge className="bg-green-100 text-green-700">Confirmed</Badge>;
-        }
-      }
-    }
+    const category = getAppointmentStatusCategory(appointment);
 
-    // Walk-in status
-    if (appointment.status === 'done') {
-      return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>;
-    } else if (appointment.status === 'in progress') {
-      return <Badge className="bg-blue-100 text-blue-700">In Progress</Badge>;
-    } else if (appointment.status === 'cancelled') {
-      return <Badge className="bg-red-100 text-red-700">Cancelled</Badge>;
+    if (category === 'completed') {
+      return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>;
+    } else if (category === 'in-progress') {
+      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">In Progress</Badge>;
+    } else if (category === 'pending') {
+      return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Pending</Badge>;
+    } else if (category === 'not-approved') {
+      return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">Not Accepted</Badge>;
+    } else if (category === 'cancelled') {
+      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Cancelled</Badge>;
     } else {
-      return <Badge className="bg-yellow-100 text-yellow-700">Waiting</Badge>;
+      // Default to Upcoming for everything else shown in the list
+      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Upcoming</Badge>;
     }
   };
 
   const getVisitTypeBadge = (appointment) => {
+    if (!appointment || !appointment.type) return null;
     if (appointment.type === 'Appointment') {
       return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">Appointment</Badge>;
     }
@@ -191,16 +189,9 @@ const AppointmentHistory = () => {
   const stats = React.useMemo(() => {
     return {
       total: myAppointments.length,
-      completed: myAppointments.filter(a => a.status === 'done').length,
-      upcoming: myAppointments.filter(a =>
-        a.type === 'Appointment' &&
-        a.appointmentStatus === 'accepted' &&
-        a.status === 'waiting'
-      ).length,
-      pending: myAppointments.filter(a =>
-        a.type === 'Appointment' &&
-        a.appointmentStatus === 'pending'
-      ).length
+      completed: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'completed').length,
+      upcoming: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'upcoming').length,
+      inProgress: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'in-progress').length
     };
   }, [myAppointments]);
 
@@ -208,12 +199,12 @@ const AppointmentHistory = () => {
   const filterCounts = React.useMemo(() => {
     return {
       all: myAppointments.length,
-      pending: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'pending').length,
-      confirmed: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'confirmed').length,
+      upcoming: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'upcoming').length,
       'in-progress': myAppointments.filter(a => getAppointmentStatusCategory(a) === 'in-progress').length,
       completed: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'completed').length,
-      cancelled: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'cancelled').length,
+      pending: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'pending').length,
       'not-approved': myAppointments.filter(a => getAppointmentStatusCategory(a) === 'not-approved').length,
+      cancelled: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'cancelled').length,
     };
   }, [myAppointments]);
 
@@ -239,111 +230,111 @@ const AppointmentHistory = () => {
   const currentPatientInfo = myAppointments.length > 0 ? myAppointments[0] : null;
 
   // Render appointment card for mobile
-  const renderAppointmentCard = (appointment, idx) => (
-    <Card
-      key={appointment.id || appointment.queueNo}
-      className={`mb-4 border-l-4 ${appointment.status === 'done' ? 'border-l-emerald-600' :
-        appointment.status === 'cancelled' ? 'border-l-red-600' :
-          appointment.status === 'in progress' ? 'border-l-blue-600' :
-            appointment.appointmentStatus === 'pending' ? 'border-l-amber-600' :
-              appointment.appointmentStatus === 'rejected' ? 'border-l-red-600' :
-                'border-l-yellow-600'
-        }`}
-    >
-      <CardContent className="p-4">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h4 className="font-bold text-gray-900">Visit #{myAppointments.length - idx}</h4>
-              {getStatusBadge(appointment)}
+  const renderAppointmentCard = (appointment, idx) => {
+    const category = getAppointmentStatusCategory(appointment);
+    return (
+      <Card
+        key={appointment.id || appointment.queueNo}
+        className={`mb-4 border-l-4 ${category === 'completed' ? 'border-l-emerald-600' :
+          category === 'in-progress' ? 'border-l-blue-600' :
+            'border-l-green-600'
+          }`}
+      >
+        <CardContent className="p-4">
+          {/* Header */}
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <h4 className="font-bold text-gray-900">Visit #{myAppointments.length - idx}</h4>
+                {getStatusBadge(appointment)}
+              </div>
+              <p className="text-sm text-gray-600">Queue #{String(appointment.queueNo).padStart(3, '0')}</p>
             </div>
-            <p className="text-sm text-gray-600">Queue #{String(appointment.queueNo).padStart(3, '0')}</p>
+            {getVisitTypeBadge(appointment)}
           </div>
-          {getVisitTypeBadge(appointment)}
-        </div>
 
-        {/* Registration Date */}
-        <div className="flex items-center gap-2 mb-3 text-sm">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <span className="text-gray-700">{formatDateShort(appointment.registeredAt)}</span>
-        </div>
-
-        {/* Doctor */}
-        {appointment.assignedDoctor && (
-          <div className="flex items-center gap-2 mb-3">
-            <Stethoscope className="w-4 h-4 text-green-600" />
-            <span className="text-green-700 font-medium text-sm">
-              {appointment.assignedDoctor.name}
-            </span>
+          {/* Registration Date */}
+          <div className="flex items-center gap-2 mb-3 text-sm">
+            <Clock className="w-4 h-4 text-gray-400" />
+            <span className="text-gray-700">{formatDateShort(appointment.registeredAt)}</span>
           </div>
-        )}
 
-        {/* Symptoms */}
-        <div className="mb-3">
-          <p className="text-xs text-gray-500 mb-1.5">Symptoms:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {appointment.symptoms && appointment.symptoms.length > 0 ? (
-              <>
-                <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
-                  {appointment.symptoms[0]}
-                </Badge>
-                {appointment.symptoms.length > 1 && (
-                  <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600">
-                    +{appointment.symptoms.length - 1} more
+          {/* Doctor */}
+          {appointment.assignedDoctor && (
+            <div className="flex items-center gap-2 mb-3">
+              <Stethoscope className="w-4 h-4 text-green-600" />
+              <span className="text-green-700 font-medium text-sm">
+                {appointment.assignedDoctor.name}
+              </span>
+            </div>
+          )}
+
+          {/* Symptoms */}
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-1.5">Symptoms:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {appointment.symptoms && appointment.symptoms.length > 0 ? (
+                <>
+                  <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                    {appointment.symptoms[0]}
                   </Badge>
-                )}
-              </>
-            ) : (
-              <span className="text-gray-400 text-sm">None</span>
-            )}
+                  {appointment.symptoms.length > 1 && (
+                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600">
+                      +{appointment.symptoms.length - 1} more
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <span className="text-gray-400 text-sm">None</span>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Services */}
-        <div className="mb-3">
-          <p className="text-xs text-gray-500 mb-1.5">Services:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {appointment.services && appointment.services.length > 0 ? (
-              <>
-                <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                  {getServiceLabel(appointment.services[0])}
-                </Badge>
-                {appointment.services.length > 1 && (
-                  <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600">
-                    +{appointment.services.length - 1} more
+          {/* Services */}
+          <div className="mb-3">
+            <p className="text-xs text-gray-500 mb-1.5">Services:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {appointment.services && appointment.services.length > 0 ? (
+                <>
+                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                    {getServiceLabel(appointment.services[0])}
                   </Badge>
-                )}
-              </>
-            ) : (
-              <span className="text-gray-400 text-sm">None</span>
-            )}
+                  {appointment.services.length > 1 && (
+                    <Badge variant="outline" className="text-xs bg-gray-50 text-gray-600">
+                      +{appointment.services.length - 1} more
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <span className="text-gray-400 text-sm">None</span>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* View Details Button */}
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
-          onClick={() => {
-            setSelectedAppointment(appointment);
-            setIsDetailDialogOpen(true);
-          }}
-        >
-          <Eye className="w-4 h-4 mr-1" />
-          View Full Details
-        </Button>
-      </CardContent>
-    </Card>
-  );
+          {/* View Details Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
+            onClick={() => {
+              setSelectedAppointment(appointment);
+              setIsDetailDialogOpen(true);
+            }}
+          >
+            <Eye className="w-4 h-4 mr-1" />
+            View Full Details
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  };
 
   // ✨ NEW: Modal Component for Past Visits
   const PastVisitsModal = () => {
     if (!showPastVisitsModal) return null;
 
-    // Get all visits except the most recent one
-    const pastVisits = myAppointments.slice(1);
+    // Get all valid summaries except the one displayed on the main card
+    const pastVisits = validSummaryAppointments.slice(1);
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -353,8 +344,8 @@ const AppointmentHistory = () => {
               <div className="flex items-center gap-2">
                 <History className="w-6 h-6 text-green-600" />
                 <div>
-                  <CardTitle>Past Visit Summaries</CardTitle>
-                  <CardDescription>View all your previous visits ({pastVisits.length} total)</CardDescription>
+                  <CardTitle>Appointment Summaries</CardTitle>
+                  <CardDescription>View your appointment status ({pastVisits.length} total)</CardDescription>
                 </div>
               </div>
               <Button
@@ -380,18 +371,24 @@ const AppointmentHistory = () => {
                 {pastVisits.map((visit, idx) => (
                   <Card
                     key={visit.id || visit.queueNo}
-                    className="border-l-4 border-l-gray-400 hover:shadow-md transition-shadow"
+                    className={`border-l-4 hover:shadow-md transition-shadow ${getAppointmentStatusCategory(visit) === 'completed' ? 'border-l-emerald-600' :
+                      getAppointmentStatusCategory(visit) === 'in-progress' ? 'border-l-blue-600' :
+                        'border-l-green-600'
+                      }`}
                   >
                     <CardContent className="p-4">
                       {/* Visit Header - Scheduled Time */}
-                      <div className="flex items-center gap-2 mb-4 p-2 bg-purple-50 rounded border border-purple-100">
-                        <Clock className="w-5 h-5 text-purple-600" />
-                        <div>
-                          <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider">Scheduled Date & Time</p>
-                          <p className="text-base font-bold text-purple-900">
-                            {visit.appointmentDateTime ? formatDate(visit.appointmentDateTime) : formatDate(visit.registeredAt)}
-                          </p>
+                      <div className="flex items-center justify-between gap-2 mb-4 p-2 bg-purple-50 rounded border border-purple-100">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-purple-600" />
+                          <div>
+                            <p className="text-xs text-purple-500 font-semibold uppercase tracking-wider">Scheduled Date & Time</p>
+                            <p className="text-base font-bold text-purple-900">
+                              {visit.appointmentDateTime ? formatDate(visit.appointmentDateTime) : formatDate(visit.registeredAt)}
+                            </p>
+                          </div>
                         </div>
+                        {getStatusBadge(visit)}
                       </div>
 
                       {/* Visit Details Grid */}
@@ -665,34 +662,48 @@ const AppointmentHistory = () => {
             ).sort((a, b) => new Date(a.appointmentDateTime || a.appointment_datetime) - new Date(b.appointmentDateTime || b.appointment_datetime))[0];
 
             // 2. Look for the most recent "done" visit
-            const mostRecentDone = myAppointments.find(v => v.status === 'done');
+            const mostRecentDone = validSummaryAppointments.find(v => v.status === 'done');
 
-            // 3. Representative visit (Upcoming > Done > Most Recent Overall)
-            const activeVisit = upcoming || mostRecentDone || myAppointments[0];
-            const isUpcoming = upcoming && activeVisit === upcoming;
+            const inProgress = validSummaryAppointments.find(a => getAppointmentStatusCategory(a) === 'in-progress');
+
+            // 3. Representative visit (In Progress > Upcoming > Done > Most Recent Overall within valid categories)
+            const activeVisit = inProgress || upcoming || mostRecentDone || validSummaryAppointments[0];
 
             if (!activeVisit) return null;
 
+            const category = getAppointmentStatusCategory(activeVisit);
+            const isUpcoming = category === 'upcoming';
+            const isInProgress = category === 'in-progress';
+            const isCompleted = category === 'completed';
+
+            const cardStyle = isCompleted ? 'border-t-emerald-600' : (isInProgress || isUpcoming) ? 'border-t-blue-600' : 'border-t-gray-600';
+            const bgStyle = isCompleted ? 'bg-emerald-50/50' : (isInProgress || isUpcoming) ? 'bg-blue-50/50' : 'bg-gray-50/50';
+
             return (
-              <Card className={`border-t-4 shadow-lg ${isUpcoming ? 'border-t-emerald-600' : 'border-t-blue-600'}`}>
-                <CardHeader className={isUpcoming ? 'bg-emerald-50/50' : 'bg-blue-50/50'}>
+              <Card className={`border-t-4 shadow-lg ${cardStyle}`}>
+                <CardHeader className={bgStyle}>
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                      <CardTitle className={`flex items-center gap-2 ${isUpcoming ? 'text-emerald-900' : 'text-blue-900'}`}>
-                        <Activity className="w-5 h-5" />
-                        {isUpcoming ? 'Upcoming Appointment Summary' : 'Most Recent Visit Summary'}
-                      </CardTitle>
+                      <div className="flex flex-col gap-1">
+                        <CardTitle className={`flex items-center gap-2 ${isCompleted ? 'text-emerald-900' : 'text-blue-900'}`}>
+                          <Activity className="w-5 h-5" />
+                          Appointment Summaries
+                        </CardTitle>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(activeVisit)}
+                        </div>
+                      </div>
                     </div>
 
                     {/* ✨ NEW: View Past Visits Button */}
-                    {myAppointments.length > 1 && (
+                    {validSummaryAppointments.length > 1 && (
                       <Button
                         onClick={() => setShowPastVisitsModal(true)}
                         variant="outline"
                         className="border-green-600 text-green-600 hover:bg-green-50 w-full sm:w-auto"
                       >
                         <History className="w-4 h-4 mr-2" />
-                        View Past Visits ({myAppointments.length - 1})
+                        View More Summaries ({validSummaryAppointments.length - 1})
                       </Button>
                     )}
                   </div>
@@ -834,8 +845,8 @@ const AppointmentHistory = () => {
 
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm text-gray-600 mb-1">Pending</p>
-                <p className="text-2xl font-bold text-amber-600">{stats.pending}</p>
+                <p className="text-sm text-gray-600 mb-1">In Progress</p>
+                <p className="text-2xl font-bold text-blue-600">{stats.inProgress}</p>
               </CardContent>
             </Card>
           </div>
@@ -877,19 +888,11 @@ const AppointmentHistory = () => {
                     </Button>
                     <Button
                       size="sm"
-                      variant={statusFilter === 'pending' ? 'default' : 'outline'}
-                      onClick={() => setStatusFilter('pending')}
-                      className={statusFilter === 'pending' ? 'bg-amber-600 hover:bg-amber-700' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}
+                      variant={statusFilter === 'upcoming' ? 'default' : 'outline'}
+                      onClick={() => setStatusFilter('upcoming')}
+                      className={statusFilter === 'upcoming' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
                     >
-                      Pending ({filterCounts.pending})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={statusFilter === 'confirmed' ? 'default' : 'outline'}
-                      onClick={() => setStatusFilter('confirmed')}
-                      className={statusFilter === 'confirmed' ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}
-                    >
-                      Confirmed ({filterCounts.confirmed})
+                      Upcoming ({filterCounts.upcoming})
                     </Button>
                     <Button
                       size="sm"
@@ -909,19 +912,27 @@ const AppointmentHistory = () => {
                     </Button>
                     <Button
                       size="sm"
-                      variant={statusFilter === 'cancelled' ? 'default' : 'outline'}
-                      onClick={() => setStatusFilter('cancelled')}
-                      className={statusFilter === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'border-red-300 text-red-700 hover:bg-red-50'}
+                      variant={statusFilter === 'pending' ? 'default' : 'outline'}
+                      onClick={() => setStatusFilter('pending')}
+                      className={statusFilter === 'pending' ? 'bg-amber-600 hover:bg-amber-700' : 'border-amber-300 text-amber-700 hover:bg-amber-50'}
                     >
-                      Cancelled ({filterCounts.cancelled})
+                      Pending ({filterCounts.pending})
                     </Button>
                     <Button
                       size="sm"
                       variant={statusFilter === 'not-approved' ? 'default' : 'outline'}
                       onClick={() => setStatusFilter('not-approved')}
-                      className={statusFilter === 'not-approved' ? 'bg-red-800 hover:bg-red-900' : 'border-red-400 text-red-800 hover:bg-red-50'}
+                      className={statusFilter === 'not-approved' ? 'bg-gray-600 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}
                     >
-                      Not Approved ({filterCounts['not-approved']})
+                      Not Accepted ({filterCounts['not-approved']})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={statusFilter === 'cancelled' ? 'default' : 'outline'}
+                      onClick={() => setStatusFilter('cancelled')}
+                      className={statusFilter === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'border-red-300 text-red-700 hover:bg-red-50'}
+                    >
+                      Cancelled ({filterCounts.cancelled})
                     </Button>
                   </div>
                 </div>

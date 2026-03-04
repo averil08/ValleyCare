@@ -349,7 +349,11 @@ function Checkin() {
 
   const validateField = (id, value) => {
     let error = "";
-    if (!value && ['firstName', 'lastName', 'age', 'phoneNum', 'patientEmail'].includes(id)) {
+    if (id === "symptoms") {
+      if (!value || value.length === 0) {
+        error = "Please select at least one symptom.";
+      }
+    } else if (!value && ['firstName', 'lastName', 'age', 'phoneNum', 'patientEmail'].includes(id)) {
       error = "This field is required.";
     } else if (id === "phoneNum" && value) {
       if (!/^\d{11}$/.test(value)) {
@@ -401,9 +405,20 @@ function Checkin() {
   const handleSymptomChange = (symptom, isChecked) => {
     setFormData((prev) => {
       const symptoms = prev.symptoms;
-      if (isChecked && !symptoms.includes(symptom)) return { ...prev, symptoms: [...symptoms, symptom] };
-      if (!isChecked) return { ...prev, symptoms: symptoms.filter(s => s !== symptom) };
-      return prev;
+      let newSymptoms;
+      if (isChecked && !symptoms.includes(symptom)) {
+        newSymptoms = [...symptoms, symptom];
+      } else if (!isChecked) {
+        newSymptoms = symptoms.filter(s => s !== symptom);
+      } else {
+        newSymptoms = symptoms;
+      }
+
+      if (touched.symptoms) {
+        setErrors((prevErr) => ({ ...prevErr, symptoms: validateField("symptoms", newSymptoms) }));
+      }
+
+      return { ...prev, symptoms: newSymptoms };
     });
   };
 
@@ -500,6 +515,14 @@ function Checkin() {
     };
 
     try {
+      if (formData.symptoms.length === 0) {
+        setErrors(prev => ({ ...prev, symptoms: "Please select at least one symptom." }));
+        setTouched(prev => ({ ...prev, symptoms: true }));
+        showMessage("Validation Error", "Please select at least one symptom.", false);
+        setIsSubmitting(false);
+        return;
+      }
+
       if (isFromPatientSidebar) {
         if ((!formData.firstName && !formData.lastName) || !formData.age || !formData.phoneNum || !formData.patientEmail) {
           showMessage(
@@ -1119,8 +1142,11 @@ function Checkin() {
                 </div>
               )}
 
-              <div className="space-y-3 p-4 rounded-lg border border-green-300">
-                <Label className="text-green-700 font-bold">Symptoms</Label>
+              <div className={`space-y-3 p-4 rounded-lg border ${touched.symptoms && errors.symptoms ? "border-red-500 bg-red-50" : "border-green-300"}`}>
+                <Label className={`${touched.symptoms && errors.symptoms ? "text-red-700" : "text-green-700"} font-bold`}>
+                  Symptoms <span className="text-red-600">*</span>
+                </Label>
+                {touched.symptoms && errors.symptoms && <p className="text-xs text-red-500 mt-1">{errors.symptoms}</p>}
                 {symptomsList.map(symptom => (
                   <div key={symptom} className="space-y-2">
                     <div className="flex items-center">
