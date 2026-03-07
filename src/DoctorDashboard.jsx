@@ -557,19 +557,19 @@ const DoctorDashboard = () => {
                             <div className="mb-6 flex justify-center">
                                 <img src={logoValley} alt="Valley Logo" className="h-14 w-auto object-contain" />
                             </div>
-                            <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-start justify-between mb-3 gap-2">
                                 {/* Doctor identity */}
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
                                     <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
                                         {getInitials(currentDoctor.name)}
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-slate-800 leading-tight">{currentDoctor.name}</p>
-                                        <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wider">{currentDoctor.specialization || "Physician"}</p>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-bold text-slate-800 leading-tight break-words">{currentDoctor.name}</p>
+                                        <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wider truncate">{currentDoctor.specialization || "Physician"}</p>
                                     </div>
                                 </div>
                                 {/* Actions */}
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 shrink-0">
                                     <Button variant="ghost" size="icon" onClick={handleLogoutClick} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-xl">
                                         <LogOut className="w-4 h-4" />
                                     </Button>
@@ -676,15 +676,15 @@ const DoctorDashboard = () => {
                             <img src={logoValley} alt="Valley Logo" className="h-16 w-auto object-contain" />
                         </div>
                         {/* Doctor Identity & Actions - Matching Mobile Layout Design */}
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-start justify-between mb-4 gap-2">
                             {/* Identity */}
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                                 <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
                                     {getInitials(currentDoctor.name)}
                                 </div>
-                                <div className="min-w-0">
-                                    <p className="text-sm font-bold text-slate-800 leading-tight truncate">{currentDoctor.name}</p>
-                                    <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider">{currentDoctor.specialization || "Physician"}</p>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold text-slate-800 leading-tight break-words">{currentDoctor.name}</p>
+                                    <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider truncate">{currentDoctor.specialization || "Physician"}</p>
                                 </div>
                             </div>
 
