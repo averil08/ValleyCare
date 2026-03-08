@@ -50,7 +50,7 @@ export const sendAppointmentEmail = async (patient, status, details) => {
   `;
 
   const textContent = `
-    Valley Care Clinic
+    ValleyCare Clinic
     Hello ${patient.name}, your appointment has been ${statusLabel}.
     Date: ${appointmentDate}
     Time: ${appointmentTime}
