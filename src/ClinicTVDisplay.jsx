@@ -3,9 +3,10 @@ import { PatientContext } from './PatientContext';
 import { doctors } from './doctorData';
 
 const ClinicTVDisplay = () => {
-  const { patients } = useContext(PatientContext);
+  const { patients, activeDoctors } = useContext(PatientContext);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [syncedPatients, setSyncedPatients] = useState(patients);
+  const [syncedActiveDoctors, setSyncedActiveDoctors] = useState(activeDoctors || []);
 
   // Update time every second
   useEffect(() => {
@@ -18,6 +19,7 @@ const ClinicTVDisplay = () => {
   // ✅ CRITICAL: Listen for localStorage changes from Dashboard
   useEffect(() => {
     const handleStorageChange = (e) => {
+      // Sync Patients
       if (e.key === 'patients-sync') {
         try {
           const updatedPatients = JSON.parse(e.newValue);
@@ -25,6 +27,19 @@ const ClinicTVDisplay = () => {
           setSyncedPatients(updatedPatients);
         } catch (error) {
           console.error('Error parsing patients data:', error);
+        }
+      }
+
+      // Sync Active Doctors
+      if (e.key === 'active-doctors-sync') {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          console.log('🔄 TV Display received active doctors update:', parsed.ids);
+          if (parsed && Array.isArray(parsed.ids)) {
+            setSyncedActiveDoctors(parsed.ids);
+          }
+        } catch (error) {
+          console.error('Error parsing active doctors:', error);
         }
       }
     };
@@ -42,6 +57,18 @@ const ClinicTVDisplay = () => {
       }
     }
 
+    const storedDoctors = localStorage.getItem('active-doctors-sync');
+    if (storedDoctors) {
+      try {
+        const parsed = JSON.parse(storedDoctors);
+        if (parsed && Array.isArray(parsed.ids)) {
+          setSyncedActiveDoctors(parsed.ids);
+        }
+      } catch (error) {
+        console.error('Error loading stored active doctors:', error);
+      }
+    }
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
@@ -53,6 +80,13 @@ const ClinicTVDisplay = () => {
       setSyncedPatients(patients);
     }
   }, [patients]);
+
+  // Sync initial activeDoctors from context
+  useEffect(() => {
+    if (activeDoctors) {
+      setSyncedActiveDoctors(activeDoctors);
+    }
+  }, [activeDoctors]);
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
@@ -74,55 +108,57 @@ const ClinicTVDisplay = () => {
 
   // ✅ Use syncedPatients instead of patients
   const doctorsInfo = useMemo(() => {
-  const currentData = syncedPatients || []; 
-  console.log('🔄 Recalculating doctor info with', currentData.length, 'patients');
-  
-  // ✅ ADD THIS HELPER FUNCTION
-  const isToday = (dateString) => {
-    if (!dateString) return false;
-    const date = new Date(dateString);
-    const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-    const endOfToday = new Date(now);
-    endOfToday.setHours(23, 59, 59, 999);
-    return date >= startOfToday && date <= endOfToday;
-  };
-  
-  return doctors.map(doctor => {
-    const currentServingPatient = currentData.find(p => 
-      !p.isInactive && 
-      p.assignedDoctor?.id === doctor.id &&
-      p.status === "in progress" &&
-      p.inQueue &&
-      (p.status === "in progress" || isToday(p.registeredAt)) // ✅ ADDED
-    );
-    
-    const doctorPatients = currentData
-      .filter(p => 
-        !p.isInactive && 
+    const currentData = syncedPatients || [];
+    console.log('🔄 Recalculating doctor info with', currentData.length, 'patients');
+
+    // ✅ ADD THIS HELPER FUNCTION
+    const isToday = (dateString) => {
+      if (!dateString) return false;
+      const date = new Date(dateString);
+      const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date(now);
+      endOfToday.setHours(23, 59, 59, 999);
+      return date >= startOfToday && date <= endOfToday;
+    };
+
+    return doctors.map(doctor => {
+      const currentServingPatient = currentData.find(p =>
+        !p.isInactive &&
         p.assignedDoctor?.id === doctor.id &&
-        p.status === "waiting" &&
+        p.status === "in progress" &&
         p.inQueue &&
-        isToday(p.registeredAt) // ✅ ADDED - Only show today's patients
-      )
-      .sort((a, b) => a.queueNo - b.queueNo);
-        
+        (p.status === "in progress" || isToday(p.registeredAt)) // ✅ ADDED
+      );
+
+      const doctorPatients = currentData
+        .filter(p =>
+          !p.isInactive &&
+          p.assignedDoctor?.id === doctor.id &&
+          p.status === "waiting" &&
+          p.inQueue &&
+          isToday(p.registeredAt) // ✅ ADDED - Only show today's patients
+        )
+        .sort((a, b) => a.queueNo - b.queueNo);
+
       const info = {
         doctorId: doctor.id,
         doctorName: doctor.name,
+        isActive: syncedActiveDoctors && syncedActiveDoctors.includes(doctor.id),
         currentServing: currentServingPatient ? currentServingPatient.queueNo : null,
         waitingNumbers: doctorPatients.slice(0, 3).map(p => p.queueNo)
       };
-      
+
       console.log(`📊 ${doctor.name}:`, {
+        isActive: info.isActive,
         serving: info.currentServing,
         waiting: info.waitingNumbers
       });
-      
+
       return info;
     });
-  }, [syncedPatients]);
+  }, [syncedPatients, syncedActiveDoctors]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-100 via-white to-red-100 p-4">
@@ -151,43 +187,45 @@ const ClinicTVDisplay = () => {
         {/* Doctors Grid */}
         <div className="grid grid-cols-5 gap-0">
           {doctorsInfo.map((doctorInfo, index) => (
-            <div 
+            <div
               key={doctorInfo.doctorId}
-              className={`${
-                index % 2 === 0 ? 'bg-green-200/60' : 'bg-white/80'
-              } backdrop-blur-sm border-2 border-green-600/30 p-6 text-center`}
+              className={`${index % 2 === 0 ? 'bg-green-200/60' : 'bg-white/80'
+                } backdrop-blur-sm border-2 border-green-600/30 p-6 text-center transition-opacity flex flex-col justify-between ${!doctorInfo.isActive ? 'opacity-50 grayscale' : ''}`}
             >
-              {/* Doctor Name */}
-              <div className="text-gray-900 font-bold text-xl mb-2">
-                {doctorInfo.doctorName.toUpperCase()}
-              </div>
+              <div>
+                {/* Doctor Name */}
+                <div className="text-gray-900 font-bold text-xl mb-2">
+                  {doctorInfo.doctorName.toUpperCase()}
+                </div>
 
-              {/* Now Serving Label */}
-              <div className="text-gray-700 text-sm font-semibold mb-3">
-                NOW SERVING
-              </div>
+                {/* Status or Now Serving Label */}
+                <div className={`text-sm font-semibold mb-3 ${doctorInfo.isActive ? 'text-gray-700' : 'text-red-600 italic'}`}>
+                  {doctorInfo.isActive ? 'NOW SERVING' : 'NOT ACTIVE'}
+                </div>
 
-              {/* Current Serving Number */}
-              <div className="mb-6">
-                {doctorInfo.currentServing ? (
-                  <div 
-                    className="text-green-700 text-6xl font-bold drop-shadow-lg transition-all duration-500 animate-pulse"
-                    key={`serving-${doctorInfo.currentServing}`}
-                  >
-                    {String(doctorInfo.currentServing).padStart(3, '0')}
-                  </div>
-                ) : (
-                  <div className="text-gray-400 text-5xl font-bold">
-                    ---
-                  </div>
-                )}
+                {/* Current Serving Number */}
+                <div className="mb-6 h-[80px] flex items-center justify-center">
+                  {doctorInfo.isActive && doctorInfo.currentServing ? (
+                    <div
+                      className="text-green-700 text-6xl font-bold drop-shadow-lg transition-all duration-500 animate-pulse"
+                      key={`serving-${doctorInfo.currentServing}`}
+                    >
+                      {String(doctorInfo.currentServing).padStart(3, '0')}
+                    </div>
+                  ) : (
+                    <div className="text-gray-400 text-5xl font-bold">
+                      ---
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Waiting Numbers */}
-              <div className="space-y-2">
-                {doctorInfo.waitingNumbers.length > 0 ? (
+              <div className="space-y-2 mt-auto">
+                <div className="text-xs font-bold text-gray-500 uppercase mb-1">Waiting</div>
+                {doctorInfo.isActive && doctorInfo.waitingNumbers.length > 0 ? (
                   doctorInfo.waitingNumbers.map((queueNo, idx) => (
-                    <div 
+                    <div
                       key={`${doctorInfo.doctorId}-${queueNo}-${idx}`}
                       className="text-gray-700 text-4xl font-bold drop-shadow-lg"
                     >
