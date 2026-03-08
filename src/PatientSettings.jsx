@@ -134,6 +134,12 @@ function PatientSettings() {
       value = value.replace(/\D/g, '').slice(0, 11);
     }
 
+    // Prevent negative age values if typed manually
+    if (id === 'age' && value !== '') {
+      value = Math.max(0, parseInt(value, 10)).toString();
+      if (isNaN(value)) value = '';
+    }
+
     setFormData(prev => {
       const newData = { ...prev, [id]: value };
 

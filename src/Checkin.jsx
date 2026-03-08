@@ -379,7 +379,14 @@ function Checkin() {
   };
 
   const handleInputChange = (e) => {
-    const { id, value } = e.target;
+    let { id, value } = e.target;
+
+    // Prevent negative age values if typed manually
+    if (id === 'age' && value !== '') {
+      value = Math.max(0, parseInt(value, 10)).toString();
+      if (isNaN(value)) value = '';
+    }
+
     setFormData((prev) => {
       const newData = { ...prev, [id]: value };
       if (touched[id]) {
@@ -1104,7 +1111,7 @@ function Checkin() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="age">Age <span className="text-red-600">*</span></Label>
-                      <Input id="age" type="number" value={formData.age} onChange={handleInputChange} onBlur={handleBlur} className={touched.age && errors.age ? "border-red-500" : ""} required />
+                      <Input id="age" type="number" min="0" value={formData.age} onChange={handleInputChange} onBlur={handleBlur} className={touched.age && errors.age ? "border-red-500" : ""} required />
                       {touched.age && errors.age && <p className="text-xs text-red-500 mt-1">{errors.age}</p>}
                     </div>
                     <div className="space-y-2">
