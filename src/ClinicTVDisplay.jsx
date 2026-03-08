@@ -129,7 +129,8 @@ const ClinicTVDisplay = () => {
         p.assignedDoctor?.id === doctor.id &&
         p.status === "in progress" &&
         p.inQueue &&
-        (p.status === "in progress" || isToday(p.registeredAt)) // ✅ ADDED
+        (p.status === "in progress" || isToday(p.registeredAt)) &&
+        (!p.appointmentDateTime || isToday(p.appointmentDateTime))
       );
 
       const doctorPatients = currentData
@@ -138,7 +139,8 @@ const ClinicTVDisplay = () => {
           p.assignedDoctor?.id === doctor.id &&
           p.status === "waiting" &&
           p.inQueue &&
-          isToday(p.registeredAt) // ✅ ADDED - Only show today's patients
+          isToday(p.registeredAt) &&
+          (!p.appointmentDateTime || isToday(p.appointmentDateTime))
         )
         .sort((a, b) => a.queueNo - b.queueNo);
 
