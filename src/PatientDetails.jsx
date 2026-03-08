@@ -111,7 +111,7 @@ const PatientDetails = () => {
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number</p>
-                                    <p className="text-sm font-bold text-slate-700">{patient.phoneNum || 'Not Provided'}</p>
+                                    <p className="text-sm font-bold text-slate-700">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'Not Provided'}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 shadow-sm">

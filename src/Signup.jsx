@@ -29,7 +29,7 @@ function Signup() {
       error = "This field is required.";
     } else if (id === "phoneNumber" && value) {
       if (!/^\d{11}$/.test(value)) {
-        error = "Phone number must be exactly 11 digits.";
+        error = "Phone number must be exactly 11 digits starting with 09.";
       } else if (!value.startsWith("09")) {
         error = "Phone number must start with 09.";
       }
@@ -52,7 +52,9 @@ function Signup() {
   const handleInputChange = (e) => {
     let { id, value } = e.target;
     if (id === "phoneNumber") {
-      value = value.replace(/\D/g, "").slice(0, 11);
+      value = value.replace(/\D/g, "");
+      if (value.startsWith('9')) value = '0' + value;
+      value = value.slice(0, 11);
     }
     const newData = { ...formData, [id]: value };
     setFormData(newData);
@@ -135,7 +137,7 @@ function Signup() {
         formData.email,
         formData.password,
         fullName,
-        formData.phoneNumber,
+        `+63${formData.phoneNumber.replace(/^0/, "")}`,
         "patient"
       );
 
@@ -232,19 +234,24 @@ function Signup() {
 
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">Phone Number <span className="text-red-600">*</span></Label>
-              <Input
-                id="phoneNumber"
-                type="tel"
-                value={formData.phoneNumber}
-                onChange={handleInputChange}
-                onBlur={handleBlur}
-                className={touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}
-                placeholder="09123456789 (11 digits)"
-                required
-                maxLength={11}
-                minLength={11}
-                pattern="\d{11}"
-              />
+              <div className="flex">
+                <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-medium">
+                  +63
+                </span>
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={handleInputChange}
+                  onBlur={handleBlur}
+                  className={`rounded-l-none ${touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}`}
+                  placeholder="09123456789"
+                  required
+                  maxLength={11}
+                  minLength={11}
+                  pattern="\d{11}"
+                />
+              </div>
               {touched.phoneNumber && errors.phoneNumber && <p className="text-xs text-red-500 mt-1">{errors.phoneNumber}</p>}
             </div>
 

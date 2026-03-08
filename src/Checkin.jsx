@@ -357,7 +357,7 @@ function Checkin() {
       error = "This field is required.";
     } else if (id === "phoneNum" && value) {
       if (!/^\d{11}$/.test(value)) {
-        error = "Phone number must be exactly 11 digits.";
+        error = "Phone number must be exactly 11 digits starting with 09.";
       } else if (!value.startsWith("09")) {
         error = "Phone number must start with 09.";
       }
@@ -399,7 +399,9 @@ function Checkin() {
   const handlePhoneChange = (e) => {
     const value = e.target.value;
     // Only allow digits and limit to 11 characters
-    const digitsOnly = value.replace(/\D/g, '').slice(0, 11);
+    let digitsOnly = value.replace(/\D/g, '');
+    if (digitsOnly.startsWith('9')) digitsOnly = '0' + digitsOnly;
+    digitsOnly = digitsOnly.slice(0, 11);
     setFormData((prev) => {
       const newData = { ...prev, phoneNum: digitsOnly };
       if (touched.phoneNum) {
@@ -512,6 +514,7 @@ function Checkin() {
       ...formData,
       name: composedName,
       fullName: composedName,
+      phoneNum: formData.phoneNum ? `+63${formData.phoneNum.replace(/^0/, "")}` : "",
       symptoms: formData.symptoms.map(s =>
         s === 'Other' ? `Other: ${formData.otherSymptomText}` : s
       ),
@@ -544,7 +547,7 @@ function Checkin() {
 
       if (formData.phoneNum) {
         if (formData.phoneNum.length !== 11) {
-          showMessage("Validation Error", "Phone number must be exactly 11 digits.", false);
+          showMessage("Validation Error", "Phone number must be exactly 11 digits starting with 09.", false);
           setIsSubmitting(false);
           return;
         }
@@ -622,7 +625,7 @@ function Checkin() {
           dbId: dbId,
           name: composedName,
           age: formData.age,
-          phoneNum: formData.phoneNum,
+          phoneNum: formData.phoneNum ? `+63${formData.phoneNum.replace(/^0/, "")}` : "",
           type: selectedPatientType,
           symptoms: formData.symptoms.map(s =>
             s === 'Other' ? `Other: ${formData.otherSymptomText}` : s
@@ -786,7 +789,12 @@ function Checkin() {
             middleName: loadedMiddleName || prev.middleName,
             lastName: loadedLastName || prev.lastName,
             age: userProfile.age || prev.age,
-            phoneNum: userProfile.phoneNumber || prev.phoneNum,
+            phoneNum: (() => {
+              let p = (userProfile.phoneNumber || '');
+              if (p.startsWith('+63')) return '0' + p.slice(3);
+              if (p.startsWith('9')) return '0' + p;
+              return p || prev.phoneNum;
+            })(),
             patientEmail: userProfile.email || prev.patientEmail,
           }));
 
@@ -1116,7 +1124,25 @@ function Checkin() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phoneNum">Phone Number <span className="text-red-600">*</span></Label>
-                      <Input id="phoneNum" type="tel" value={formData.phoneNum} onChange={handlePhoneChange} onBlur={handleBlur} className={touched.phoneNum && errors.phoneNum ? "border-red-500" : ""} maxLength={11} minLength={11} pattern="[0-9]{11}" inputMode="numeric" required />
+                      <div className="flex">
+                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-medium">
+                          +63
+                        </span>
+                        <Input
+                          id="phoneNum"
+                          type="tel"
+                          value={formData.phoneNum}
+                          onChange={handlePhoneChange}
+                          onBlur={handleBlur}
+                          className={`rounded-l-none ${touched.phoneNum && errors.phoneNum ? "border-red-500" : ""}`}
+                          placeholder="09123456789"
+                          maxLength={11}
+                          minLength={11}
+                          pattern="\d{11}"
+                          inputMode="numeric"
+                          required
+                        />
+                      </div>
                       {touched.phoneNum && errors.phoneNum && <p className="text-xs text-red-500 mt-1">{errors.phoneNum}</p>}
                     </div>
                   </div>

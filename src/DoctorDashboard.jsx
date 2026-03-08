@@ -2,9 +2,9 @@ import React, { useState, useContext, useRef, useEffect, useMemo } from 'react';
 import { doctors } from './doctorData';
 import {
     Users, Search, Calendar, Clock, User, ChevronRight, ChevronDown,
-    MoreHorizontal, History, CheckCircle2, Filter, LogOut,
+    MoreHorizontal, History, CheckCircle2, Filter,
     Bell, CalendarDays, Menu, X, Phone, Stethoscope,
-    ArrowLeft, DoorOpen, Activity, XCircle
+    ArrowLeft, DoorOpen, Activity, XCircle, Eye
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,44 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
+} from "@/components/ui/dialog";
 import { PatientContext } from "./PatientContext";
 import { supabase } from "./lib/supabaseClient";
 import { useNavigate } from 'react-router-dom';
 import logoValley from '@/assets/logo-valley.png';
+
+/* ─── Static Helpers ─── */
+function getApptDateFilterLabel(filter) {
+    switch (filter) {
+        case 'all': return 'All Dates';
+        case 'custom': return 'Custom Range';
+        case 'thisWeek': return 'This Week';
+        default: return filter.charAt(0).toUpperCase() + filter.slice(1);
+    }
+}
+
+function formatDateTime(dateTimeString) {
+    if (!dateTimeString) return 'N/A';
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+    });
+}
+
+function formatDateShort(dateTimeString) {
+    if (!dateTimeString) return 'N/A';
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return date.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+    });
+}
 
 const DoctorDashboard = () => {
     const navigate = useNavigate();
@@ -27,7 +61,7 @@ const DoctorDashboard = () => {
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [activeTab, setActiveTab] = useState('queue');
     // ── Separate date filter state per tab ───────────────────────────────
-    const [apptDateFilter, setApptDateFilter] = useState('All Dates');   // Schedule tab: Monday | … | All Dates | Custom Range
+    const [apptDateFilter, setApptDateFilter] = useState('all');   // Schedule tab: monday | … | all | custom
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [apptCustomRange, setApptCustomRange] = useState({ start: '', end: '' });
@@ -49,7 +83,8 @@ const DoctorDashboard = () => {
     const [showNotifications, setShowNotifications] = useState(false);
 
     // Option lists
-    const apptDateFilters = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'All Dates', 'Custom Range'];
+    const apptDateFilters = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'thisWeek', 'custom', 'all'];
+
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -162,18 +197,28 @@ const DoctorDashboard = () => {
 
     // Schedule tab: mirrors Appointment.jsx (day-of-week / All Dates / Custom Range)
     const isApptDateInFilter = (dateStr) => {
-        if (!dateStr || apptDateFilter === 'All Dates') return true;
+        if (!dateStr || apptDateFilter === 'all') return true;
         const date = new Date(dateStr);
-        if (apptDateFilter === 'Custom Range') {
+        if (apptDateFilter === 'custom') {
             if (!apptCustomRange.start || !apptCustomRange.end) return true;
             const s = new Date(apptCustomRange.start); s.setHours(0, 0, 0, 0);
             const e = new Date(apptCustomRange.end); e.setHours(23, 59, 59, 999);
             return date >= s && date <= e;
         }
 
-        // Fix: Accurate Day-of-Week filtering (mirrors Appointment.jsx)
+        if (apptDateFilter === 'thisWeek') {
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay());
+            startOfWeek.setHours(0, 0, 0, 0);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            endOfWeek.setHours(23, 59, 59, 999);
+            return date >= startOfWeek && date <= endOfWeek;
+        }
+
         const daysMap = {
-            'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
+            'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6
         };
 
         if (daysMap.hasOwnProperty(apptDateFilter)) {
@@ -192,7 +237,7 @@ const DoctorDashboard = () => {
             return date >= targetDateStart && date <= targetDateEnd;
         }
 
-        return true;
+        return false;
     };
 
     const formatArray = (arr) => (!arr || arr.length === 0) ? 'None' : arr.join(', ');
@@ -322,35 +367,36 @@ const DoctorDashboard = () => {
 
     /* ─── Queue Status Filter Pills ─── */
     const statusFilterOptions = [
-        { key: 'active', label: 'Active', count: activeCount, pill: 'bg-emerald-600 text-white shadow-emerald-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700' },
-        { key: 'done', label: 'Done', count: doneCount, pill: 'bg-blue-600 text-white shadow-blue-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-700' },
-        { key: 'cancelled', label: 'Cancelled', count: cancelledCount, pill: 'bg-rose-500 text-white shadow-rose-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600' },
+        { key: 'active', label: 'Active', count: activeCount, pill: 'bg-emerald-600 hover:bg-emerald-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'done', label: 'Done', count: doneCount, pill: 'bg-blue-600 hover:bg-blue-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'cancelled', label: 'Cancelled', count: cancelledCount, pill: 'bg-red-600 hover:bg-red-700 text-white', inactive: 'hover:bg-gray-100' },
     ];
 
     const QueueStatusFilter = () => (
-        <div className="flex gap-1.5 px-3 pb-2 pt-1">
+        <div className="flex flex-wrap gap-1 px-2 pb-2 pt-1">
             {statusFilterOptions.map(opt => (
-                <button
+                <Button
                     key={opt.key}
                     onClick={() => setQueueStatusFilter(opt.key)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-medium uppercase tracking-wider transition-all shadow-sm flex-1 justify-center ${queueStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
+                    variant={queueStatusFilter === opt.key ? 'default' : 'outline'}
+                    className={`h-8 flex-1 px-2 text-xs font-medium transition-all ${queueStatusFilter === opt.key ? opt.pill : opt.inactive}`}
                 >
                     {opt.label}
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none ${queueStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
+                    <Badge variant="secondary" className={`ml-1 px-1 py-0 text-[10px] leading-none min-w-[1.125rem] justify-center ${queueStatusFilter === opt.key ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500'}`}>
                         {opt.count}
-                    </span>
-                </button>
+                    </Badge>
+                </Button>
             ))}
         </div>
     );
 
     /* ─── Scheduled (Appointment) Status Filter Pills ─── */
     const scheduledFilterOptions = [
-        { key: 'all', label: 'All', count: apptAllCount, pill: 'bg-slate-700 text-white shadow-slate-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700' },
-        { key: 'pending', label: 'Pending', count: apptPendingCount, pill: 'bg-amber-500 text-white shadow-amber-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-amber-50 hover:text-amber-700' },
-        { key: 'accepted', label: 'Accepted', count: apptAcceptedCount, pill: 'bg-emerald-600 text-white shadow-emerald-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700' },
-        { key: 'rejected', label: 'Not Accepted', count: apptRejectedCount, pill: 'bg-rose-500 text-white shadow-rose-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-rose-50 hover:text-rose-600' },
-        { key: 'cancelled', label: 'Cancelled', count: apptCancelledCount, pill: 'bg-red-600 text-white shadow-red-200', inactive: 'bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-600' },
+        { key: 'all', label: 'All', count: apptAllCount, pill: 'bg-green-600 hover:bg-green-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'pending', label: 'Pending', count: apptPendingCount, pill: 'bg-amber-600 hover:bg-amber-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'accepted', label: 'Accepted', count: apptAcceptedCount, pill: 'bg-green-600 hover:bg-green-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'rejected', label: 'Not Accepted', count: apptRejectedCount, pill: 'bg-red-600 hover:bg-red-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'cancelled', label: 'Cancelled', count: apptCancelledCount, pill: 'bg-gray-600 hover:bg-gray-700 text-white', inactive: 'hover:bg-gray-100' },
     ];
 
     // Pending appointments currently visible (for Decline All)
@@ -359,28 +405,29 @@ const DoctorDashboard = () => {
     ).length;
 
     const ScheduledStatusFilter = () => (
-        <div className="flex flex-col gap-1.5 px-3 pb-2 pt-1">
-            <div className="flex gap-1.5 flex-wrap">
+        <div className="flex flex-col gap-1.5 px-2 pb-2 pt-1">
+            <div className="flex flex-wrap gap-1">
                 {scheduledFilterOptions.map(opt => (
-                    <button
+                    <Button
                         key={opt.key}
                         onClick={() => setScheduledStatusFilter(opt.key)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-medium uppercase tracking-wider transition-all shadow-sm justify-center ${scheduledStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
+                        variant={scheduledStatusFilter === opt.key ? 'default' : 'outline'}
+                        className={`h-8 flex-1 px-1 text-[10px] font-medium transition-all ${scheduledStatusFilter === opt.key ? opt.pill : opt.inactive}`}
                     >
                         {opt.label}
-                        <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${scheduledStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
+                        <Badge variant="secondary" className={`ml-0.5 px-0.5 py-0 text-[9px] leading-none min-w-[1rem] justify-center ${scheduledStatusFilter === opt.key ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500'}`}>
                             {opt.count}
-                        </span>
-                    </button>
+                        </Badge>
+                    </Button>
                 ))}
             </div>
             {/* Decline All — only for appointment-only doctors, when viewing Pending */}
             {isAppointmentOnlyDoctor && scheduledStatusFilter === 'pending' && visiblePendingCount > 0 && (
                 <button
                     onClick={() => setShowDeclineAllModal(true)}
-                    className="w-full mt-0.5 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-medium uppercase tracking-wider bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border border-rose-100 transition-all shadow-sm"
+                    className="w-full mt-2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-all border border-red-100 shadow-sm"
                 >
-                    <X className="w-3 h-3" />
+                    <X className="w-3.5 h-3.5" />
                     Decline All ({visiblePendingCount})
                 </button>
             )}
@@ -424,13 +471,13 @@ const DoctorDashboard = () => {
 
             {/* Count label */}
             <div className="flex items-center justify-between px-4 py-2 bg-slate-50/60">
-                <span className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">
+                <span className="text-[11px] font-bold text-black-300">
                     {activeTab === 'queue'
                         ? statusFilterOptions.find(o => o.key === queueStatusFilter)?.label + ' Patients'
-                        : scheduledFilterOptions.find(o => o.key === scheduledStatusFilter)?.label + ' Appointments'}
+                        : (scheduledFilterOptions.find(o => o.key === scheduledStatusFilter)?.label || 'All') + ' Appointments'}
                 </span>
                 <span className="text-[9px] font-bold bg-white text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full shadow-sm">
-                    {doctorPatients.length} shown
+                    {doctorPatients.length} Shown
                 </span>
             </div>
 
@@ -457,46 +504,46 @@ const DoctorDashboard = () => {
         </div>
     );
 
-    const NotificationsDropdown = () => (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[60] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
-                <h3 className="font-bold text-slate-800 text-[10px] uppercase tracking-widest flex items-center gap-2">
-                    <Bell className="w-3.5 h-3.5 text-emerald-600" />
-                    Cancellations
+    const NotificationsDropdown = ({ side = 'right' }) => (
+        <div className={`absolute ${side === 'left' ? 'left-0' : 'right-0'} mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white rounded-xl shadow-2xl border border-gray-100 z-[60] overflow-hidden animate-in fade-in zoom-in-95 duration-200`}>
+            <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-green-600" />
+                    Patient Cancellations
                 </h3>
                 <button
                     onClick={() => {
                         markDoctorNotificationsAsRead(doctorId);
                         setShowNotifications(false);
                     }}
-                    className="text-xs font-bold text-emerald-600 hover:text-emerald-700 uppercase tracking-widest"
+                    className="text-gray-400 hover:text-gray-600"
                 >
-                    Clear All
+                    <XCircle className="w-5 h-5" />
                 </button>
             </div>
 
-            <div className="max-h-80 overflow-y-auto no-scrollbar">
+            <div className="max-h-[400px] overflow-y-auto">
                 {doctorNotifications.length > 0 ? (
                     doctorNotifications.map((notif) => (
                         <div
                             key={notif.id}
-                            className="p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-default"
+                            className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-default"
                         >
                             <div className="flex items-start gap-3">
-                                <div className="mt-0.5 flex-shrink-0 w-7 h-7 rounded-xl bg-rose-50 flex items-center justify-center">
-                                    <X className="w-3.5 h-3.5 text-rose-600" />
+                                <div className="mt-1 flex-shrink-0 w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                                    <XCircle className="w-4 h-4 text-red-600" />
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-slate-900 leading-tight">
-                                        Patient {notif.name}
+                                <div className="flex-1">
+                                    <p className="text-sm font-semibold text-gray-900">
+                                        {notif.name}
                                     </p>
-                                    <p className="text-[11px] font-bold text-slate-500 mt-1 leading-relaxed">
-                                        Cancelled their appointment request for {new Date(notif.appointmentDateTime || notif.appointment_datetime).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    <p className="text-xs text-gray-600 mt-0.5">
+                                        Cancelled their appointment for {formatDateShort(notif.appointmentDateTime || notif.appointment_datetime)}
                                     </p>
-                                    <div className="flex items-center gap-1.5 mt-2">
-                                        <Clock className="w-3 h-3 text-slate-300" />
-                                        <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
-                                            {new Date(notif.queueExitTime || notif.registeredAt).toLocaleString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Clock className="w-3 h-3 text-gray-400" />
+                                        <span className="text-[10px] text-gray-400 font-medium">
+                                            {formatDateTime(notif.queueExitTime || notif.registeredAt)}
                                         </span>
                                     </div>
                                 </div>
@@ -505,10 +552,10 @@ const DoctorDashboard = () => {
                     ))
                 ) : (
                     <div className="p-8 text-center">
-                        <div className="w-10 h-10 bg-slate-50 rounded-[14px] flex items-center justify-center mx-auto mb-3">
-                            <CheckCircle2 className="w-5 h-5 text-slate-200" />
+                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <CheckCircle2 className="w-6 h-6 text-gray-300" />
                         </div>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">No cancellations</p>
+                        <p className="text-sm text-gray-500 font-medium">No new cancellations</p>
                     </div>
                 )}
             </div>
@@ -532,22 +579,21 @@ const DoctorDashboard = () => {
                                 <span className="text-xs font-bold text-slate-600 truncate max-w-[180px]">{selectedPatient.name}</span>
                             )}
                             <div className="relative notif-dropdown-wrapper">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
+                                <button
                                     onClick={() => {
                                         setShowNotifications(!showNotifications);
                                         if (!showNotifications) markDoctorNotificationsAsRead(doctorId);
                                     }}
-                                    className="text-slate-400 h-8 w-8 relative"
+                                    className="p-2 text-gray-400 hover:text-white hover:bg-green-600 rounded-full transition-all duration-200 focus:outline-none relative"
+                                    title="Cancellations"
                                 >
-                                    <Bell className={`w-4 h-4 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                                    <Bell className={`w-5 h-5 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
                                     {unreadDoctorNotificationsCount > 0 && (
-                                        <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white ring-1 ring-white">
+                                        <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
                                             {unreadDoctorNotificationsCount}
                                         </span>
                                     )}
-                                </Button>
+                                </button>
                                 {showNotifications && mobileView === 'detail' && <NotificationsDropdown />}
                             </div>
                         </div>
@@ -570,26 +616,25 @@ const DoctorDashboard = () => {
                                 </div>
                                 {/* Actions */}
                                 <div className="flex items-center gap-1 shrink-0">
-                                    <Button variant="ghost" size="icon" onClick={handleLogoutClick} className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-xl">
-                                        <LogOut className="w-4 h-4" />
+                                    <Button variant="ghost" size="icon" onClick={handleLogoutClick} className="text-green-600 hover:text-white hover:bg-green-600 h-8 w-8 rounded-full [&_svg]:size-5">
+                                        <DoorOpen />
                                     </Button>
                                     <div className="relative notif-dropdown-wrapper">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
+                                        <button
                                             onClick={() => {
                                                 setShowNotifications(!showNotifications);
                                                 if (!showNotifications) markDoctorNotificationsAsRead(doctorId);
                                             }}
-                                            className="text-slate-400 h-8 w-8 relative"
+                                            className="p-2 text-gray-400 hover:text-white hover:bg-green-600 rounded-full transition-all duration-200 focus:outline-none relative"
+                                            title="Cancellations"
                                         >
-                                            <Bell className={`w-4 h-4 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                                            <Bell className={`w-5 h-5 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
                                             {unreadDoctorNotificationsCount > 0 && (
-                                                <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white ring-1 ring-white">
+                                                <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
                                                     {unreadDoctorNotificationsCount}
                                                 </span>
                                             )}
-                                        </Button>
+                                        </button>
                                         {showNotifications && mobileView !== 'detail' && <NotificationsDropdown />}
                                     </div>
                                 </div>
@@ -615,34 +660,35 @@ const DoctorDashboard = () => {
                             <Button
                                 onClick={() => setIsFilterOpen(!isFilterOpen)}
                                 variant="outline"
-                                size="sm"
-                                className="h-8 px-3 rounded-xl border-slate-100 font-medium text-[10px] uppercase tracking-widest flex items-center gap-2 bg-slate-50 hover:bg-white w-full justify-between"
+                                className="h-9 px-3 rounded-md border-gray-200 font-medium text-sm flex items-center gap-2 bg-white hover:bg-gray-50 w-full justify-between"
                             >
-                                <div className="flex items-center gap-2">
-                                    <CalendarDays className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span className="text-slate-700">
-                                        {apptDateFilter}
+                                <div className="flex items-center text-black">
+                                    <span>
+                                        {apptDateFilter === 'custom' && apptCustomRange.start
+                                            ? `${apptCustomRange.start} – ${apptCustomRange.end}`
+                                            : getApptDateFilterLabel(apptDateFilter)}
                                     </span>
                                 </div>
-                                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                                <span className="ml-2 text-black text-[10px]">▼</span>
                             </Button>
                             {isFilterOpen && (
-                                <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-100 shadow-2xl rounded-2xl py-2 z-50">
+                                <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 shadow-lg rounded-md py-1 z-50">
                                     {apptDateFilters.map(f => (
                                         <button key={f} onClick={() => { setApptDateFilter(f); setIsFilterOpen(false); }}
-                                            className={`w-full text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-between ${apptDateFilter === f ? 'text-emerald-700 bg-emerald-50' : 'text-slate-500 hover:bg-slate-50'}`}>
-                                            {f}{apptDateFilter === f && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                            className={`w-full text-left px-4 py-2 text-sm transition-all ${apptDateFilter === f ? 'text-green-600 bg-green-50 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                            {getApptDateFilterLabel(f)}
                                         </button>
                                     ))}
                                 </div>
                             )}
                         </div>
                         {/* Appointments custom range */}
-                        {apptDateFilter === 'Custom Range' && (
-                            <div className="flex gap-2 mt-2">
-                                <Input type="date" className="h-8 rounded-xl text-xs flex-1 border-slate-100" value={apptCustomRange.start} onChange={e => setApptCustomRange({ ...apptCustomRange, start: e.target.value })} />
-                                <Input type="date" className="h-8 rounded-xl text-xs flex-1 border-slate-100" value={apptCustomRange.end} onChange={e => setApptCustomRange({ ...apptCustomRange, end: e.target.value })} />
-                                <Button variant="ghost" size="sm" className="text-rose-500 text-[10px] font-bold h-8 px-2" onClick={() => { setApptCustomRange({ start: '', end: '' }); setApptDateFilter('All Dates'); }}>Reset</Button>
+                        {apptDateFilter === 'custom' && (
+                            <div className="flex items-center gap-2 mt-2 p-2 bg-gray-50 rounded-md border border-gray-100">
+                                <Input type="date" className="h-8 rounded-md text-xs flex-1 border-gray-300 bg-white" value={apptCustomRange.start} onChange={e => setApptCustomRange({ ...apptCustomRange, start: e.target.value })} />
+                                <span className="text-gray-400">to</span>
+                                <Input type="date" className="h-8 rounded-md text-xs flex-1 border-gray-300 bg-white" value={apptCustomRange.end} onChange={e => setApptCustomRange({ ...apptCustomRange, end: e.target.value })} />
+                                <Button variant="ghost" size="sm" className="text-gray-500 text-xs h-8 px-2 hover:text-rose-500" onClick={() => { setApptCustomRange({ start: '', end: '' }); setApptDateFilter('all'); }}>Reset</Button>
                             </div>
                         )}
                     </div>
@@ -694,30 +740,28 @@ const DoctorDashboard = () => {
                                     variant="ghost"
                                     size="icon"
                                     onClick={(e) => { e.stopPropagation(); handleLogoutClick(); }}
-                                    className="text-rose-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-xl shrink-0"
+                                    className="text-green-600 hover:text-white hover:bg-green-600 h-8 w-8 rounded-full shrink-0 [&_svg]:size-5"
                                     title="Log Out"
                                 >
-                                    <LogOut className="w-4 h-4 ml-0.5" />
+                                    <DoorOpen />
                                 </Button>
                                 <div className="relative notif-dropdown-wrapper">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
+                                    <button
                                         onClick={() => {
                                             setShowNotifications(!showNotifications);
                                             if (!showNotifications) markDoctorNotificationsAsRead(doctorId);
                                         }}
-                                        className="text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 h-8 w-8 rounded-xl shrink-0 relative"
-                                        title="Notifications"
+                                        className="p-2 text-gray-400 hover:text-white hover:bg-green-600 rounded-full transition-all duration-200 focus:outline-none relative"
+                                        title="Cancellations"
                                     >
-                                        <Bell className={`w-4 h-4 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                                        <Bell className={`w-5 h-5 ${unreadDoctorNotificationsCount > 0 ? 'animate-swing' : ''}`} />
                                         {unreadDoctorNotificationsCount > 0 && (
-                                            <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-600 text-[8px] font-bold text-white ring-1 ring-white">
+                                            <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
                                                 {unreadDoctorNotificationsCount}
                                             </span>
                                         )}
-                                    </Button>
-                                    {showNotifications && <NotificationsDropdown />}
+                                    </button>
+                                    {showNotifications && <NotificationsDropdown side="left" />}
                                 </div>
 
                             </div>
@@ -731,66 +775,24 @@ const DoctorDashboard = () => {
                                 className="pl-9 bg-slate-50 border-slate-100 rounded-xl focus-visible:ring-emerald-500 h-9 text-sm"
                             />
                         </div>
-                        <div className="flex gap-1 mt-3 p-0.5 bg-slate-100 rounded-xl">
-                            <button onClick={() => setActiveTab('queue')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all uppercase tracking-widest ${activeTab === 'queue' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Queue</button>
-                            <button onClick={() => setActiveTab('appointments')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all uppercase tracking-widest ${activeTab === 'appointments' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Schedule</button>
+                        <div className="flex space-x-1 rounded-xl bg-gray-100 p-0.5 mt-3">
+                            <button onClick={() => setActiveTab('queue')} className={`w-full rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none focus:ring-2 ring-white ring-opacity-60 ring-offset-2 ring-offset-emerald-400 transition-all ${activeTab === 'queue' ? 'bg-white text-emerald-700 shadow' : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'}`}>Queue</button>
+                            <button onClick={() => setActiveTab('appointments')} className={`w-full rounded-lg py-1.5 text-xs font-medium leading-5 focus:outline-none focus:ring-2 ring-white ring-opacity-60 ring-offset-2 ring-offset-emerald-400 transition-all ${activeTab === 'appointments' ? 'bg-white text-emerald-700 shadow' : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'}`}>Appointments</button>
                         </div>
                         {/* Status filter pills — Queue tab only */}
-                        {activeTab === 'queue' && (
-                            <div className="flex gap-1.5 mt-3">
-                                {statusFilterOptions.map(opt => (
-                                    <button
-                                        key={opt.key}
-                                        onClick={() => setQueueStatusFilter(opt.key)}
-                                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-medium uppercase tracking-wider transition-all shadow-sm flex-1 justify-center ${queueStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
-                                    >
-                                        {opt.label}
-                                        <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${queueStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
-                                            {opt.count}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                        {activeTab === 'queue' && <QueueStatusFilter />}
                         {/* Appointment status filter pills — Schedule tab only */}
-                        {activeTab === 'appointments' && (
-                            <div className="flex flex-col gap-1.5 mt-3">
-                                <div className="flex gap-1.5 flex-wrap">
-                                    {scheduledFilterOptions.map(opt => (
-                                        <button
-                                            key={opt.key}
-                                            onClick={() => setScheduledStatusFilter(opt.key)}
-                                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-medium uppercase tracking-wider transition-all shadow-sm justify-center ${scheduledStatusFilter === opt.key ? opt.pill + ' shadow-md' : opt.inactive}`}
-                                        >
-                                            {opt.label}
-                                            <span className={`text-[10px] font-bold px-1 py-0.5 rounded-full leading-none ${scheduledStatusFilter === opt.key ? 'bg-white/20' : 'bg-white/80 text-slate-500'}`}>
-                                                {opt.count}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                                {/* Decline All — desktop: appointment-only doctors, Pending view, at least 1 pending */}
-                                {isAppointmentOnlyDoctor && scheduledStatusFilter === 'pending' && visiblePendingCount > 0 && (
-                                    <button
-                                        onClick={() => setShowDeclineAllModal(true)}
-                                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-medium uppercase tracking-wider bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border border-rose-100 transition-all shadow-sm"
-                                    >
-                                        <X className="w-3 h-3" />
-                                        Decline All ({visiblePendingCount})
-                                    </button>
-                                )}
-                            </div>
-                        )}
+                        {activeTab === 'appointments' && <ScheduledStatusFilter />}
                     </div>
 
                     {/* Count */}
                     <div className="flex items-center justify-between px-4 py-2 bg-slate-50/60">
-                        <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">
+                        <span className="text-[12px] font-bold text-black-300">
                             {activeTab === 'queue'
                                 ? statusFilterOptions.find(o => o.key === queueStatusFilter)?.label + ' Patients'
-                                : scheduledFilterOptions.find(o => o.key === scheduledStatusFilter)?.label + ' Appointments'}
+                                : (scheduledFilterOptions.find(o => o.key === scheduledStatusFilter)?.label || 'All') + ' Appointments'}
                         </span>
-                        <span className="text-[10px] font-bold bg-white text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full shadow-sm">{doctorPatients.length} shown</span>
+                        <span className="text-[10px] font-bold bg-white text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-full shadow-sm">{doctorPatients.length} Shown</span>
                     </div>
 
                     {/* List */}
@@ -840,22 +842,23 @@ const DoctorDashboard = () => {
                                     <Button
                                         onClick={() => setIsFilterOpen(!isFilterOpen)}
                                         variant="outline"
-                                        className="h-10 px-4 rounded-2xl border-slate-100 font-medium text-[11px] uppercase tracking-widest flex items-center gap-2.5 bg-slate-50 hover:bg-white hover:shadow-lg transition-all shadow-sm"
+                                        className="h-10 min-w-[160px] rounded-md border-gray-200 font-medium text-sm flex items-center justify-between gap-3 bg-white hover:bg-gray-50 transition-all"
                                     >
-                                        <CalendarDays className="w-4 h-4 text-emerald-600" />
-                                        <span className="text-slate-700 min-w-[90px] text-left">
-                                            {apptDateFilter === 'Custom Range' && apptCustomRange.start
-                                                ? `${apptCustomRange.start} – ${apptCustomRange.end}`
-                                                : apptDateFilter}
-                                        </span>
-                                        <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
+                                        <div className="flex items-center text-black">
+                                            <span className="text-left font-medium">
+                                                {apptDateFilter === 'custom' && apptCustomRange.start
+                                                    ? `${apptCustomRange.start} – ${apptCustomRange.end}`
+                                                    : getApptDateFilterLabel(apptDateFilter)}
+                                            </span>
+                                        </div>
+                                        <span className="ml-2 text-black text-[10px]">▼</span>
                                     </Button>
                                     {isFilterOpen && (
-                                        <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-100 shadow-2xl shadow-slate-200/50 rounded-2xl py-2 z-50">
+                                        <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 shadow-lg rounded-md py-1 z-50">
                                             {apptDateFilters.map(f => (
                                                 <button key={f} onClick={() => { setApptDateFilter(f); setIsFilterOpen(false); }}
-                                                    className={`w-full text-left px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-all rounded-xl flex items-center justify-between ${apptDateFilter === f ? 'text-emerald-700 bg-emerald-50' : 'text-slate-500 hover:bg-slate-50 hover:text-emerald-600'}`}>
-                                                    {f}{apptDateFilter === f && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                                    className={`w-full text-left px-4 py-2 text-sm transition-all ${apptDateFilter === f ? 'text-green-600 bg-green-50 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                    {getApptDateFilterLabel(f)}
                                                 </button>
                                             ))}
                                         </div>
@@ -865,17 +868,21 @@ const DoctorDashboard = () => {
                         </div>
 
                         {/* Appointments custom range inputs (desktop) */}
-                        {activeTab === 'appointments' && apptDateFilter === 'Custom Range' && (
-                            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-50">
-                                <div className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                    <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">Start</label>
-                                    <Input type="date" className="h-8 w-36 bg-white border-slate-100 rounded-lg text-xs font-bold" value={apptCustomRange.start} onChange={e => setApptCustomRange({ ...apptCustomRange, start: e.target.value })} />
-                                    <span className="w-3 h-px bg-slate-300" />
-                                    <label className="text-[9px] font-medium text-slate-400 uppercase tracking-widest">End</label>
-                                    <Input type="date" className="h-8 w-36 bg-white border-slate-100 rounded-lg text-xs font-bold" value={apptCustomRange.end} onChange={e => setApptCustomRange({ ...apptCustomRange, end: e.target.value })} />
+                        {activeTab === 'appointments' && apptDateFilter === 'custom' && (
+                            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+                                <div className="flex items-center gap-3 bg-gray-50 p-2.5 rounded-md border border-gray-200">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-gray-500">From</span>
+                                        <Input type="date" className="h-8 w-40 bg-white border-gray-300 rounded-md text-xs" value={apptCustomRange.start} onChange={e => setApptCustomRange({ ...apptCustomRange, start: e.target.value })} />
+                                    </div>
+                                    <span className="text-gray-400">to</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-medium text-gray-500">To</span>
+                                        <Input type="date" className="h-8 w-40 bg-white border-gray-300 rounded-md text-xs" value={apptCustomRange.end} onChange={e => setApptCustomRange({ ...apptCustomRange, end: e.target.value })} />
+                                    </div>
                                 </div>
-                                <Button variant="ghost" size="sm" className="text-rose-500 font-medium text-[10px] uppercase tracking-widest hover:bg-rose-50 rounded-xl h-8 px-4"
-                                    onClick={() => { setApptCustomRange({ start: '', end: '' }); setApptDateFilter('All Dates'); }}>Reset</Button>
+                                <Button variant="ghost" size="sm" className="text-gray-500 font-medium text-xs hover:text-rose-500 hover:bg-rose-50 rounded-md h-8 px-4"
+                                    onClick={() => { setApptCustomRange({ start: '', end: '' }); setApptDateFilter('all'); }}>Reset</Button>
                             </div>
                         )}
                     </header>
@@ -911,135 +918,138 @@ const DoctorDashboard = () => {
             </div>
 
             {/* LOGOUT CONFIRMATION MODAL */}
-            {showLogoutModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
-                    <div className="bg-white p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 animate-in fade-in duration-200">
+            <Dialog open={showLogoutModal} onOpenChange={setShowLogoutModal}>
+                <DialogContent className="max-w-md rounded-lg border-none shadow-2xl [&>button]:hidden">
+                    <DialogHeader className="items-center text-center gap-0">
                         <div className="flex items-center justify-center mb-4">
-                            <DoorOpen className="w-12 h-12 text-rose-600" />
+                            <DoorOpen className="w-9 h-9 text-red-600" />
                         </div>
-                        <h3 className="text-2xl font-bold text-slate-800 mb-2 text-center tracking-tight">
+                        <DialogTitle className="text-2xl font-bold text-gray-800 mb-2 text-center">
                             Confirm Logout
-                        </h3>
-                        <p className="text-slate-500 mb-6 text-center font-bold text-sm">
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-600 mb-6 text-center text-base">
                             Are you sure you want to log out? You'll need to sign in again to access the dashboard.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={handleCancelLogout}
-                                className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-bold text-sm uppercase tracking-widest"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirmLogout}
-                                className="flex-1 px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors font-bold text-sm uppercase tracking-widest shadow-lg shadow-rose-200"
-                            >
-                                Log Out
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="flex flex-row gap-3 sm:gap-3">
+                        <button
+                            onClick={handleCancelLogout}
+                            className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleConfirmLogout}
+                            className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium"
+                        >
+                            Log Out
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* INDIVIDUAL DECLINE CONFIRMATION MODAL */}
-            {showIndividualDeclineModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full mx-auto animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
-                        <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
-                        <div className="p-7">
-                            <div className="flex items-center justify-center mb-5">
-                                <div className="w-16 h-16 rounded-[20px] bg-rose-50 flex items-center justify-center shadow-inner">
-                                    <XCircle className="w-8 h-8 text-rose-600" />
-                                </div>
+            <Dialog open={showIndividualDeclineModal} onOpenChange={(open) => {
+                if (!open) { setShowIndividualDeclineModal(false); setRejectionReason(""); }
+            }}>
+                <DialogContent className="max-w-md rounded-2xl border-none shadow-2xl overflow-hidden p-0">
+                    <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
+                    <div className="p-7">
+                        <DialogHeader className="items-center text-center gap-3">
+                            <div className="flex items-center justify-center w-16 h-16 rounded-[20px] bg-rose-50 shadow-inner">
+                                <XCircle className="w-8 h-8 text-rose-600" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2 text-center tracking-tight">
+                            <DialogTitle className="text-xl font-bold text-slate-800 tracking-tight">
                                 Decline Appointment?
-                            </h3>
-                            <p className="text-slate-500 mb-4 text-center font-bold text-sm leading-relaxed">
-                                Please provide a reason for declining <span className="text-rose-600 font-bold">{selectedPatient?.name}</span>'s appointment request.
-                            </p>
-
-                            <textarea
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-500 font-medium text-sm leading-relaxed text-center">
+                                Please provide a reason for declining{" "}
+                                <span className="text-rose-600 font-bold">{selectedPatient?.name}</span>'s appointment request.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="mt-4 space-y-1.5">
+                            <Label className="text-xs font-medium text-slate-400 uppercase tracking-widest">Reason for Declining</Label>
+                            <Textarea
                                 value={rejectionReason}
                                 onChange={(e) => setRejectionReason(e.target.value)}
                                 placeholder="e.g., Doctor is unavailable on this date, Please choose another slot..."
-                                className="w-full h-24 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-rose-500 focus:outline-none resize-none mb-6 placeholder:text-slate-300"
+                                className="h-24 rounded-2xl bg-slate-50 border-slate-100 text-sm font-bold text-slate-700 focus-visible:ring-rose-500 resize-none placeholder:text-slate-300"
                             />
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => {
-                                        setShowIndividualDeclineModal(false);
-                                        setRejectionReason("");
-                                    }}
-                                    disabled={isRejecting}
-                                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-bold text-sm uppercase tracking-widest disabled:opacity-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleRejectIndividual}
-                                    disabled={isRejecting || !rejectionReason.trim()}
-                                    className="flex-1 px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors font-bold text-sm uppercase tracking-widest shadow-lg shadow-rose-200 disabled:opacity-60 flex items-center justify-center gap-2"
-                                >
-                                    {isRejecting ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                            Declining...
-                                        </>
-                                    ) : 'Confirm Decline'}
-                                </button>
-                            </div>
                         </div>
+                        <DialogFooter className="flex flex-row gap-3 pt-5">
+                            <Button
+                                variant="secondary"
+                                onClick={() => { setShowIndividualDeclineModal(false); setRejectionReason(""); }}
+                                disabled={isRejecting}
+                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleRejectIndividual}
+                                disabled={isRejecting || !rejectionReason.trim()}
+                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-200 flex items-center justify-center gap-2"
+                            >
+                                {isRejecting ? (
+                                    <>
+                                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                        Declining...
+                                    </>
+                                ) : 'Confirm Decline'}
+                            </Button>
+                        </DialogFooter>
                     </div>
-                </div>
-            )}
+                </DialogContent>
+            </Dialog>
 
             {/* DECLINE ALL CONFIRMATION MODAL */}
-            {showDeclineAllModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full mx-auto animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
-                        <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
-                        <div className="p-7">
-                            <div className="flex items-center justify-center mb-5">
-                                <div className="w-16 h-16 rounded-[20px] bg-rose-50 flex items-center justify-center shadow-inner">
-                                    <X className="w-8 h-8 text-rose-600" />
-                                </div>
+            <Dialog open={showDeclineAllModal} onOpenChange={setShowDeclineAllModal}>
+                <DialogContent className="max-w-md rounded-2xl border-none shadow-2xl overflow-hidden p-0">
+                    <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
+                    <div className="p-7">
+                        <DialogHeader className="items-center text-center gap-3">
+                            <div className="flex items-center justify-center w-16 h-16 rounded-[20px] bg-rose-50 shadow-inner">
+                                <X className="w-8 h-8 text-rose-600" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-800 mb-2 text-center tracking-tight">
+                            <DialogTitle className="text-xl font-bold text-slate-800 tracking-tight">
                                 Decline All Pending Requests?
-                            </h3>
-                            <p className="text-slate-500 mb-1 text-center font-bold text-sm leading-relaxed">
-                                This will reject all <span className="text-rose-600 font-bold">{visiblePendingCount} pending</span> appointment request{visiblePendingCount !== 1 ? 's' : ''} within the current date filter.
-                            </p>
-                            <p className="text-slate-400 mb-6 text-center text-xs font-bold">
-                                Patients will be notified by email. This action cannot be undone.
-                            </p>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowDeclineAllModal(false)}
-                                    disabled={isDecliningAll}
-                                    className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-bold text-sm uppercase tracking-widest disabled:opacity-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleDeclineAll}
-                                    disabled={isDecliningAll}
-                                    className="flex-1 px-4 py-3 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-colors font-bold text-sm uppercase tracking-widest shadow-lg shadow-rose-200 disabled:opacity-60 flex items-center justify-center gap-2"
-                                >
-                                    {isDecliningAll ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                            Declining...
-                                        </>
-                                    ) : 'Decline All'}
-                                </button>
-                            </div>
-                        </div>
+                            </DialogTitle>
+                            <DialogDescription className="text-center space-y-1">
+                                <span className="block text-slate-500 font-medium text-sm leading-relaxed">
+                                    This will reject all{" "}
+                                    <span className="text-rose-600 font-bold">{visiblePendingCount} pending</span>{" "}
+                                    appointment request{visiblePendingCount !== 1 ? 's' : ''} within the current date filter.
+                                </span>
+                                <span className="block text-slate-400 text-xs font-medium">
+                                    Patients will be notified by email. This action cannot be undone.
+                                </span>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter className="flex flex-row gap-3 pt-5">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setShowDeclineAllModal(false)}
+                                disabled={isDecliningAll}
+                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleDeclineAll}
+                                disabled={isDecliningAll}
+                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-200 flex items-center justify-center gap-2"
+                            >
+                                {isDecliningAll ? (
+                                    <>
+                                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                        Declining...
+                                    </>
+                                ) : 'Decline All'}
+                            </Button>
+                        </DialogFooter>
                     </div>
-                </div>
-            )}
+                </DialogContent>
+            </Dialog>
 
             <style>{`
                 .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -1055,10 +1065,20 @@ const DoctorDashboard = () => {
 /* ─── Status color helpers ─── */
 const statusStyle = (status) => {
     switch ((status || '').toLowerCase()) {
-        case 'in progress': return 'bg-amber-100 text-amber-700';
-        case 'cancelled': return 'bg-rose-100 text-rose-600';
-        case 'done': return 'bg-blue-100 text-blue-700';
-        default: return 'bg-emerald-100 text-emerald-700';
+        case 'in progress':
+        case 'accepted':
+            return 'bg-green-600 text-white';
+        case 'cancelled':
+            return 'border-gray-400 text-gray-500 border';
+        case 'rejected':
+        case 'not accepted':
+            return 'bg-red-600 text-white';
+        case 'done':
+            return 'bg-blue-600 text-white';
+        case 'waiting':
+        case 'pending':
+        default:
+            return 'bg-amber-100 text-amber-700';
     }
 };
 
@@ -1089,15 +1109,15 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
                         {patient.name}
                     </p>
                     <div className="flex flex-wrap items-center gap-x-1 sm:gap-x-2 gap-y-1 mt-1">
-                        <Badge variant="outline" className={`text-[10px] h-5 font-bold uppercase tracking-tight border-none px-1.5 shrink-0 max-w-[90px] truncate pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50' : (patient.isPriority ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-500')}`}>
+                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 max-w-[90px] truncate pointer-events-none border-green-200 ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : 'bg-green-50 text-green-700'}`}>
                             {formatArray(patient.services?.slice(0, 1) || [patient.type || 'Regular'])}
                         </Badge>
-                        <Badge variant="outline" className={`text-[10px] h-5 font-bold uppercase tracking-tight border-none px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50' : (patient.status?.toLowerCase() === 'in progress' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')}`}>
+                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : statusStyle(patient.status)}`}>
                             {patient.status || 'Waiting'}
                         </Badge>
-                        <span className={`text-[10px] flex items-center gap-1 shrink-0 whitespace-nowrap pt-0.5 ${isSelected ? 'text-emerald-100' : 'text-slate-400 font-medium'}`}>
+                        <span className={`text-[10px] flex items-center gap-1 shrink-0 whitespace-nowrap pt-0.5 ${isSelected ? 'text-emerald-100' : 'text-gray-500 font-medium'}`}>
                             <Clock className="w-3 h-3" />
-                            {new Date(patient.registeredAt || patient.appointmentDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatDateShort(patient.registeredAt || patient.appointmentDateTime)}
                         </span>
                     </div>
                 </div>
@@ -1140,11 +1160,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
         .sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime));
 
     const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        return new Date(dateString).toLocaleString('en-US', {
-            month: 'short', day: 'numeric', year: 'numeric',
-            hour: 'numeric', minute: '2-digit', hour12: true
-        });
+        return formatDateTime(dateString);
     };
 
     const getServiceLabel = (service) => {
@@ -1159,11 +1175,11 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
         <div ref={workspaceRef} className="h-full flex-1 overflow-y-auto custom-scrollbar bg-slate-50/40">
             <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full">
 
-                <Card className="border-none shadow-xl shadow-slate-200/40 bg-white overflow-hidden rounded-3xl mb-6">
+                <Card className="border shadow-sm rounded-xl overflow-hidden bg-white mb-6">
                     <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-emerald-600" />
                     <CardContent className="p-6 sm:p-8">
                         <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
-                            <div className="hidden sm:flex flex-col items-center justify-center w-28 h-28 rounded-3xl bg-emerald-50 text-emerald-700 shrink-0 relative overflow-hidden group">
+                            <div className="hidden sm:flex flex-col items-center justify-center w-28 h-28 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 relative overflow-hidden group">
                                 <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-transparent opacity-50" />
                                 <span className="text-xs font-bold uppercase tracking-widest text-emerald-600/60 relative z-10 mb-0.5">Queue</span>
                                 <span className="text-5xl font-bold relative z-10 leading-none">{patient.queueNo}</span>
@@ -1172,47 +1188,54 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                 <div>
                                     <div className="flex items-center gap-3 mb-1.5">
                                         <h2 className="text-3xl sm:text-4xl font-bold text-slate-800 tracking-tight truncate">{patient.name}</h2>
-                                        <Badge variant="outline" className={`text-xs font-medium uppercase tracking-wider border-none px-3 py-1 hidden sm:inline-flex pointer-events-none ${statusStyle(patient.status)}`}>
-                                            {patient.status}
+                                        <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md hidden sm:inline-flex pointer-events-none ${statusStyle(patient.status)}`}>
+                                            {patient.status || 'Waiting'}
                                         </Badge>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[13px] font-bold text-slate-500">
                                         <span className="flex items-center gap-1.5"><Clock className="w-4.5 h-4.5 text-emerald-500" />
                                             {new Date(patient.registeredAt || patient.appointmentDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
-                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-200 hidden sm:block" />
-                                        <span className="hidden sm:inline-block truncate">ID: {patient.id}</span>
                                         {patient.isPriority && <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border border-amber-200 text-xs font-medium uppercase tracking-wider rounded-md pointer-events-none" >Priority</Badge>}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 pt-5 border-t border-slate-100">
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5 whitespace-nowrap">Age & Contact</p>
-                                        <p className="text-base font-bold text-slate-800 truncate">{patient.age} yrs • {patient.phoneNum || 'N/A'}</p>
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5 whitespace-nowrap">Assigned Doctor</p>
-                                        <p className="text-base font-bold text-slate-800 truncate" title={patient.assignedDoctor?.name || 'Unassigned'}>
-                                            {patient.assignedDoctor?.name || 'Unassigned'}
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Age & Contact</p>
+                                        <p className="text-base font-bold text-slate-800">
+                                            {patient.age} yrs • {(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}
                                         </p>
                                     </div>
-                                    <div className="min-w-0">
-                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5 whitespace-nowrap">Services</p>
-                                        <p className="text-base font-bold text-slate-800 truncate" title={formatArray(patient.services || ['General Consultation'])}>
-                                            {formatArray(patient.services || ['General Consultation'])}
-                                        </p>
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Assigned Doctor</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                                            <span className="text-purple-700 font-medium text-[15px]">
+                                                {patient.assignedDoctor?.name || 'Unassigned'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Services</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {(patient.services || ['General Consultation']).map((s, i) => (
+                                                <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-green-50 text-green-700 border-green-200 font-semibold pointer-events-none">
+                                                    {getServiceLabel(s)}
+                                                </Badge>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div className="col-span-2 lg:col-span-3">
                                         <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Current Visit Symptoms</p>
                                         <div className="flex flex-wrap gap-1.5 mt-1.5">
                                             {patient.symptoms && patient.symptoms.length > 0 ? (
                                                 patient.symptoms.map((s, i) => (
-                                                    <Badge key={i} variant="outline" className="text-xs font-medium uppercase tracking-wider text-rose-600 bg-rose-50 border-none rounded-md px-2 py-0.5 pointer-events-none">
+                                                    <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 font-semibold pointer-events-none">
                                                         {s}
                                                     </Badge>
                                                 ))
                                             ) : (
-                                                <p className="text-sm font-bold text-slate-400 italic">Routine check-up / consultation</p>
+                                                <p className="text-sm font-semibold text-slate-400 italic">Routine check-up / consultation</p>
                                             )}
                                         </div>
                                     </div>
@@ -1232,9 +1255,9 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                 </div>
                                 <div className="space-y-4">
                                     {upcomingAppointments.map((appt, i) => (
-                                        <div key={appt.id || i} className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 rounded-2xl border border-blue-100/60 shadow-sm transition-all hover:shadow-md">
+                                        <div key={appt.id || i} className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 rounded-xl border border-blue-100/60 shadow-sm transition-all hover:shadow-md">
                                             <div className="flex items-center gap-4 flex-1 min-w-0">
-                                                <div className="flex flex-col items-center justify-center w-16 h-16 rounded-2xl bg-white border border-blue-100 shadow-sm shrink-0">
+                                                <div className="flex flex-col items-center justify-center w-16 h-16 rounded-xl bg-white border border-blue-100 shadow-sm shrink-0">
                                                     <span className="text-[10px] font-bold text-blue-400 uppercase leading-none">
                                                         {new Date(appt.appointmentDateTime).toLocaleDateString('en-US', { month: 'short' })}
                                                     </span>
@@ -1256,10 +1279,12 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                                                 {appt.assignedDoctor?.name && (
-                                                    <Badge variant="outline" className="text-xs font-medium uppercase tracking-wider text-emerald-700 bg-emerald-50 border-none rounded-md px-2.5 py-1 pointer-events-none">
-                                                        <Stethoscope className="w-3.5 h-3.5 mr-1.5" />
-                                                        {appt.assignedDoctor.name}
-                                                    </Badge>
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 rounded-lg border border-purple-100/50">
+                                                        <Stethoscope className="w-3.5 h-3.5 text-purple-600" />
+                                                        <span className="text-[11px] font-medium text-purple-700">
+                                                            {appt.assignedDoctor.name}
+                                                        </span>
+                                                    </div>
                                                 )}
                                                 {appt.services && appt.services.length > 0 && appt.services.slice(0, 2).map((s, si) => (
                                                     <Badge key={si} variant="outline" className="text-xs font-medium uppercase tracking-wider text-purple-700 bg-purple-50 border-none rounded-md px-2 py-1 pointer-events-none">
@@ -1297,7 +1322,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                     </div>
                 )}
 
-                <Card className="border-none shadow-xl shadow-slate-200/30 rounded-3xl overflow-hidden bg-white">
+                <Card className="border shadow-sm rounded-xl overflow-hidden bg-white mb-8">
                     <CardHeader className="border-b border-slate-50 p-6 sm:p-8 pb-4">
                         <CardTitle className="text-base sm:text-lg font-bold flex items-center justify-between text-slate-800 tracking-tight">
                             <div className="flex items-center gap-3">
@@ -1315,11 +1340,11 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                         <div className="hidden sm:block overflow-hidden">
                             <Table className="table-fixed">
                                 <TableHeader>
-                                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 border-none">
-                                        <TableHead className="w-[10%] text-xs font-bold text-slate-400 uppercase tracking-wider py-4 pl-6 whitespace-nowrap">#</TableHead>
-                                        <TableHead className="w-[28%] text-xs font-bold text-slate-400 uppercase tracking-wider py-4">Doctor</TableHead>
-                                        <TableHead className="w-[42%] text-xs font-bold text-slate-400 uppercase tracking-wider py-4">Symptoms</TableHead>
-                                        <TableHead className="w-[20%] text-xs font-bold text-slate-400 uppercase tracking-wider py-4 text-right pr-6">Action</TableHead>
+                                    <TableRow className="bg-gray-50 hover:bg-gray-50 border-none">
+                                        <TableHead className="w-[12%] font-semibold text-gray-700 py-4 pl-6 whitespace-nowrap">Visit #</TableHead>
+                                        <TableHead className="w-[28%] font-semibold text-gray-700 py-4">Doctor</TableHead>
+                                        <TableHead className="w-[42%] font-semibold text-gray-700 py-4">Symptoms</TableHead>
+                                        <TableHead className="w-[18%] font-semibold text-gray-700 py-4 text-center">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1330,18 +1355,25 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                         return (
                                             <React.Fragment key={vId}>
                                                 <TableRow className="border-slate-50 hover:bg-slate-50/80 group transition-all">
-                                                    <TableCell className="py-4 pl-6 text-[13px] font-bold text-slate-500">
-                                                        #{visitNum}
+                                                    <TableCell className="py-4 pl-6">
+                                                        <Badge variant="outline" className="font-mono text-xs">
+                                                            #{String(visitNum).padStart(3, '0')}
+                                                        </Badge>
                                                     </TableCell>
-                                                    <TableCell className="py-4 text-[13px] font-bold text-slate-800 break-words pr-2">
-                                                        {visit.assignedDoctor?.name || 'Unassigned'}
+                                                    <TableCell className="py-4 pr-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                                                            <span className="text-purple-700 font-medium text-xs xl:text-sm truncate max-w-[150px]">
+                                                                {visit.assignedDoctor?.name || 'Unassigned'}
+                                                            </span>
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="py-4">
                                                         <div className="flex flex-wrap gap-1.5">
                                                             {visit.symptoms && visit.symptoms.length > 0 ? (
                                                                 <>
                                                                     {visit.symptoms.slice(0, 2).map((s, i) => (
-                                                                        <Badge key={i} variant="outline" className="text-xs font-semibold uppercase tracking-wider text-rose-600 bg-rose-50 border-none rounded-md px-2 py-0.5 pointer-events-none">
+                                                                        <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 pointer-events-none">
                                                                             {s}
                                                                         </Badge>
                                                                     ))}
@@ -1354,14 +1386,17 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                             ) : <span className="text-xs text-slate-400 font-medium italic">None reported</span>}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="py-4 text-right pr-6">
-                                                        <Button
-                                                            variant="ghost"
-                                                            onClick={() => setExpandedVisitId(isExpanded ? null : vId)}
-                                                            className="text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-50 rounded-xl px-4 h-9"
-                                                        >
-                                                            {isExpanded ? 'Hide' : 'View More'}
-                                                        </Button>
+                                                    <TableCell className="py-4 align-middle">
+                                                        <div className="flex justify-center">
+                                                            <Button
+                                                                variant="ghost"
+                                                                onClick={() => setExpandedVisitId(isExpanded ? null : vId)}
+                                                                className="text-blue-600 hover:bg-blue-50 rounded-xl w-9 h-9 p-0 flex items-center justify-center"
+                                                                title={isExpanded ? 'Hide Details' : 'View More'}
+                                                            >
+                                                                <Eye className="w-5 h-5" />
+                                                            </Button>
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                                 {isExpanded && (
@@ -1370,7 +1405,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                             <div className="p-6 sm:p-8 pb-6 grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-y-6 gap-x-6 border-l-4 border-emerald-400 ml-6 my-3 rounded-r-2xl bg-white shadow-md mr-6 animate-in slide-in-from-left-2 duration-200">
                                                                 <div>
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Status</p>
-                                                                    <Badge variant="outline" className={`text-xs font-medium uppercase tracking-wider border-none px-3 py-1 rounded-md pointer-events-none ${statusStyle(visit.status)}`}>
+                                                                    <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md pointer-events-none ${statusStyle(visit.status)}`}>
                                                                         {visit.status || 'Waiting'}
                                                                     </Badge>
                                                                 </div>
@@ -1380,14 +1415,16 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Queue Number</p>
-                                                                    <p className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg inline-block">Q-{visit.queueNo || 'N/A'}</p>
+                                                                    <Badge variant="outline" className="font-mono text-xs">
+                                                                        {String(visit.queueNo || 0).padStart(3, '0')}
+                                                                    </Badge>
                                                                 </div>
                                                                 <div className="col-span-1 xs:col-span-2 lg:col-span-3">
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-2">Full Symptoms List</p>
                                                                     <div className="flex flex-wrap gap-1.5">
                                                                         {visit.symptoms && visit.symptoms.length > 0 ? (
                                                                             visit.symptoms.map((s, i) => (
-                                                                                <Badge key={i} variant="outline" className="text-xs font-medium uppercase tracking-wider text-rose-600 bg-rose-50 border-none rounded-md px-2 py-0.5 pointer-events-none">
+                                                                                <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 pointer-events-none">
                                                                                     {s}
                                                                                 </Badge>
                                                                             ))
@@ -1399,7 +1436,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                                     <div className="flex flex-wrap gap-1.5">
                                                                         {visit.services && visit.services.length > 0 ? (
                                                                             visit.services.map((s, i) => (
-                                                                                <Badge key={i} variant="outline" className="text-xs font-medium uppercase tracking-wider text-purple-700 bg-purple-50 border-none rounded-md px-2 py-0.5 pointer-events-none">
+                                                                                <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-green-50 text-green-700 border-green-200 pointer-events-none">
                                                                                     {getServiceLabel(s)}
                                                                                 </Badge>
                                                                             ))
@@ -1408,11 +1445,11 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Registered At</p>
-                                                                    <p className="text-sm font-bold text-slate-700">{formatDate(visit.registeredAt)}</p>
+                                                                    <p className="text-sm font-medium text-gray-700">{formatDate(visit.registeredAt)}</p>
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Completed At</p>
-                                                                    <p className="text-sm font-bold text-slate-700">{formatDate(visit.completedAt)}</p>
+                                                                    <p className="text-sm font-medium text-gray-700">{formatDate(visit.completedAt)}</p>
                                                                 </div>
                                                             </div>
                                                         </TableCell>
@@ -1433,24 +1470,25 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                 return (
                                     <div key={vId} className="p-5 space-y-5">
                                         <div className="flex items-center justify-between">
-                                            <Badge variant="outline" className="bg-slate-100 text-slate-700 font-bold text-xs border-none px-3 py-1 rounded-lg pointer-events-none">
-                                                Visit #{visitNum}
+                                            <Badge variant="outline" className="font-mono text-xs">
+                                                Visit #{String(visitNum).padStart(3, '0')}
                                             </Badge>
                                             <Button
                                                 variant="ghost"
                                                 onClick={() => setExpandedVisitId(isExpanded ? null : vId)}
-                                                className="text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-50 rounded-xl px-4 h-9"
+                                                className="text-blue-600 hover:bg-blue-50 rounded-xl w-9 h-9 p-0 flex items-center justify-center"
+                                                title={isExpanded ? 'Hide Details' : 'View More'}
                                             >
-                                                {isExpanded ? 'Hide Details' : 'View More'}
+                                                <Eye className="w-5 h-5" />
                                             </Button>
                                         </div>
 
                                         <div className="grid grid-cols-1 gap-4">
                                             <div className="flex items-start gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-sm">
-                                                <Stethoscope className="w-5 h-5 text-emerald-600 mt-0.5 shrink-0" />
+                                                <Stethoscope className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
                                                 <div>
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1">Doctor Assigned</p>
-                                                    <p className="text-sm font-bold text-slate-800">{visit.assignedDoctor?.name || 'Unassigned'}</p>
+                                                    <p className="text-sm font-medium text-purple-700">{visit.assignedDoctor?.name || 'Unassigned'}</p>
                                                 </div>
                                             </div>
 
@@ -1461,7 +1499,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                     <div className="flex flex-wrap gap-1.5" id={`symptoms-list-${vId}`}>
                                                         {visit.symptoms && visit.symptoms.length > 0 ? (
                                                             visit.symptoms.map((s, i) => (
-                                                                <Badge key={i} variant="outline" className="text-xs font-medium uppercase tracking-wider text-rose-600 bg-rose-50 border-none rounded-md px-2 py-0.5 pointer-events-none">
+                                                                <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-blue-50 text-blue-700 border-blue-200 pointer-events-none">
                                                                     {s}
                                                                 </Badge>
                                                             ))
@@ -1475,7 +1513,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                             <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-50 animate-in fade-in slide-in-from-top-3 duration-300">
                                                 <div className="col-span-1">
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Status</p>
-                                                    <Badge variant="outline" className={`text-xs font-medium uppercase tracking-wider border-none px-3 py-1 rounded-lg shadow-sm pointer-events-none ${statusStyle(visit.status)}`}>
+                                                    <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-lg shadow-sm pointer-events-none ${statusStyle(visit.status)}`}>
                                                         {visit.status || 'Waiting'}
                                                     </Badge>
                                                 </div>
@@ -1485,18 +1523,20 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                 </div>
                                                 <div className="col-span-1">
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Queue Number</p>
-                                                    <p className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-lg inline-block">Q-{visit.queueNo || 'N/A'}</p>
+                                                    <Badge variant="outline" className="font-mono text-xs">
+                                                        {String(visit.queueNo || 0).padStart(3, '0')}
+                                                    </Badge>
                                                 </div>
                                                 <div className="col-span-1">
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Registered At</p>
-                                                    <p className="text-[13px] font-bold text-slate-600">{formatDate(visit.registeredAt)}</p>
+                                                    <p className="text-[13px] font-medium text-gray-700">{formatDate(visit.registeredAt)}</p>
                                                 </div>
                                                 <div className="col-span-2">
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-2">Services Availed</p>
                                                     <div className="flex flex-wrap gap-1.5">
                                                         {visit.services && visit.services.length > 0 ? (
                                                             visit.services.map((s, i) => (
-                                                                <Badge key={i} variant="outline" className="text-xs font-medium uppercase tracking-wider text-purple-700 bg-purple-50 border-none rounded-md px-2 py-0.5 pointer-events-none">
+                                                                <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 bg-green-50 text-green-700 border-green-200 pointer-events-none">
                                                                     {getServiceLabel(s)}
                                                                 </Badge>
                                                             ))
@@ -1506,7 +1546,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                 {visit.completedAt && (
                                                     <div className="col-span-2 border-t border-slate-50 pt-3">
                                                         <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Completed At</p>
-                                                        <p className="text-[13px] font-bold text-slate-600">{formatDate(visit.completedAt)}</p>
+                                                        <p className="text-[13px] font-medium text-gray-700">{formatDate(visit.completedAt)}</p>
                                                     </div>
                                                 )}
                                             </div>

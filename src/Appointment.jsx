@@ -720,7 +720,7 @@ const Appointment = () => {
                   </Button>
 
                   {showDateDropdown && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
+                    <div className="absolute top-full right-0 mt-1 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
                       {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'thisWeek', 'custom', 'all'].map((filter) => (
                         <button
                           key={filter}
@@ -1074,7 +1074,9 @@ const Appointment = () => {
                   <Phone className="w-5 h-5 text-purple-600 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Phone Number</p>
-                    <p className="font-semibold text-gray-900">{selectedAppointment.phoneNum || 'N/A'}</p>
+                    <p className="font-semibold text-gray-900">
+                      {(selectedAppointment.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}
+                    </p>
                   </div>
                 </div>
 

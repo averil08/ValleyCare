@@ -57,7 +57,12 @@ function PatientSettings() {
             middleName: profile.middleName || '',
             surname: profile.surname || (profile.fullName && profile.fullName.split(' ').length > 1 ? profile.fullName.substring(profile.fullName.indexOf(' ') + 1) : ''),
             age: profile.age || '',
-            phoneNumber: profile.phoneNumber || ''
+            phoneNumber: (() => {
+              let p = (profile.phoneNumber || '');
+              if (p.startsWith('+63')) return '0' + p.slice(3);
+              if (p.startsWith('9')) return '0' + p;
+              return p;
+            })() || ''
           }));
         } else {
           console.log('⚠️ No profile found for:', currentEmail);
@@ -96,7 +101,7 @@ function PatientSettings() {
         } else if (!/^\d+$/.test(value)) {
           error = 'Phone number must contain only numeric values';
         } else if (value.length !== 11) {
-          error = 'Phone number must be exactly 11 digits';
+          error = 'Phone number must be exactly 11 digits starting with 09';
         }
         break;
       case 'currentPassword':
@@ -129,9 +134,10 @@ function PatientSettings() {
   const handleInputChange = (e) => {
     let { id, value } = e.target;
 
-    // Only allow numeric input for phone
     if (id === 'phoneNumber') {
-      value = value.replace(/\D/g, '').slice(0, 11);
+      value = value.replace(/\D/g, '');
+      if (value.startsWith('9')) value = '0' + value;
+      value = value.slice(0, 11);
     }
 
     // Prevent negative age values if typed manually
@@ -239,7 +245,7 @@ function PatientSettings() {
         middleName: formData.middleName.trim(),
         surname: formData.surname.trim(),
         age: formData.age,
-        phoneNumber: formData.phoneNumber.trim()
+        phoneNumber: `+63${formData.phoneNumber.trim().replace(/^0/, "")}`
       };
 
       // Save to localStorage with email key
@@ -411,19 +417,24 @@ function PatientSettings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="phoneNumber">Phone Number <span className="text-red-600">*</span></Label>
-                    <Input
-                      id="phoneNumber"
-                      type="tel"
-                      value={formData.phoneNumber}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}
-                      placeholder="09171234567"
-                      required
-                      maxLength={11}
-                      minLength={11}
-                      pattern="\d{11}"
-                    />
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-medium">
+                        +63
+                      </span>
+                      <Input
+                        id="phoneNumber"
+                        type="tel"
+                        value={formData.phoneNumber}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={`rounded-l-none ${touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}`}
+                        placeholder="09171234567"
+                        required
+                        maxLength={11}
+                        minLength={11}
+                        pattern="\d{11}"
+                      />
+                    </div>
                     {touched.phoneNumber && errors.phoneNumber && <p className="text-xs text-red-500">{errors.phoneNumber}</p>}
                   </div>
                 </div>

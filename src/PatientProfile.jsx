@@ -436,7 +436,7 @@ const PatientProfile = () => {
             <div className="flex items-center gap-1">
               <Phone className="w-3 h-3 text-gray-400" />
               <p className="font-semibold text-gray-900 text-sm truncate">
-                {patient.phoneNum || 'N/A'}
+                {(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}
               </p>
             </div>
           </div>
@@ -697,7 +697,7 @@ const PatientProfile = () => {
                               <TableCell>
                                 <div className="flex items-center gap-2">
                                   <Phone className="w-4 h-4 text-gray-400" />
-                                  <span className="text-gray-900">{patient.phoneNum || 'N/A'}</span>
+                                  <span className="text-gray-900">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</span>
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">
@@ -940,7 +940,7 @@ const PatientProfile = () => {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Contact Number</p>
-                  <p className="font-semibold text-gray-900">{selectedPatient.phoneNum || 'Not provided'}</p>
+                  <p className="font-semibold text-gray-900">{(selectedPatient.phoneNum || '').replace(/^\+63/, '0') || 'Not provided'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 mb-1">Total Visits</p>

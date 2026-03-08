@@ -289,7 +289,7 @@ const Dashboard = () => {
             `#${String(patient.queueNo).padStart(3, '0')}`,
             patient.name,
             patient.age,
-            patient.phoneNum || 'N/A',
+            (patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A',
             patient.assignedDoctor?.name || 'Not Assigned',
             patient.type,
             formatArray(patient.symptoms),
@@ -344,7 +344,7 @@ const Dashboard = () => {
             `#${String(patient.queueNo).padStart(3, '0')}`,
             patient.name,
             patient.age,
-            patient.phoneNum || 'N/A',
+            (patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A',
             patient.assignedDoctor?.name || 'Not Assigned',
             patient.type,
             formatArray(patient.symptoms),
@@ -1667,7 +1667,7 @@ const Dashboard = () => {
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Phone:</span>
-                                  <span className="font-medium">{patient.phoneNum || 'N/A'}</span>
+                                  <span className="font-medium">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Type:</span>
@@ -1736,7 +1736,7 @@ const Dashboard = () => {
                                 <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                                 <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                                 <td className="p-2 align-middle text-xs">{patient.age}</td>
-                                <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                                <td className="p-2 align-middle text-xs text-gray-600">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</td>
                                 <td className="p-2 align-middle text-xs text-gray-600" title={patient.assignedDoctor?.name}>{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                                 <td className="p-2 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
                                 <td className="p-2 align-middle text-xs">
@@ -1875,7 +1875,7 @@ const Dashboard = () => {
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Phone:</span>
-                                  <span className="font-medium">{patient.phoneNum || 'N/A'}</span>
+                                  <span className="font-medium">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
                                   <span className="text-gray-600">Type:</span>
@@ -1945,7 +1945,7 @@ const Dashboard = () => {
                                 <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                                 <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                                 <td className="p-2 align-middle text-xs">{patient.age}</td>
-                                <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                                <td className="p-2 align-middle text-xs text-gray-600">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</td>
                                 <td className="p-2 align-middle text-xs text-gray-600" title={patient.assignedDoctor?.name}>{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                                 <td className="p-2 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
                                 <td className="p-2 align-middle text-xs">
@@ -2071,7 +2071,7 @@ const Dashboard = () => {
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Phone:</span>
-                                <span className="font-medium">{patient.phoneNum || 'N/A'}</span>
+                                <span className="font-medium">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Type:</span>
@@ -2140,7 +2140,7 @@ const Dashboard = () => {
                               <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                               <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                               <td className="p-2 align-middle text-xs">{patient.age}</td>
-                              <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                              <td className="p-2 align-middle text-xs text-gray-600">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</td>
                               <td className="p-2 align-middle text-xs text-gray-600" title={patient.assignedDoctor?.name}>{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                               <td className="p-2 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
                               <td className="p-2 align-middle text-xs">
@@ -2314,7 +2314,7 @@ const Dashboard = () => {
                               <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
                               <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                               <td className="p-2 align-middle text-xs">{patient.age}</td>
-                              <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
+                              <td className="p-2 align-middle text-xs text-gray-600">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</td>
                               <td className="p-2 align-middle text-xs text-gray-600" title={patient.assignedDoctor?.name}>{patient.assignedDoctor?.name || 'Not Assigned'}</td>
                               <td className="p-2 align-middle text-xs text-gray-500 uppercase tracking-tight">{patient.type}</td>
                               <td className="p-2 align-middle text-xs">

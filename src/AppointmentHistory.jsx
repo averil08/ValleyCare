@@ -812,7 +812,7 @@ const AppointmentHistory = () => {
                     <Phone className="w-5 h-5 text-purple-600 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500 mb-1">Phone Number</p>
-                      <p className="font-semibold text-gray-900">{currentPatientInfo.phoneNum || 'Not provided'}</p>
+                      <p className="font-semibold text-gray-900">{(currentPatientInfo.phoneNum || '').replace(/^\+63/, '0') || 'Not provided'}</p>
                     </div>
                   </div>
                 </div>
