@@ -30,6 +30,7 @@ export const PatientProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : [];
   });
   const patientsRef = useRef([]); // NEW: Ref to track latest patients without re-subscribing
+  const settingsIdRef = useRef(null); // NEW: Cache for settings record ID
 
   // NEW: Secretary Notification Check Timestamp
   const [lastSecretaryNotificationCheck, setLastSecretaryNotificationCheck] = useState(() => {
@@ -125,22 +126,35 @@ export const PatientProvider = ({ children }) => {
           }
         });
 
-        // Set the patients state with the updated (and possibly healed) list
-        setPatients(() => {
-          const uniqueMap = new Map();
-          transformedPatients.forEach(p => uniqueMap.set(p.id, p));
-          return Array.from(uniqueMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
-        });
-
         // ✅ CRITICAL FIX: Restore active patient synchronously BEFORE hiding loading screen
         const persistedId = localStorage.getItem('activePatientId');
         if (persistedId) {
-          const foundPatient = transformedPatients.find(p => p.id === persistedId);
+          // Use robust String comparison for IDs to handle type mismatch on refresh
+          const foundPatient = transformedPatients.find(p => String(p.id) === String(persistedId));
           if (foundPatient) {
             console.log("⚡ Sync-restorating active patient from storage:", foundPatient.name);
             setActivePatient(foundPatient);
           }
         }
+
+        // ✅ NEW: Restore clinic-wide wait time adjustment from system record
+        const settingsRecord = transformedPatients.find(p => p.patientEmail === 'clinic_settings@abante.com');
+        if (settingsRecord) {
+          settingsIdRef.current = settingsRecord.id; // Cache the ID
+          const cloudAdjustment = parseInt(settingsRecord.age) || 0;
+          console.log("🕒 Sync-restoring global wait time adjustment:", cloudAdjustment);
+          setManualWaitTimeAdjustment(cloudAdjustment);
+        }
+
+        // Filter out the system settings record from the public list
+        const publicPatients = transformedPatients.filter(p => p.patientEmail !== 'clinic_settings@abante.com');
+
+        // Set the patients state with the updated (and possibly healed) list
+        setPatients(() => {
+          const uniqueMap = new Map();
+          publicPatients.forEach(p => uniqueMap.set(p.id, p));
+          return Array.from(uniqueMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
+        });
       }
     } catch (error) {
       console.error('⚠️ Failed to load from database:', error);
@@ -232,8 +246,28 @@ export const PatientProvider = ({ children }) => {
             }
           }
 
-          // Simple, robust update: Refresh data from DB to ensure state is perfectly synced
-          loadPatientsFromDatabase();
+          // SURGICAL UPDATE: If it's the settings record, update adjustment immediately
+          if (payload.new && payload.new.patient_email === 'clinic_settings@abante.com') {
+            const newAdj = parseInt(payload.new.age) || 0;
+            console.log("🕒 Realtime sync: Updating global wait time adjustment:", newAdj);
+            setManualWaitTimeAdjustment(newAdj);
+            return; // Skip full re-fetch for settings updates
+          }
+
+          // OPTIMIZED: Update local state directly for other updates
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            const transformed = transformPatientData(payload.new);
+            setPatients(prev => {
+              const index = prev.findIndex(p => p.id === transformed.id);
+              if (index === -1) return prev;
+              const next = [...prev];
+              next[index] = transformed;
+              return next;
+            });
+          } else {
+            // Full refresh for INSERT/DELETE or complex changes
+            loadPatientsFromDatabase();
+          }
         }
       )
       .subscribe((status) => {
@@ -1029,12 +1063,62 @@ export const PatientProvider = ({ children }) => {
     }
   };
 
+  // ✅ NEW: Persist clinic-wide wait time adjustment
+  const syncClinicSettings = async (adjustment) => {
+    try {
+      const settingsData = {
+        name: 'System Settings',
+        patient_email: 'clinic_settings@abante.com',
+        phone_num: '00000000000', // Mandatory field placeholder
+        age: adjustment, // Store adjustment here
+        patient_type: 'walk-in',
+        queue_no: 999999, // Mandatory field
+        is_inactive: true, // Keep it hidden from most queries
+        status: 'waiting',
+        assigned_doctor_name: 'System'
+      };
+
+      // Use cached ID if we have it, otherwise look it up once
+      let targetId = settingsIdRef.current;
+
+      if (!targetId) {
+        const { data: existing } = await supabase
+          .from('patients')
+          .select('id')
+          .eq('patient_email', 'clinic_settings@abante.com')
+          .maybeSingle();
+        if (existing) {
+          targetId = existing.id;
+          settingsIdRef.current = targetId;
+        }
+      }
+
+      if (targetId) {
+        await supabase.from('patients').update(settingsData).eq('id', targetId);
+      } else {
+        const { data } = await supabase.from('patients').insert([settingsData]).select();
+        if (data?.[0]) settingsIdRef.current = data[0].id;
+      }
+      console.log("🕒 Clinic settings synced to cloud:", adjustment);
+    } catch (err) {
+      console.error('⚠️ Failed to sync clinic settings:', err);
+    }
+  };
+
   const addWaitTime = () => {
-    setManualWaitTimeAdjustment(prev => prev + 5);
+    setManualWaitTimeAdjustment(prev => {
+      const newVal = prev + 5;
+      syncClinicSettings(newVal);
+      return newVal;
+    });
   };
 
   const reduceWaitTime = () => {
-    setManualWaitTimeAdjustment(prev => prev - 5);
+    setManualWaitTimeAdjustment(prev => {
+      const newVal = Math.max(-60, prev - 5); // Allow some reduction but cap it
+      syncClinicSettings(newVal);
+      return newVal;
+    });
   };
 
   const getDoctorCurrentServing = (doctorId) => {

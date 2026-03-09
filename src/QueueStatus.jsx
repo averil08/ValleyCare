@@ -68,6 +68,7 @@ const QueueStatus = () => {
     activePatient,
     currentServing,
     avgWaitTime,
+    getDoctorCurrentServing, // Added this
     setActivePatient,
     clearActivePatient,
     requeuePatient,
@@ -92,11 +93,30 @@ const QueueStatus = () => {
   }, [activePatient, isPatientLoggedIn, currentPatientEmail]);
 
   // Always get the latest patient data from the patients array
-  const currentPatient = patients?.find(p => {
-    if (activePatient?.id && p.id === activePatient.id) return true;
-    if (activePatient?.queueNo && p.queueNo === activePatient.queueNo) return true;
-    return false;
-  });
+  const currentPatient = React.useMemo(() => {
+    if (!patients || patients.length === 0) return null;
+
+    // 1. Try to find by activePatient.id (from context)
+    if (activePatient?.id) {
+      const found = patients.find(p => String(p.id) === String(activePatient.id));
+      if (found) return found;
+    }
+
+    // 2. Fallback to localStorage ID (if context state is lost but storage exists)
+    const persistedId = localStorage.getItem('activePatientId');
+    if (persistedId) {
+      const found = patients.find(p => String(p.id) === String(persistedId));
+      if (found) return found;
+    }
+
+    // 3. Last resort: match by queueNo if we have it in activePatient
+    if (activePatient?.queueNo) {
+      const found = patients.find(p => p.queueNo === activePatient.queueNo);
+      if (found) return found;
+    }
+
+    return null;
+  }, [patients, activePatient]);
 
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
@@ -328,8 +348,15 @@ const QueueStatus = () => {
     );
   };
 
-  const peopleAhead = Math.max((queueNumber > 0 ? queueNumber : 0) - currentServing, 0);
-  const estimatedWait = avgWaitTime;
+  // Calculate real position in the doctor's specific queue
+  const myQueuePosition = React.useMemo(() => {
+    if (!currentPatient || !doctorPatients) return 0;
+    const index = doctorPatients.findIndex(p => String(p.id) === String(currentPatient.id));
+    return index !== -1 ? index : 0;
+  }, [doctorPatients, currentPatient]);
+
+  const peopleAhead = myQueuePosition;
+  const estimatedWait = avgWaitTime * (peopleAhead + 1);
 
   const isAppointmentPending = currentPatient?.status !== 'cancelled' && ((currentPatient?.type === 'Appointment' && currentPatient?.appointmentStatus === 'pending') ||
     (currentPatient?.queueNo >= 900000));
@@ -614,9 +641,33 @@ const QueueStatus = () => {
   }
 
   if (!currentPatient) {
+    // If we're still loading OR if we have a persisted session but haven't 'matched' yet,
+    // show the loading spinner instead of "Not Found" to prevent flickering.
+    const persistedId = localStorage.getItem('activePatientId');
+    if (isLoadingFromDB || (persistedId && patients.length > 0)) {
+      return (
+        <div className="min-h-screen flex items-center justify-center text-gray-700 px-4">
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Loader2 className="h-10 w-10 text-green-600 animate-spin" />
+            <span className="text-sm sm:text-base">Syncing queue data...</span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-700 px-4 text-center">
-        <p className="text-sm sm:text-base">Patient not found in the queue.</p>
+        <div className="max-w-md">
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-lg font-medium text-gray-900 mb-2">Queue Session Not Found</p>
+          <p className="text-sm text-gray-500 mb-6">
+            We couldn't find an active queue session for this device.
+            If you've already been called or cancelled, your session may have ended.
+          </p>
+          <Button onClick={() => navigate('/')} className="bg-green-600 hover:bg-green-700">
+            Return to Home
+          </Button>
+        </div>
       </div>
     );
   }
@@ -1222,7 +1273,12 @@ const QueueStatus = () => {
                 <div className="flex justify-between items-start gap-2">
                   <span className="text-gray-600 font-normal">Currently Serving</span>
                   <span className="font-medium text-gray-900">
-                    #{String(currentServing).padStart(3, "0")}
+                    {(() => {
+                      const doctorServing = currentPatient?.assignedDoctor?.id
+                        ? getDoctorCurrentServing(currentPatient.assignedDoctor.id)
+                        : currentServing;
+                      return doctorServing ? `#${String(doctorServing).padStart(3, "0")}` : "---";
+                    })()}
                   </span>
                 </div>
                 <div className="flex justify-between items-start gap-2">
@@ -1349,7 +1405,12 @@ const QueueStatus = () => {
               <div className="flex justify-between items-start gap-2">
                 <span className="text-gray-600 font-normal">Currently Serving</span>
                 <span className="font-medium text-gray-900">
-                  #{String(currentServing).padStart(3, "0")}
+                  {(() => {
+                    const doctorServing = currentPatient?.assignedDoctor?.id
+                      ? getDoctorCurrentServing(currentPatient.assignedDoctor.id)
+                      : currentServing;
+                    return doctorServing ? `#${String(doctorServing).padStart(3, "0")}` : "---";
+                  })()}
                 </span>
               </div>
               <div className="flex justify-between items-start gap-2">
