@@ -294,7 +294,7 @@ export const PatientProvider = ({ children }) => {
     if (!isLoadingFromDB && !activePatient && patients.length > 0) {
       const persistedId = localStorage.getItem('activePatientId');
       if (persistedId) {
-        const foundPatient = patients.find(p => p.id === persistedId);
+        const foundPatient = patients.find(p => String(p.id) === String(persistedId));
         if (foundPatient) {
           // ACCOUNT VALIDATION:
           const currentEmail = localStorage.getItem('currentPatientEmail');
@@ -304,7 +304,15 @@ export const PatientProvider = ({ children }) => {
             const normalizedFoundEmail = (foundPatient.patientEmail || '').toLowerCase().trim();
             const normalizedCurrentEmail = currentEmail.toLowerCase().trim();
 
-            if (normalizedFoundEmail && normalizedFoundEmail !== normalizedCurrentEmail) {
+            // 1. If user is logged in but the restored patient is a GUEST (no email)
+            if (!normalizedFoundEmail) {
+              console.log("🚫 Restored patient is a guest session but user is logged in. Clearing.");
+              localStorage.removeItem('activePatientId');
+              return;
+            }
+
+            // 2. If user is logged in but the restored patient belongs to ANOTHER account
+            if (normalizedFoundEmail !== normalizedCurrentEmail) {
               console.log("🚫 Restored patient belongs to another account. Clearing.");
               localStorage.removeItem('activePatientId');
               return;
@@ -327,10 +335,10 @@ export const PatientProvider = ({ children }) => {
       const normalizedCurrentEmail = currentEmail.toLowerCase().trim();
 
       // OPTION 1: Validate existing session
-      if (activePatient && activePatient.patientEmail) {
-        const normalizedActiveEmail = activePatient.patientEmail.toLowerCase().trim();
+      if (activePatient) {
+        const normalizedActiveEmail = (activePatient.patientEmail || '').toLowerCase().trim();
         if (normalizedActiveEmail !== normalizedCurrentEmail) {
-          console.log("⚠️ Active patient belongs to another account. Clearing session.");
+          console.log("⚠️ Active patient is guest or belongs to another account. Clearing session.");
           clearActivePatient();
           return;
         }

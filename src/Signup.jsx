@@ -16,6 +16,7 @@ function Signup() {
     lastName: "",
     phoneNumber: "",
     email: "",
+    age: "",
     password: "",
     confirmPassword: "",
   });
@@ -33,6 +34,8 @@ function Signup() {
       }
     } else if (id === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       error = "Invalid email format.";
+    } else if (id === "age" && value && (value <= 0 || value > 150)) {
+      error = "Please enter a valid age (1-150).";
     } else if (id === "password" && value && value.length < 6) {
       error = "Password must be at least 6 characters.";
     } else if (id === "confirmPassword" && value && value !== currentData.password) {
@@ -52,6 +55,11 @@ function Signup() {
     if (id === "phoneNumber") {
       value = value.replace(/\D/g, "");
       value = value.slice(0, 10);
+    }
+
+    if (id === "age" && value !== "") {
+      value = Math.max(0, parseInt(value, 10)).toString();
+      if (isNaN(value)) value = "";
     }
     const newData = { ...formData, [id]: value };
     setFormData(newData);
@@ -86,6 +94,7 @@ function Signup() {
       lastName: "",
       phoneNumber: "",
       email: "",
+      age: "",
       password: "",
       confirmPassword: "",
     });
@@ -99,7 +108,7 @@ function Signup() {
 
     try {
 
-      if (!formData.firstName || !formData.lastName || !formData.phoneNumber || !formData.email || !formData.password || !formData.confirmPassword) {
+      if (!formData.firstName || !formData.lastName || !formData.phoneNumber || !formData.email || !formData.age || !formData.password || !formData.confirmPassword) {
         showMessage("Validation Error", "Please fill in all required fields.", false);
         setIsSubmitting(false);
         return;
@@ -130,6 +139,7 @@ function Signup() {
         formData.password,
         fullName,
         `0${formData.phoneNumber}`,
+        formData.age,
         "patient"
       );
 
@@ -260,6 +270,23 @@ function Signup() {
                 required
               />
               {touched.email && errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="age">Age <span className="text-red-600">*</span></Label>
+              <Input
+                id="age"
+                type="number"
+                value={formData.age}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                className={touched.age && errors.age ? "border-red-500" : ""}
+                placeholder="25"
+                required
+                min="1"
+                max="150"
+              />
+              {touched.age && errors.age && <p className="text-xs text-red-500 mt-1">{errors.age}</p>}
             </div>
 
             <div className="space-y-2">
