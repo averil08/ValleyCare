@@ -121,6 +121,17 @@ const DoctorDashboard = () => {
         if (selectedPatient && workspaceRef.current) workspaceRef.current.scrollTo(0, 0);
     }, [selectedPatient]);
 
+    // ✅ Sync selectedPatient with global patients array to reflect status changes
+    useEffect(() => {
+        if (selectedPatient) {
+            const fresh = patients.find(p => p.id === selectedPatient.id || (p.dbId && p.dbId === selectedPatient.dbId));
+            if (fresh && JSON.stringify(fresh) !== JSON.stringify(selectedPatient)) {
+                console.log("🔄 Syncing selectedPatient with fresh context data");
+                setSelectedPatient(fresh);
+            }
+        }
+    }, [patients, selectedPatient]);
+
     const handleLogoutClick = () => {
         setShowLogoutModal(true);
     };
@@ -161,19 +172,22 @@ const DoctorDashboard = () => {
     };
 
     const handleAcceptIndividual = async (patientId) => {
+        if (!patientId) return;
         try {
             await acceptAppointment(patientId);
-            // Optionally, we could show a success toast here
+            // Re-sync local state if possible or the effect above will handle it
         } catch (err) {
             console.error('Accept appointment failed:', err);
         }
     };
 
     const handleRejectIndividual = async () => {
-        if (!selectedPatient || !rejectionReason.trim()) return;
+        const targetId = selectedPatient?.id || selectedPatient?.dbId;
+        if (!targetId || !rejectionReason.trim()) return;
+
         setIsRejecting(true);
         try {
-            await rejectAppointment(selectedPatient.id, rejectionReason);
+            await rejectAppointment(targetId, rejectionReason);
             setShowIndividualDeclineModal(false);
             setRejectionReason("");
         } catch (err) {
@@ -317,7 +331,14 @@ const DoctorDashboard = () => {
         return true;
     }).filter((p, index, self) =>
         index === self.findIndex((t) => (t.name || '').toLowerCase().trim() === (p.name || '').toLowerCase().trim())
-    );
+    ).sort((a, b) => {
+        const getTimestamp = (p) => {
+            // Priority: Rejected/Cancelled time > Registration time
+            const actionTime = p.rejectedAt || p.queueExitTime || p.registeredAt;
+            return new Date(actionTime).getTime();
+        };
+        return getTimestamp(b) - getTimestamp(a);
+    });
 
     // Appointment badge counts
     const apptAllCount = allAppointmentPatients.length;
@@ -701,6 +722,7 @@ const DoctorDashboard = () => {
                     ) : selectedPatient ? (
                         <PatientDetail
                             patient={selectedPatient}
+                            setSelectedPatient={setSelectedPatient}
                             patients={patients}
                             workspaceRef={workspaceRef}
                             handleAcceptIndividual={handleAcceptIndividual}
@@ -891,6 +913,7 @@ const DoctorDashboard = () => {
                     {selectedPatient ? (
                         <PatientDetail
                             patient={selectedPatient}
+                            setSelectedPatient={setSelectedPatient}
                             patients={patients}
                             workspaceRef={workspaceRef}
                             handleAcceptIndividual={handleAcceptIndividual}
@@ -952,102 +975,125 @@ const DoctorDashboard = () => {
             <Dialog open={showIndividualDeclineModal} onOpenChange={(open) => {
                 if (!open) { setShowIndividualDeclineModal(false); setRejectionReason(""); }
             }}>
-                <DialogContent className="max-w-md rounded-2xl border-none shadow-2xl overflow-hidden p-0">
-                    <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
-                    <div className="p-7">
-                        <DialogHeader className="items-center text-center gap-3">
-                            <div className="flex items-center justify-center w-16 h-16 rounded-[20px] bg-rose-50 shadow-inner">
-                                <XCircle className="w-8 h-8 text-rose-600" />
-                            </div>
-                            <DialogTitle className="text-xl font-bold text-slate-800 tracking-tight">
-                                Decline Appointment?
-                            </DialogTitle>
-                            <DialogDescription className="text-slate-500 font-medium text-sm leading-relaxed text-center">
-                                Please provide a reason for declining{" "}
-                                <span className="text-rose-600 font-bold">{selectedPatient?.name}</span>'s appointment request.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="mt-4 space-y-1.5">
-                            <Label className="text-xs font-medium text-slate-400 uppercase tracking-widest">Reason for Declining</Label>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-red-600">Decline Appointment</DialogTitle>
+                        <DialogDescription>
+                            Please provide a reason for not accepting {selectedPatient?.name}'s appointment.
+                            This will be shared with the patient.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">
+                                Reason for Appointment Refusal *
+                            </label>
                             <Textarea
+                                placeholder="e.g., No available time slots, Requires specialist referral, etc."
                                 value={rejectionReason}
                                 onChange={(e) => setRejectionReason(e.target.value)}
-                                placeholder="e.g., Doctor is unavailable on this date, Please choose another slot..."
-                                className="h-24 rounded-2xl bg-slate-50 border-slate-100 text-sm font-bold text-slate-700 focus-visible:ring-rose-500 resize-none placeholder:text-slate-300"
+                                className="min-h-[100px] resize-none"
+                                maxLength={500}
                             />
+                            <p className="text-xs text-gray-500 text-right">
+                                {rejectionReason.length}/500 characters
+                            </p>
                         </div>
-                        <DialogFooter className="flex flex-row gap-3 pt-5">
-                            <Button
-                                variant="secondary"
-                                onClick={() => { setShowIndividualDeclineModal(false); setRejectionReason(""); }}
-                                disabled={isRejecting}
-                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleRejectIndividual}
-                                disabled={isRejecting || !rejectionReason.trim()}
-                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-200 flex items-center justify-center gap-2"
-                            >
-                                {isRejecting ? (
-                                    <>
-                                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                        Declining...
-                                    </>
-                                ) : 'Confirm Decline'}
-                            </Button>
-                        </DialogFooter>
                     </div>
+
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => { setShowIndividualDeclineModal(false); setRejectionReason(""); }}
+                            disabled={isRejecting}
+                            className="w-full sm:w-auto"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleRejectIndividual}
+                            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+                            disabled={isRejecting || !rejectionReason.trim()}
+                        >
+                            {isRejecting ? (
+                                <>
+                                    <span className="w-4 h-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                    Sending...
+                                </>
+                            ) : (
+                                <>
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Send Notice to Patient
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
             {/* DECLINE ALL CONFIRMATION MODAL */}
             <Dialog open={showDeclineAllModal} onOpenChange={setShowDeclineAllModal}>
-                <DialogContent className="max-w-md rounded-2xl border-none shadow-2xl overflow-hidden p-0">
-                    <div className="h-1.5 w-full bg-gradient-to-r from-rose-400 to-rose-600" />
-                    <div className="p-7">
-                        <DialogHeader className="items-center text-center gap-3">
-                            <div className="flex items-center justify-center w-16 h-16 rounded-[20px] bg-rose-50 shadow-inner">
-                                <X className="w-8 h-8 text-rose-600" />
+                <DialogContent className="sm:max-w-md rounded-xl border-none shadow-2xl [&>button]:hidden">
+                    <DialogHeader className="items-center text-center gap-0">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center shadow-sm">
+                                <XCircle className="w-7 h-7 text-red-600" />
                             </div>
-                            <DialogTitle className="text-xl font-bold text-slate-800 tracking-tight">
-                                Decline All Pending Requests?
-                            </DialogTitle>
-                            <DialogDescription className="text-center space-y-1">
-                                <span className="block text-slate-500 font-medium text-sm leading-relaxed">
-                                    This will reject all{" "}
-                                    <span className="text-rose-600 font-bold">{visiblePendingCount} pending</span>{" "}
-                                    appointment request{visiblePendingCount !== 1 ? 's' : ''} within the current date filter.
-                                </span>
-                                <span className="block text-slate-400 text-xs font-medium">
-                                    Patients will be notified by email. This action cannot be undone.
-                                </span>
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="flex flex-row gap-3 pt-5">
-                            <Button
-                                variant="secondary"
-                                onClick={() => setShowDeclineAllModal(false)}
-                                disabled={isDecliningAll}
-                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-slate-100 text-slate-700 hover:bg-slate-200"
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={handleDeclineAll}
-                                disabled={isDecliningAll}
-                                className="flex-1 h-11 rounded-xl font-bold text-sm uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-200 flex items-center justify-center gap-2"
-                            >
-                                {isDecliningAll ? (
-                                    <>
-                                        <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                        Declining...
-                                    </>
-                                ) : 'Decline All'}
-                            </Button>
-                        </DialogFooter>
-                    </div>
+                        </div>
+                        <DialogTitle className="text-xl font-bold text-gray-800 mb-1 text-center">
+                            Decline All Pending Requests?
+                        </DialogTitle>
+                        <DialogDescription asChild>
+                            <div className="text-center space-y-4 mt-2">
+                                <p className="text-gray-500 text-sm">
+                                    You are about to decline{' '}
+                                    <span className="inline-flex items-center bg-red-50 text-red-600 font-bold px-2 py-0.5 rounded-md border border-red-100">
+                                        {visiblePendingCount} pending request{visiblePendingCount !== 1 ? 's' : ''}
+                                    </span>{' '}
+                                    within the current date filter.
+                                </p>
+                                <ul className="text-left text-sm text-gray-500 space-y-2 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                                    <li className="flex items-start gap-2">
+                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                        All matched patients will be notified via email.
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                                        This action <span className="font-semibold text-gray-700">cannot be undone</span>.
+                                    </li>
+                                </ul>
+                            </div>
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowDeclineAllModal(false)}
+                            disabled={isDecliningAll}
+                            className="w-full sm:w-auto"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleDeclineAll}
+                            disabled={isDecliningAll}
+                            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isDecliningAll ? (
+                                <>
+                                    <span className="w-4 h-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                    Declining...
+                                </>
+                            ) : (
+                                <>
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Decline All
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -1057,6 +1103,7 @@ const DoctorDashboard = () => {
                 .custom-scrollbar::-webkit-scrollbar { width: 3px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
+                .visit-logs-table > div { overflow-x: hidden; }
             `}</style>
         </div>
     );
@@ -1066,13 +1113,14 @@ const DoctorDashboard = () => {
 const statusStyle = (status) => {
     switch ((status || '').toLowerCase()) {
         case 'in progress':
+            return 'bg-green-600 text-white';
         case 'accepted':
             return 'bg-green-600 text-white';
+        case 'not accepted':
+        case 'rejected':
+            return 'bg-red-600 text-white';
         case 'cancelled':
             return 'border-gray-400 text-gray-500 border';
-        case 'rejected':
-        case 'not accepted':
-            return 'bg-red-600 text-white';
         case 'done':
             return 'bg-blue-600 text-white';
         case 'waiting':
@@ -1115,8 +1163,8 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
                         <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 max-w-[90px] truncate pointer-events-none border-green-200 ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : 'bg-green-50 text-green-700'}`}>
                             {formatArray(patient.services?.slice(0, 1) || [patient.type || 'Regular'])}
                         </Badge>
-                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : statusStyle(patient.status)}`}>
-                            {patient.status || 'Waiting'}
+                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : (patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? 'bg-green-600 text-white border-none' : patient.appointmentStatus === 'rejected' ? 'bg-red-600 text-white border-none' : patient.appointmentStatus === 'cancelled' ? 'border-gray-400 text-gray-500' : 'bg-amber-100 text-amber-700 border-none') : statusStyle(patient.status))}`}>
+                            {patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? 'Accepted' : patient.appointmentStatus === 'rejected' ? 'Not Accepted' : patient.appointmentStatus === 'cancelled' ? 'Cancelled' : 'Pending') : (patient.status || 'Waiting')}
                         </Badge>
                     </div>
                     <div className="flex flex-col gap-1 mt-2.5 border-t border-slate-100/50 pt-2.5">
@@ -1136,7 +1184,7 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
 };
 
 /* ─── Patient Detail Panel (shared) ─── */
-const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual, setShowIndividualDeclineModal, setRejectionReason }) => {
+const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, handleAcceptIndividual, setShowIndividualDeclineModal, setRejectionReason }) => {
     const [expandedVisitId, setExpandedVisitId] = useState(null);
 
     // Find all visits for this patient using Email or Phone
@@ -1313,27 +1361,7 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                     </CardContent>
                 </Card>
 
-                {patient.type === 'Appointment' && (!patient.appointmentStatus || patient.appointmentStatus === 'pending') && (
-                    <div className="flex flex-col sm:flex-row gap-4 mb-6 sticky top-0 z-20">
-                        <Button
-                            onClick={() => handleAcceptIndividual(patient.id)}
-                            className="flex-1 h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm uppercase tracking-widest shadow-lg shadow-emerald-200 flex items-center justify-center gap-2.5 group transition-all px-6"
-                        >
-                            <CheckCircle2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                            Accept Appointment
-                        </Button>
-                        <Button
-                            onClick={() => {
-                                setRejectionReason("");
-                                setShowIndividualDeclineModal(true);
-                            }}
-                            className="flex-1 h-14 rounded-2xl bg-white border border-rose-100 text-rose-600 hover:bg-rose-50 font-bold text-xs sm:text-sm uppercase tracking-widest shadow-sm flex items-center justify-center gap-2.5 group transition-all px-6"
-                        >
-                            <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                            Decline Request
-                        </Button>
-                    </div>
-                )}
+
 
                 <Card className="border shadow-sm rounded-xl overflow-hidden bg-white mb-8">
                     <CardHeader className="border-b border-slate-50 p-6 sm:p-8 pb-4">
@@ -1350,14 +1378,15 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <div className="hidden sm:block overflow-hidden">
+                        <div className="hidden sm:block overflow-hidden visit-logs-table">
                             <Table className="table-fixed">
                                 <TableHeader>
                                     <TableRow className="bg-gray-50 hover:bg-gray-50 border-none">
                                         <TableHead className="w-[12%] font-semibold text-gray-700 py-4 pl-6 whitespace-nowrap">Visit #</TableHead>
                                         <TableHead className="w-[28%] font-semibold text-gray-700 py-4">Doctor</TableHead>
-                                        <TableHead className="w-[42%] font-semibold text-gray-700 py-4">Symptoms</TableHead>
-                                        <TableHead className="w-[18%] font-semibold text-gray-700 py-4 text-center">Action</TableHead>
+                                        <TableHead className="w-[30%] font-semibold text-gray-700 py-4">Symptoms</TableHead>
+                                        <TableHead className="w-[14%] font-semibold text-gray-700 py-4 text-center">Status</TableHead>
+                                        <TableHead className="w-[16%] font-semibold text-gray-700 py-4 text-center">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1374,9 +1403,9 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell className="py-4 pr-2">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                                                            <span className="text-purple-700 font-medium text-xs xl:text-sm truncate max-w-[150px]">
+                                                        <div className="flex items-start gap-1.5">
+                                                            <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0 mt-0.5" />
+                                                            <span className="text-purple-700 font-medium text-xs xl:text-sm whitespace-normal break-words">
                                                                 {visit.assignedDoctor?.name || 'Unassigned'}
                                                             </span>
                                                         </div>
@@ -1399,28 +1428,100 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                                             ) : <span className="text-xs text-slate-400 font-medium italic">None reported</span>}
                                                         </div>
                                                     </TableCell>
+                                                    <TableCell className="py-4 text-center">
+                                                        {visit.type === 'Appointment' ? (
+                                                            visit.appointmentStatus === 'accepted' ? (
+                                                                <Badge className="bg-green-600 text-[10px] xl:text-xs">Accepted</Badge>
+                                                            ) : visit.appointmentStatus === 'rejected' ? (
+                                                                <Badge variant="destructive" className="bg-red-600 text-white text-[10px] xl:text-xs h-auto whitespace-normal text-center">
+                                                                    Not Accepted
+                                                                </Badge>
+                                                            ) : visit.appointmentStatus === 'cancelled' ? (
+                                                                <Badge variant="outline" className="border-gray-400 text-gray-500 text-[10px] xl:text-xs">
+                                                                    Cancelled
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px] xl:text-xs">
+                                                                    Pending
+                                                                </Badge>
+                                                            )
+                                                        ) : (
+                                                            <Badge variant="outline" className={`text-[10px] xl:text-xs ${statusStyle(visit.status)}`}>
+                                                                {visit.status || 'Waiting'}
+                                                            </Badge>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell className="py-4 align-middle">
-                                                        <div className="flex justify-center">
+                                                        <div className="flex justify-center gap-1 flex-nowrap">
                                                             <Button
                                                                 variant="ghost"
                                                                 onClick={() => setExpandedVisitId(isExpanded ? null : vId)}
-                                                                className="text-blue-600 hover:bg-blue-50 rounded-xl w-9 h-9 p-0 flex items-center justify-center"
+                                                                className="text-blue-600 hover:bg-blue-50 rounded-xl w-9 h-9 p-0 flex items-center justify-center shrink-0"
                                                                 title={isExpanded ? 'Hide Details' : 'View More'}
                                                             >
                                                                 <Eye className="w-5 h-5" />
                                                             </Button>
+
+                                                            {visit.type === 'Appointment' && (!visit.appointmentStatus || visit.appointmentStatus === 'pending') && (
+                                                                <>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-9 w-9 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-xl shrink-0"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleAcceptIndividual(visit.id || visit.dbId);
+                                                                        }}
+                                                                        title="Accept"
+                                                                    >
+                                                                        <CheckCircle2 className="w-5 h-5 transition-transform hover:scale-110" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedPatient(visit);
+                                                                            setRejectionReason("");
+                                                                            setShowIndividualDeclineModal(true);
+                                                                        }}
+                                                                        title="Decline"
+                                                                    >
+                                                                        <XCircle className="w-5 h-5 transition-transform hover:rotate-90" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
                                                 {isExpanded && (
                                                     <TableRow className="bg-slate-50/50 hover:bg-slate-50/50 transition-all">
-                                                        <TableCell colSpan={4} className="p-0 border-b border-slate-100">
+                                                        <TableCell colSpan={5} className="p-0 border-b border-slate-100">
                                                             <div className="p-6 sm:p-8 pb-6 grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-y-6 gap-x-6 border-l-4 border-emerald-400 ml-6 my-3 rounded-r-2xl bg-white shadow-md mr-6 animate-in slide-in-from-left-2 duration-200">
                                                                 <div>
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Status</p>
-                                                                    <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md pointer-events-none ${statusStyle(visit.status)}`}>
-                                                                        {visit.status || 'Waiting'}
-                                                                    </Badge>
+                                                                    {visit.type === 'Appointment' ? (
+                                                                        visit.appointmentStatus === 'accepted' ? (
+                                                                            <Badge className="bg-green-600 text-[10px] xl:text-xs pointer-events-none">Accepted</Badge>
+                                                                        ) : visit.appointmentStatus === 'rejected' ? (
+                                                                            <Badge variant="destructive" className="bg-red-600 text-white text-[10px] xl:text-xs pointer-events-none">
+                                                                                Not Accepted
+                                                                            </Badge>
+                                                                        ) : visit.appointmentStatus === 'cancelled' ? (
+                                                                            <Badge variant="outline" className="border-gray-400 text-gray-500 text-[10px] xl:text-xs pointer-events-none">
+                                                                                Cancelled
+                                                                            </Badge>
+                                                                        ) : (
+                                                                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px] xl:text-xs pointer-events-none">
+                                                                                Pending
+                                                                            </Badge>
+                                                                        )
+                                                                    ) : (
+                                                                        <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md pointer-events-none ${statusStyle(visit.status)}`}>
+                                                                            {visit.status || 'Waiting'}
+                                                                        </Badge>
+                                                                    )}
                                                                 </div>
                                                                 <div>
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Visit Type</p>
@@ -1483,17 +1584,73 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                 return (
                                     <div key={vId} className="p-5 space-y-5">
                                         <div className="flex items-center justify-between">
-                                            <Badge variant="outline" className="font-mono text-xs">
-                                                Visit #{String(visitNum).padStart(3, '0')}
-                                            </Badge>
-                                            <Button
-                                                variant="ghost"
-                                                onClick={() => setExpandedVisitId(isExpanded ? null : vId)}
-                                                className="text-blue-600 hover:bg-blue-50 rounded-xl w-9 h-9 p-0 flex items-center justify-center"
-                                                title={isExpanded ? 'Hide Details' : 'View More'}
-                                            >
-                                                <Eye className="w-5 h-5" />
-                                            </Button>
+                                            <div className="flex flex-col gap-1.5">
+                                                <Badge variant="outline" className="font-mono text-xs w-fit">
+                                                    Visit #{String(visitNum).padStart(3, '0')}
+                                                </Badge>
+                                                {visit.type === 'Appointment' ? (
+                                                    visit.appointmentStatus === 'accepted' ? (
+                                                        <Badge className="bg-green-600 text-[10px] w-fit">Accepted</Badge>
+                                                    ) : visit.appointmentStatus === 'rejected' ? (
+                                                        <Badge variant="destructive" className="bg-red-600 text-white text-[10px] w-fit">
+                                                            Not Accepted
+                                                        </Badge>
+                                                    ) : visit.appointmentStatus === 'cancelled' ? (
+                                                        <Badge variant="outline" className="border-gray-400 text-gray-500 text-[10px] w-fit">
+                                                            Cancelled
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px] w-fit">
+                                                            Pending
+                                                        </Badge>
+                                                    )
+                                                ) : (
+                                                    <Badge variant="outline" className={`text-[10px] w-fit ${statusStyle(visit.status)}`}>
+                                                        {visit.status || 'Waiting'}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => setExpandedVisitId(isExpanded ? null : vId)}
+                                                    className="text-blue-600 hover:bg-blue-50 rounded-xl w-9 h-9 p-0 flex items-center justify-center shrink-0"
+                                                    title={isExpanded ? 'Hide Details' : 'View More'}
+                                                >
+                                                    <Eye className="w-5 h-5" />
+                                                </Button>
+
+                                                {visit.type === 'Appointment' && (!visit.appointmentStatus || visit.appointmentStatus === 'pending') && (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-9 w-9 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-xl shrink-0"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleAcceptIndividual(visit.id || visit.dbId);
+                                                            }}
+                                                            title="Accept"
+                                                        >
+                                                            <CheckCircle2 className="w-5 h-5 transition-transform hover:scale-110" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl shrink-0"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedPatient(visit);
+                                                                setRejectionReason("");
+                                                                setShowIndividualDeclineModal(true);
+                                                            }}
+                                                            title="Decline"
+                                                        >
+                                                            <XCircle className="w-5 h-5 transition-transform hover:rotate-90" />
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-1 gap-4">
