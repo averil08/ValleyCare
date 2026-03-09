@@ -59,8 +59,8 @@ function PatientSettings() {
             age: profile.age || '',
             phoneNumber: (() => {
               let p = (profile.phoneNumber || '');
-              if (p.startsWith('+63')) return '0' + p.slice(3);
-              if (p.startsWith('9')) return '0' + p;
+              if (p.startsWith('+63')) return p.slice(3);
+              if (p.startsWith('09')) return p.slice(1);
               return p;
             })() || ''
           }));
@@ -96,12 +96,8 @@ function PatientSettings() {
       case 'phoneNumber':
         if (!value) {
           error = 'Phone number is required';
-        } else if (!/^09/.test(value)) {
-          error = 'Phone number must start with 09';
-        } else if (!/^\d+$/.test(value)) {
-          error = 'Phone number must contain only numeric values';
-        } else if (value.length !== 11) {
-          error = 'Phone number must be exactly 11 digits starting with 09';
+        } else if (!/^9\d{9}$/.test(value)) {
+          error = 'Phone number must be exactly 10 digits starting with 9';
         }
         break;
       case 'currentPassword':
@@ -136,8 +132,7 @@ function PatientSettings() {
 
     if (id === 'phoneNumber') {
       value = value.replace(/\D/g, '');
-      if (value.startsWith('9')) value = '0' + value;
-      value = value.slice(0, 11);
+      value = value.slice(0, 10);
     }
 
     // Prevent negative age values if typed manually
@@ -245,7 +240,7 @@ function PatientSettings() {
         middleName: formData.middleName.trim(),
         surname: formData.surname.trim(),
         age: formData.age,
-        phoneNumber: `+63${formData.phoneNumber.trim().replace(/^0/, "")}`
+        phoneNumber: `0${formData.phoneNumber.trim()}`
       };
 
       // Save to localStorage with email key
@@ -428,11 +423,11 @@ function PatientSettings() {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         className={`rounded-l-none ${touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}`}
-                        placeholder="09171234567"
+                        placeholder="9123456789"
                         required
-                        maxLength={11}
-                        minLength={11}
-                        pattern="\d{11}"
+                        maxLength={10}
+                        minLength={10}
+                        pattern="9\d{9}"
                       />
                     </div>
                     {touched.phoneNumber && errors.phoneNumber && <p className="text-xs text-red-500">{errors.phoneNumber}</p>}

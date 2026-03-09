@@ -402,7 +402,7 @@ const Dashboard = () => {
           `#${String(patient.queueNo).padStart(3, '0')}`,
           patient.name,
           patient.age,
-          patient.phoneNum || 'N/A',
+          (patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A',
           patient.assignedDoctor?.name || 'Not Assigned',
           patient.type,
           formatArray(patient.symptoms),  // NEW
@@ -450,7 +450,7 @@ const Dashboard = () => {
           `#${String(patient.queueNo).padStart(3, '0')}`,
           patient.name,
           patient.age,
-          patient.phoneNum || 'N/A',
+          (patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A',
           patient.assignedDoctor?.name || 'Not Assigned',
           patient.type,
           formatArray(patient.symptoms),  // NEW
@@ -2245,7 +2245,7 @@ const Dashboard = () => {
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Phone:</span>
-                                <span className="font-medium">{patient.phoneNum || 'N/A'}</span>
+                                <span className="font-medium">{(patient.phoneNum || '').replace(/^\+63/, '0') || 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-gray-600">Type:</span>

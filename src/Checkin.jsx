@@ -356,10 +356,8 @@ function Checkin() {
     } else if (!value && ['firstName', 'lastName', 'age', 'phoneNum', 'patientEmail'].includes(id)) {
       error = "This field is required.";
     } else if (id === "phoneNum" && value) {
-      if (!/^\d{11}$/.test(value)) {
-        error = "Phone number must be exactly 11 digits starting with 09.";
-      } else if (!value.startsWith("09")) {
-        error = "Phone number must start with 09.";
+      if (!/^9\d{9}$/.test(value)) {
+        error = "Phone number must be exactly 10 digits starting with 9.";
       }
     } else if (id === "age" && value && (value <= 0 || value > 150)) {
       error = "Please enter a valid age.";
@@ -398,10 +396,9 @@ function Checkin() {
 
   const handlePhoneChange = (e) => {
     const value = e.target.value;
-    // Only allow digits and limit to 11 characters
+    // Only allow digits and limit to 10 characters
     let digitsOnly = value.replace(/\D/g, '');
-    if (digitsOnly.startsWith('9')) digitsOnly = '0' + digitsOnly;
-    digitsOnly = digitsOnly.slice(0, 11);
+    digitsOnly = digitsOnly.slice(0, 10);
     setFormData((prev) => {
       const newData = { ...prev, phoneNum: digitsOnly };
       if (touched.phoneNum) {
@@ -514,7 +511,7 @@ function Checkin() {
       ...formData,
       name: composedName,
       fullName: composedName,
-      phoneNum: formData.phoneNum ? `+63${formData.phoneNum.replace(/^0/, "")}` : "",
+      phoneNum: formData.phoneNum ? `0${formData.phoneNum}` : "",
       symptoms: formData.symptoms.map(s =>
         s === 'Other' ? `Other: ${formData.otherSymptomText}` : s
       ),
@@ -546,13 +543,8 @@ function Checkin() {
       }
 
       if (formData.phoneNum) {
-        if (formData.phoneNum.length !== 11) {
-          showMessage("Validation Error", "Phone number must be exactly 11 digits starting with 09.", false);
-          setIsSubmitting(false);
-          return;
-        }
-        if (!formData.phoneNum.startsWith("09")) {
-          showMessage("Validation Error", "Phone number must start with 09.", false);
+        if (!/^9\d{9}$/.test(formData.phoneNum)) {
+          showMessage("Validation Error", "Phone number must start with 9 and be exactly 10 digits.", false);
           setIsSubmitting(false);
           return;
         }
@@ -625,7 +617,7 @@ function Checkin() {
           dbId: dbId,
           name: composedName,
           age: formData.age,
-          phoneNum: formData.phoneNum ? `+63${formData.phoneNum.replace(/^0/, "")}` : "",
+          phoneNum: formData.phoneNum ? `0${formData.phoneNum}` : "",
           type: selectedPatientType,
           symptoms: formData.symptoms.map(s =>
             s === 'Other' ? `Other: ${formData.otherSymptomText}` : s
@@ -791,8 +783,8 @@ function Checkin() {
             age: userProfile.age || prev.age,
             phoneNum: (() => {
               let p = (userProfile.phoneNumber || '');
-              if (p.startsWith('+63')) return '0' + p.slice(3);
-              if (p.startsWith('9')) return '0' + p;
+              if (p.startsWith('+63')) return p.slice(3);
+              if (p.startsWith('09')) return p.slice(1);
               return p || prev.phoneNum;
             })(),
             patientEmail: userProfile.email || prev.patientEmail,
@@ -1135,10 +1127,10 @@ function Checkin() {
                           onChange={handlePhoneChange}
                           onBlur={handleBlur}
                           className={`rounded-l-none ${touched.phoneNum && errors.phoneNum ? "border-red-500" : ""}`}
-                          placeholder="09123456789"
-                          maxLength={11}
-                          minLength={11}
-                          pattern="\d{11}"
+                          placeholder="9123456789"
+                          maxLength={10}
+                          minLength={10}
+                          pattern="9\d{9}"
                           inputMode="numeric"
                           required
                         />

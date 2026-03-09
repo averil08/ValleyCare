@@ -28,10 +28,8 @@ function Signup() {
     if (!value && id !== "middleName") {
       error = "This field is required.";
     } else if (id === "phoneNumber" && value) {
-      if (!/^\d{11}$/.test(value)) {
-        error = "Phone number must be exactly 11 digits starting with 09.";
-      } else if (!value.startsWith("09")) {
-        error = "Phone number must start with 09.";
+      if (!/^9\d{9}$/.test(value)) {
+        error = "Phone number must be exactly 10 digits starting with 9.";
       }
     } else if (id === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       error = "Invalid email format.";
@@ -53,8 +51,7 @@ function Signup() {
     let { id, value } = e.target;
     if (id === "phoneNumber") {
       value = value.replace(/\D/g, "");
-      if (value.startsWith('9')) value = '0' + value;
-      value = value.slice(0, 11);
+      value = value.slice(0, 10);
     }
     const newData = { ...formData, [id]: value };
     setFormData(newData);
@@ -108,10 +105,10 @@ function Signup() {
         return;
       }
 
-      // 2. Phone number validation (Strictly 11 digits starting with 09)
-      const phoneRegex = /^09\d{9}$/;
+      // 2. Phone number validation (Strictly 10 digits starting with 9)
+      const phoneRegex = /^9\d{9}$/;
       if (!phoneRegex.test(formData.phoneNumber)) {
-        showMessage("Validation Error", "Phone number must start with 09 and be exactly 11 digits.", false);
+        showMessage("Validation Error", "Phone number must start with 9 and be exactly 10 digits.", false);
         setIsSubmitting(false);
         return;
       }
@@ -137,7 +134,7 @@ function Signup() {
         formData.email,
         formData.password,
         fullName,
-        `+63${formData.phoneNumber.replace(/^0/, "")}`,
+        `0${formData.phoneNumber}`,
         "patient"
       );
 
@@ -245,11 +242,11 @@ function Signup() {
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   className={`rounded-l-none ${touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}`}
-                  placeholder="09123456789"
+                  placeholder="9123456789"
                   required
-                  maxLength={11}
-                  minLength={11}
-                  pattern="\d{11}"
+                  maxLength={10}
+                  minLength={10}
+                  pattern="9\d{9}"
                 />
               </div>
               {touched.phoneNumber && errors.phoneNumber && <p className="text-xs text-red-500 mt-1">{errors.phoneNumber}</p>}
