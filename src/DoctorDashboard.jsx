@@ -1108,15 +1108,18 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
                     <p className={`font-bold tracking-tight truncate text-sm sm:text-base ${isSelected ? 'text-white' : 'text-slate-800'}`}>
                         {patient.name}
                     </p>
-                    <div className="flex flex-wrap items-center gap-x-1 sm:gap-x-2 gap-y-1 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 mt-2.5">
                         <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 max-w-[90px] truncate pointer-events-none border-green-200 ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : 'bg-green-50 text-green-700'}`}>
                             {formatArray(patient.services?.slice(0, 1) || [patient.type || 'Regular'])}
                         </Badge>
                         <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : statusStyle(patient.status)}`}>
                             {patient.status || 'Waiting'}
                         </Badge>
-                        <span className={`text-[10px] flex items-center gap-1 shrink-0 whitespace-nowrap pt-0.5 ${isSelected ? 'text-emerald-100' : 'text-gray-500 font-medium'}`}>
-                            <Clock className="w-3 h-3" />
+                    </div>
+                    <div className="flex flex-col gap-1 mt-2.5 border-t border-slate-100/50 pt-2.5">
+                        <p className={`text-[9px] font-bold uppercase tracking-widest leading-none ${isSelected ? 'text-emerald-100/90' : 'text-slate-400'}`}>Date and Time of Appointment</p>
+                        <span className={`text-[11px] flex items-center gap-1.5 shrink-0 whitespace-nowrap font-bold ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                            <Clock className="w-3.5 h-3.5" />
                             {formatDateShort(patient.registeredAt || patient.appointmentDateTime)}
                         </span>
                     </div>
@@ -1192,11 +1195,14 @@ const PatientDetail = ({ patient, patients, workspaceRef, handleAcceptIndividual
                                             {patient.status || 'Waiting'}
                                         </Badge>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[13px] font-bold text-slate-500">
-                                        <span className="flex items-center gap-1.5"><Clock className="w-4.5 h-4.5 text-emerald-500" />
-                                            {new Date(patient.registeredAt || patient.appointmentDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
-                                        {patient.isPriority && <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border border-amber-200 text-xs font-medium uppercase tracking-wider rounded-md pointer-events-none" >Priority</Badge>}
+                                    <div className="flex flex-col gap-1.5">
+                                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest leading-none">Date and Time of Appointment</p>
+                                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-[13px] font-bold text-slate-500">
+                                            <span className="flex items-center gap-1.5"><Clock className="w-4.5 h-4.5 text-emerald-500" />
+                                                {formatDateTime(patient.registeredAt || patient.appointmentDateTime)}
+                                            </span>
+                                            {patient.isPriority && <Badge variant="secondary" className="bg-amber-100/50 text-amber-700 border border-amber-200 text-xs font-medium uppercase tracking-wider rounded-md pointer-events-none" >Priority</Badge>}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 pt-5 border-t border-slate-100">
