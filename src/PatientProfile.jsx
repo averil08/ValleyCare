@@ -241,8 +241,8 @@ const PatientProfile = () => {
       const category = getVisitStatusCategory(visit);
       if (category === 'unknown') return;
 
-      // EXCLUDE: Pending and Rejected appointment requests from patient history
-      if (visit.type === 'Appointment' && (visit.appointmentStatus === 'pending' || visit.appointmentStatus === 'rejected')) return;
+      // EXCLUDE: Pending appointment requests from patient history
+      if (visit.type === 'Appointment' && visit.appointmentStatus === 'pending') return;
 
       // Primary identification: Use email if available to group all records from the same account.
       // Fall back to normalized name for walk-ins or records without email.
@@ -408,6 +408,8 @@ const PatientProfile = () => {
       completed: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'completed').length,
       cancelled: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'cancelled').length,
       upcoming: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'upcoming').length,
+      accepted: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'accepted').length,
+      'not-approved': selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'not-approved').length,
     };
   }, [selectedPatient]);
 
@@ -1060,6 +1062,22 @@ const PatientProfile = () => {
                       className={visitStatusFilter === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'border-red-300 text-red-700 hover:bg-red-50'}
                     >
                       Cancelled ({visitStatusCounts.cancelled || 0})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={visitStatusFilter === 'accepted' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('accepted')}
+                      className={visitStatusFilter === 'accepted' ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}
+                    >
+                      Accepted ({visitStatusCounts.accepted || 0})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={visitStatusFilter === 'not-approved' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('not-approved')}
+                      className={visitStatusFilter === 'not-approved' ? 'bg-gray-600 hover:bg-gray-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}
+                    >
+                      Not Accepted ({visitStatusCounts['not-approved'] || 0})
                     </Button>
                   </div>
                 </div>
