@@ -562,7 +562,7 @@ const QueueStatus = () => {
               <>Are you sure you're done? You can book a new appointment after completing this action.</>
             )}
           </p>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
             <button
               onClick={() => setShowDoneModal(false)}
               className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium text-sm sm:text-base"
@@ -595,7 +595,7 @@ const QueueStatus = () => {
           <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6 text-center leading-relaxed">
             Are you sure you want to cancel your appointment? This action cannot be undone.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
             <button
               onClick={() => setShowCancelModal(false)}
               disabled={isCancelling}
