@@ -254,7 +254,7 @@ const DoctorDashboard = () => {
         return false;
     };
 
-    const formatArray = (arr) => (!arr || arr.length === 0) ? 'None' : arr.join(', ');
+
 
     const myPatients = (patients || []).filter(p => {
         if (p.isInactive) return false;
@@ -362,7 +362,7 @@ const DoctorDashboard = () => {
     const stats = [
         { label: "Today", value: totalTodayCount.toString(), icon: Users, color: "text-emerald-600", bg: "bg-emerald-50" },
         { label: "Queue", value: activeCount.toString(), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-        { label: "Done", value: completedTodayCount.toString(), icon: CheckCircle2, color: "text-blue-600", bg: "bg-blue-50" },
+        { label: "Completed", value: completedTodayCount.toString(), icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
     ];
 
     const handlePatientClick = (patient) => {
@@ -389,7 +389,7 @@ const DoctorDashboard = () => {
     /* ─── Queue Status Filter Pills ─── */
     const statusFilterOptions = [
         { key: 'active', label: 'Active', count: activeCount, pill: 'bg-emerald-600 hover:bg-emerald-700 text-white', inactive: 'hover:bg-gray-100' },
-        { key: 'done', label: 'Done', count: doneCount, pill: 'bg-blue-600 hover:bg-blue-700 text-white', inactive: 'hover:bg-gray-100' },
+        { key: 'done', label: 'Completed', count: doneCount, pill: 'bg-emerald-600 hover:bg-emerald-700 text-white', inactive: 'hover:bg-gray-100' },
         { key: 'cancelled', label: 'Cancelled', count: cancelledCount, pill: 'bg-red-600 hover:bg-red-700 text-white', inactive: 'hover:bg-gray-100' },
     ];
 
@@ -662,13 +662,16 @@ const DoctorDashboard = () => {
                             </div>
                             {/* Stats row */}
                             <div className="flex items-center gap-2">
-                                {stats.map((s, i) => (
-                                    <div key={i} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl flex-1 justify-center ${s.bg}`}>
-                                        <s.icon className={`w-3 h-3 ${s.color}`} />
-                                        <span className={`text-xs font-bold ${s.color}`}>{s.value}</span>
-                                        <span className={`text-[9px] font-bold ${s.color} opacity-60 uppercase tracking-wider hidden sm:inline`}>{s.label}</span>
-                                    </div>
-                                ))}
+                                {stats.map((s, i) => {
+                                    const Icon = s.icon;
+                                    return (
+                                        <div key={i} className={`flex items-center gap-1.5 px-2 py-1.5 rounded-xl flex-1 justify-center ${s.bg}`}>
+                                            <Icon className={`w-3 h-3 ${s.color}`} />
+                                            <span className={`text-xs font-bold ${s.color}`}>{s.value}</span>
+                                            <span className={`text-[9px] font-bold ${s.color} opacity-60 uppercase tracking-wider hidden sm:inline`}>{s.label}</span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -845,17 +848,20 @@ const DoctorDashboard = () => {
                     <header className="bg-white border-b border-slate-100 px-5 lg:px-8 py-4 shrink-0 shadow-sm">
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-4 lg:gap-8 overflow-x-auto no-scrollbar">
-                                {stats.map((stat, i) => (
-                                    <div key={i} className="flex items-center gap-3 shrink-0">
-                                        <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} shadow-sm`}>
-                                            <stat.icon className="w-4 h-4" />
+                                {stats.map((stat, i) => {
+                                    const StatIcon = stat.icon;
+                                    return (
+                                        <div key={i} className="flex items-center gap-3 shrink-0">
+                                            <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} shadow-sm`}>
+                                                <StatIcon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-none">{stat.label}</p>
+                                                <p className="text-xl lg:text-2xl font-bold text-slate-800 leading-none mt-0.5">{stat.value}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold leading-none">{stat.label}</p>
-                                            <p className="text-xl lg:text-2xl font-bold text-slate-800 leading-none mt-0.5">{stat.value}</p>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* ── Context-sensitive date filter dropdown (desktop) ── */}
@@ -1113,21 +1119,32 @@ const DoctorDashboard = () => {
 const statusStyle = (status) => {
     switch ((status || '').toLowerCase()) {
         case 'in progress':
-            return 'bg-green-600 text-white';
+        case 'in-progress':
+            return 'bg-blue-100 text-blue-700 border-blue-300 border';
         case 'accepted':
-            return 'bg-green-600 text-white';
+            return 'bg-green-600 text-white border-none';
         case 'not accepted':
         case 'rejected':
-            return 'bg-red-600 text-white';
+            return 'bg-red-600 text-white border-none';
         case 'cancelled':
-            return 'border-gray-400 text-gray-500 border';
+            return 'bg-red-100 text-red-700 border-red-300 border';
         case 'done':
-            return 'bg-blue-600 text-white';
+        case 'completed':
+            return 'bg-emerald-100 text-emerald-700 border-emerald-300 border';
         case 'waiting':
         case 'pending':
+            return 'bg-yellow-100 text-yellow-700 border-yellow-300 border';
         default:
-            return 'bg-amber-100 text-amber-700';
+            return 'bg-amber-100 text-amber-700 border-none';
     }
+};
+
+const getDisplayStatus = (status) => {
+    if (!status) return 'Waiting';
+    const s = status.toLowerCase();
+    if (s === 'done' || s === 'completed') return 'Completed';
+    if (s === 'in progress') return 'In Progress';
+    return status.charAt(0).toUpperCase() + status.slice(1);
 };
 
 const formatArray = (arr) => {
@@ -1163,8 +1180,8 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
                         <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 max-w-[90px] truncate pointer-events-none border-green-200 ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : 'bg-green-50 text-green-700'}`}>
                             {formatArray(patient.services?.slice(0, 1) || [patient.type || 'Regular'])}
                         </Badge>
-                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : (patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? 'bg-green-600 text-white border-none' : patient.appointmentStatus === 'rejected' ? 'bg-red-600 text-white border-none' : patient.appointmentStatus === 'cancelled' ? 'border-gray-400 text-gray-500' : 'bg-amber-100 text-amber-700 border-none') : statusStyle(patient.status))}`}>
-                            {patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? 'Accepted' : patient.appointmentStatus === 'rejected' ? 'Not Accepted' : patient.appointmentStatus === 'cancelled' ? 'Cancelled' : 'Pending') : (patient.status || 'Waiting')}
+                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : (patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? (patient.status === 'done' ? statusStyle('done') : 'bg-green-600 text-white border-none') : patient.appointmentStatus === 'rejected' ? 'bg-red-600 text-white border-none' : patient.appointmentStatus === 'cancelled' ? statusStyle('cancelled') : 'bg-amber-100 text-amber-700 border-none') : statusStyle(patient.status))}`}>
+                            {patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? (patient.status === 'done' ? 'Completed' : 'Accepted') : patient.appointmentStatus === 'rejected' ? 'Not Accepted' : patient.appointmentStatus === 'cancelled' ? 'Cancelled' : 'Pending') : getDisplayStatus(patient.status)}
                         </Badge>
                     </div>
                     <div className="flex flex-col gap-1 mt-2.5 border-t border-slate-100/50 pt-2.5">
@@ -1245,7 +1262,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                     <div className="flex items-center gap-3 mb-1.5">
                                         <h2 className="text-3xl sm:text-4xl font-bold text-slate-800 tracking-tight truncate">{patient.name}</h2>
                                         <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md hidden sm:inline-flex pointer-events-none ${statusStyle(patient.status)}`}>
-                                            {patient.status || 'Waiting'}
+                                            {getDisplayStatus(patient.status)}
                                         </Badge>
                                     </div>
                                     <div className="flex flex-col gap-1.5">
@@ -1447,7 +1464,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                             )
                                                         ) : (
                                                             <Badge variant="outline" className={`text-[10px] xl:text-xs ${statusStyle(visit.status)}`}>
-                                                                {visit.status || 'Waiting'}
+                                                                {getDisplayStatus(visit.status)}
                                                             </Badge>
                                                         )}
                                                     </TableCell>
@@ -1519,7 +1536,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                                         )
                                                                     ) : (
                                                                         <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md pointer-events-none ${statusStyle(visit.status)}`}>
-                                                                            {visit.status || 'Waiting'}
+                                                                            {getDisplayStatus(visit.status)}
                                                                         </Badge>
                                                                     )}
                                                                 </div>
@@ -1606,7 +1623,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                     )
                                                 ) : (
                                                     <Badge variant="outline" className={`text-[10px] w-fit ${statusStyle(visit.status)}`}>
-                                                        {visit.status || 'Waiting'}
+                                                        {getDisplayStatus(visit.status)}
                                                     </Badge>
                                                 )}
                                             </div>
@@ -1684,7 +1701,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                 <div className="col-span-1">
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Status</p>
                                                     <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-lg shadow-sm pointer-events-none ${statusStyle(visit.status)}`}>
-                                                        {visit.status || 'Waiting'}
+                                                        {getDisplayStatus(visit.status)}
                                                     </Badge>
                                                 </div>
                                                 <div className="col-span-1">
