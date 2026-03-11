@@ -1448,34 +1448,46 @@ const Dashboard = () => {
             </div>
           )}
 
-          {/* NEW: Filter Tabs */}
-          <div className="flex space-x-1 rounded-xl bg-gray-100 p-1 mb-6">
+          {/* Filter Tab Pills — matches DoctorDashboard style */}
+          <div className="flex flex-wrap gap-1 mb-6">
             <button
               onClick={() => setActiveTab('active')}
-              className={`w-full rounded-lg py-2.5 text-sm font-medium leading-5 ring-white ring-opacity-60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ${activeTab === 'active'
-                ? 'bg-white text-blue-700 shadow'
-                : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-                }`}
+              className={`h-12 flex-1 px-3 text-xs font-medium rounded-lg border transition-all flex items-center justify-center gap-1.5
+                ${activeTab === 'active'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                  : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-200'}`}
             >
-              Active Queue
+              Active
+              <span className={`ml-1 px-1.5 py-0 text-[10px] leading-none min-w-[1.125rem] rounded-full font-bold flex items-center justify-center
+                ${activeTab === 'active' ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500'}`}>
+                {filteredQueuePatients.length + filteredPriorityPatients.length}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('done')}
-              className={`w-full rounded-lg py-2.5 text-sm font-medium leading-5 ring-white ring-opacity-60 ring-offset-2 ring-offset-emerald-400 focus:outline-none focus:ring-2 ${activeTab === 'done'
-                ? 'bg-white text-emerald-700 shadow'
-                : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-                }`}
+              className={`h-12 flex-1 px-3 text-xs font-medium rounded-lg border transition-all flex items-center justify-center gap-1.5
+                ${activeTab === 'done'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+                  : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-200'}`}
             >
-              Done Patients
+              Completed
+              <span className={`ml-1 px-1.5 py-0 text-[10px] leading-none min-w-[1.125rem] rounded-full font-bold flex items-center justify-center
+                ${activeTab === 'done' ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500'}`}>
+                {filteredDonePatients.length}
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('cancelled')}
-              className={`w-full rounded-lg py-2.5 text-sm font-medium leading-5 ring-white ring-opacity-60 ring-offset-2 ring-offset-red-400 focus:outline-none focus:ring-2 ${activeTab === 'cancelled'
-                ? 'bg-white text-red-700 shadow'
-                : 'text-gray-500 hover:bg-white/[0.12] hover:text-gray-700'
-                }`}
+              className={`h-12 flex-1 px-3 text-xs font-medium rounded-lg border transition-all flex items-center justify-center gap-1.5
+                ${activeTab === 'cancelled'
+                  ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                  : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-200'}`}
             >
-              Cancelled Patients
+              Cancelled
+              <span className={`ml-1 px-1.5 py-0 text-[10px] leading-none min-w-[1.125rem] rounded-full font-bold flex items-center justify-center
+                ${activeTab === 'cancelled' ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-500'}`}>
+                {filteredCancelPatients.length}
+              </span>
             </button>
           </div>
 
