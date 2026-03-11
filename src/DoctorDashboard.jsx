@@ -1152,9 +1152,39 @@ const formatArray = (arr) => {
     return arr.join(', ');
 };
 
+const getPatientBadge = (p) => {
+    if (p.type === 'Appointment') {
+        if (p.appointmentStatus === 'rejected') return { text: 'Not Accepted', style: 'bg-red-600 text-white border-none' };
+        if (p.appointmentStatus === 'cancelled' || p.status === 'cancelled') return { text: 'Cancelled', style: 'bg-red-100 text-red-700 border-red-300 border' };
+        if (!p.appointmentStatus || p.appointmentStatus === 'pending') return { text: 'Pending', style: 'bg-amber-100 text-amber-700 border-none' };
+        
+        if (p.appointmentStatus === 'accepted') {
+            if (p.status === 'done' || p.status === 'completed') return { text: 'Completed', style: 'bg-emerald-100 text-emerald-700 border-emerald-300 border' };
+            if (p.status === 'in progress' || p.status === 'in-progress') return { text: 'In Progress', style: 'bg-blue-100 text-blue-700 border-blue-300 border' };
+            if (p.status === 'waiting' || p.status === 'pending') return { text: 'Waiting', style: 'bg-yellow-100 text-yellow-700 border-yellow-300 border' };
+            
+            const apptDate = p.appointmentDateTime ? new Date(new Date(p.appointmentDateTime).setHours(0,0,0,0)) : null;
+            const today = new Date(new Date().setHours(0,0,0,0));
+            if (apptDate && apptDate > today) return { text: 'Upcoming', style: 'bg-blue-600 text-white border-none' };
+            
+            return { text: 'Accepted', style: 'bg-green-600 text-white border-none' };
+        }
+    }
+    
+    // Walk-ins or fallback
+    const status = p.status ? p.status.toLowerCase() : 'waiting';
+    if (status === 'done' || status === 'completed') return { text: 'Completed', style: 'bg-emerald-100 text-emerald-700 border-emerald-300 border' };
+    if (status === 'in progress' || status === 'in-progress') return { text: 'In Progress', style: 'bg-blue-100 text-blue-700 border-blue-300 border' };
+    if (status === 'cancelled') return { text: 'Cancelled', style: 'bg-red-100 text-red-700 border-red-300 border' };
+    if (status === 'waiting' || status === 'pending') return { text: 'Waiting', style: 'bg-yellow-100 text-yellow-700 border-yellow-300 border' };
+    
+    return { text: status.charAt(0).toUpperCase() + status.slice(1), style: 'bg-amber-100 text-amber-700 border-none' };
+};
+
 /* ─── Patient Card (shared) ─── */
 const PatientCard = ({ patient, selectedPatient, onClick }) => {
     const isSelected = selectedPatient?.queueNo === patient.queueNo;
+    const badge = getPatientBadge(patient);
 
     return (
         <div
@@ -1180,8 +1210,8 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
                         <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 max-w-[90px] truncate pointer-events-none border-green-200 ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : 'bg-green-50 text-green-700'}`}>
                             {formatArray(patient.services?.slice(0, 1) || [patient.type || 'Regular'])}
                         </Badge>
-                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : (patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? (patient.status === 'done' ? statusStyle('done') : 'bg-green-600 text-white border-none') : patient.appointmentStatus === 'rejected' ? 'bg-red-600 text-white border-none' : patient.appointmentStatus === 'cancelled' ? statusStyle('cancelled') : 'bg-amber-100 text-amber-700 border-none') : statusStyle(patient.status))}`}>
-                            {patient.type === 'Appointment' ? (patient.appointmentStatus === 'accepted' ? (patient.status === 'done' ? 'Completed' : 'Accepted') : patient.appointmentStatus === 'rejected' ? 'Not Accepted' : patient.appointmentStatus === 'cancelled' ? 'Cancelled' : 'Pending') : getDisplayStatus(patient.status)}
+                        <Badge variant="outline" className={`text-[10px] h-5 font-semibold px-1.5 shrink-0 pointer-events-none ${isSelected ? 'bg-white/10 text-emerald-50 border-none' : badge.style}`}>
+                            {badge.text}
                         </Badge>
                     </div>
                     <div className="flex flex-col gap-1 mt-2.5 border-t border-slate-100/50 pt-2.5">
@@ -1264,8 +1294,8 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                 <div>
                                     <div className="flex items-center gap-3 mb-1.5">
                                         <h2 className="text-3xl sm:text-4xl font-bold text-slate-800 tracking-tight truncate">{patient.name}</h2>
-                                        <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md hidden sm:inline-flex pointer-events-none ${statusStyle(patient.status)}`}>
-                                            {getDisplayStatus(patient.status)}
+                                        <Badge variant="outline" className={`text-xs font-semibold px-3 py-1 rounded-md hidden sm:inline-flex pointer-events-none ${getPatientBadge(patient).style}`}>
+                                            {getPatientBadge(patient).text}
                                         </Badge>
                                     </div>
                                     <div className="flex flex-col gap-1.5">
@@ -1589,10 +1619,16 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Registered At</p>
                                                                     <p className="text-sm font-medium text-gray-700">{formatDate(visit.registeredAt)}</p>
                                                                 </div>
-                                                                <div>
-                                                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Completed At</p>
-                                                                    <p className="text-sm font-medium text-gray-700">{formatDate(visit.completedAt)}</p>
-                                                                </div>
+                                                                {(visit.completedAt || visit.status === 'cancelled') && (
+                                                                    <div>
+                                                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">
+                                                                            {visit.status === 'cancelled' ? 'Cancelled At' : 'Completed At'}
+                                                                        </p>
+                                                                        <p className="text-sm font-medium text-gray-700">
+                                                                            {formatDate(visit.status === 'cancelled' ? (visit.cancelledAt || visit.queueExitTime || visit.registeredAt) : visit.completedAt)}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
@@ -1745,10 +1781,14 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                         ) : <span className="text-sm text-slate-400 italic">None</span>}
                                                     </div>
                                                 </div>
-                                                {visit.completedAt && (
+                                                {(visit.completedAt || visit.status === 'cancelled') && (
                                                     <div className="col-span-2 border-t border-slate-50 pt-3">
-                                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Completed At</p>
-                                                        <p className="text-[13px] font-medium text-gray-700">{formatDate(visit.completedAt)}</p>
+                                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">
+                                                            {visit.status === 'cancelled' ? 'Cancelled At' : 'Completed At'}
+                                                        </p>
+                                                        <p className="text-[13px] font-medium text-gray-700">
+                                                            {formatDate(visit.status === 'cancelled' ? (visit.cancelledAt || visit.queueExitTime || visit.registeredAt) : visit.completedAt)}
+                                                        </p>
                                                     </div>
                                                 )}
                                             </div>
