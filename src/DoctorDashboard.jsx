@@ -1211,6 +1211,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
 
     let patientVisits = (patients || [])
         .filter(p => {
+            if (p.type === 'Appointment' && p.appointmentStatus === 'rejected') return false;
             if (targetEmail && p.patientEmail && p.patientEmail.toLowerCase().trim() === targetEmail) return true;
             if (targetPhone && p.phoneNum && p.phoneNum.trim() === targetPhone) return true;
             if (!targetEmail && !targetPhone && p.name && p.name.toLowerCase().trim() === targetName) return true;
@@ -1219,7 +1220,9 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
         .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
 
     if (patientVisits.length === 0) {
-        patientVisits = [patient];
+        if (!(patient.type === 'Appointment' && patient.appointmentStatus === 'rejected')) {
+            patientVisits = [patient];
+        }
     }
 
     const now = new Date();
@@ -1448,7 +1451,11 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                     <TableCell className="py-4 text-center">
                                                         {visit.type === 'Appointment' ? (
                                                             visit.appointmentStatus === 'accepted' ? (
-                                                                <Badge className="bg-green-600 text-[10px] xl:text-xs">Accepted</Badge>
+                                                                (visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0,0,0,0)) > new Date(new Date().setHours(0,0,0,0))) ? (
+                                                                    <Badge className="bg-blue-600 text-white text-[10px] xl:text-xs">Upcoming</Badge>
+                                                                ) : (
+                                                                    <Badge className="bg-green-600 text-[10px] xl:text-xs">Accepted</Badge>
+                                                                )
                                                             ) : visit.appointmentStatus === 'rejected' ? (
                                                                 <Badge variant="destructive" className="bg-red-600 text-white text-[10px] xl:text-xs h-auto whitespace-normal text-center">
                                                                     Not Accepted
@@ -1520,7 +1527,11 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1.5">Status</p>
                                                                     {visit.type === 'Appointment' ? (
                                                                         visit.appointmentStatus === 'accepted' ? (
-                                                                            <Badge className="bg-green-600 text-[10px] xl:text-xs pointer-events-none">Accepted</Badge>
+                                                                            (visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0,0,0,0)) > new Date(new Date().setHours(0,0,0,0))) ? (
+                                                                                <Badge className="bg-blue-600 text-white text-[10px] xl:text-xs pointer-events-none">Upcoming</Badge>
+                                                                            ) : (
+                                                                                <Badge className="bg-green-600 text-[10px] xl:text-xs pointer-events-none">Accepted</Badge>
+                                                                            )
                                                                         ) : visit.appointmentStatus === 'rejected' ? (
                                                                             <Badge variant="destructive" className="bg-red-600 text-white text-[10px] xl:text-xs pointer-events-none">
                                                                                 Not Accepted
@@ -1607,7 +1618,11 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                 </Badge>
                                                 {visit.type === 'Appointment' ? (
                                                     visit.appointmentStatus === 'accepted' ? (
-                                                        <Badge className="bg-green-600 text-[10px] w-fit">Accepted</Badge>
+                                                        (visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0,0,0,0)) > new Date(new Date().setHours(0,0,0,0))) ? (
+                                                            <Badge className="bg-blue-600 text-white text-[10px] w-fit">Upcoming</Badge>
+                                                        ) : (
+                                                            <Badge className="bg-green-600 text-[10px] w-fit">Accepted</Badge>
+                                                        )
                                                     ) : visit.appointmentStatus === 'rejected' ? (
                                                         <Badge variant="destructive" className="bg-red-600 text-white text-[10px] w-fit">
                                                             Not Accepted
