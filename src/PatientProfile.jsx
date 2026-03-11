@@ -140,29 +140,36 @@ const PatientProfile = () => {
       } else if (appointment.appointmentStatus === 'rejected') {
         return 'not-approved';
       } else if (appointment.appointmentStatus === 'accepted') {
-        if (appointment.status === 'done') {
+        if (appointment.status === 'done' || appointment.status === 'completed') {
           return 'completed';
         } else if (appointment.status === 'in progress') {
           return 'in-progress';
         } else if (appointment.status === 'cancelled') {
           return 'cancelled';
+        } else if (appointment.status === 'waiting' || appointment.status === 'pending') {
+          return 'waiting';
         } else {
-          // Both 'waiting' and default accepted are 'upcoming'
-          return 'upcoming';
+          // Both 'waiting' and default accepted
+          const apptDate = appointment.appointmentDateTime ? new Date(new Date(appointment.appointmentDateTime).setHours(0,0,0,0)) : null;
+          const today = new Date(new Date().setHours(0,0,0,0));
+          if (apptDate && apptDate > today) return 'upcoming';
+          return 'accepted';
         }
       }
     }
 
     // Walk-in status (or any other type like 'Walk-in')
-    if (appointment.status === 'done') {
+    const status = appointment.status ? appointment.status.toLowerCase() : 'waiting';
+    if (status === 'done' || status === 'completed') {
       return 'completed';
-    } else if (appointment.status === 'in progress') {
+    } else if (status === 'in progress') {
       return 'in-progress';
-    } else if (appointment.status === 'cancelled') {
+    } else if (status === 'cancelled') {
       return 'cancelled';
+    } else if (status === 'waiting' || status === 'pending') {
+      return 'waiting';
     } else {
-      // Default for active/waiting walk-ins
-      return 'upcoming';
+      return 'waiting';
     }
   };
 
@@ -175,8 +182,9 @@ const PatientProfile = () => {
       'completed': 'bg-emerald-100 text-emerald-700 border-emerald-300',
       'cancelled': 'bg-red-100 text-red-700 border-red-300',
       'pending': 'bg-amber-100 text-amber-700 border-amber-300',
-      'not-approved': 'bg-gray-100 text-gray-700 border-gray-300',
-      'upcoming': 'bg-blue-100 text-blue-700 border-blue-300'
+      'not-approved': 'bg-red-600 text-white border-none',
+      'upcoming': 'bg-blue-600 text-white border-none',
+      'accepted': 'bg-green-600 text-white border-none'
     };
     return styles[category] || 'bg-gray-100 text-gray-700 border-gray-300';
   };
@@ -190,7 +198,8 @@ const PatientProfile = () => {
       'cancelled': 'Cancelled',
       'pending': 'Pending',
       'not-approved': 'Not Accepted',
-      'upcoming': 'Upcoming'
+      'upcoming': 'Upcoming',
+      'accepted': 'Accepted'
     };
     return labels[category] || category;
   };
@@ -232,9 +241,8 @@ const PatientProfile = () => {
       const category = getVisitStatusCategory(visit);
       if (category === 'unknown') return;
 
-      // EXCLUDE: ONLY Pending appointment requests (not yet managed)
-      // Rejected and Cancelled should be reflected in history
-      if (visit.type === 'Appointment' && visit.appointmentStatus === 'pending') return;
+      // EXCLUDE: Pending and Rejected appointment requests from patient history
+      if (visit.type === 'Appointment' && (visit.appointmentStatus === 'pending' || visit.appointmentStatus === 'rejected')) return;
 
       // Primary identification: Use email if available to group all records from the same account.
       // Fall back to normalized name for walk-ins or records without email.
@@ -293,17 +301,17 @@ const PatientProfile = () => {
       const mostRecentDone = sortedVisits.find(v => v.status === 'done');
 
       // Find the soonest upcoming (future, accepted) appointment
-      const now = new Date();
+      const today = new Date(new Date().setHours(0,0,0,0));
       const upcomingAppointment = sortedVisits
-        .filter(v =>
-          v.type === 'Appointment' &&
-          v.appointmentStatus === 'accepted' &&
-          new Date(v.appointmentDateTime) > now
-        )
+        .filter(v => {
+          if (v.type !== 'Appointment' || v.appointmentStatus !== 'accepted') return false;
+          const apptDate = v.appointmentDateTime ? new Date(new Date(v.appointmentDateTime).setHours(0,0,0,0)) : null;
+          return apptDate && apptDate > today;
+        })
         .sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime))[0] || null;
 
-      // Find the most recent visit that is either "upcoming", "in progress", or "done"
-      const mostRecentActiveVisit = sortedVisits.find(v => ['upcoming', 'in-progress', 'completed'].includes(getVisitStatusCategory(v)));
+      // Find the most recent visit that is either actve or done
+      const mostRecentActiveVisit = sortedVisits.find(v => ['upcoming', 'accepted', 'waiting', 'in-progress', 'completed'].includes(getVisitStatusCategory(v)));
 
       // Definitions for display purposes:
       // If there's a future upcoming appointment, show it (takes priority so "Upcoming" badge appears in the patient list).
@@ -315,7 +323,7 @@ const PatientProfile = () => {
       const firstVisit = completedVisits.length > 0 ? completedVisits[completedVisits.length - 1] : null;
 
       // Group active visits for the "Most Recent Visit Summary" card
-      const validSummaryVisits = sortedVisits.filter(v => ['upcoming', 'in-progress', 'completed'].includes(getVisitStatusCategory(v)));
+      const validSummaryVisits = sortedVisits.filter(v => ['upcoming', 'accepted', 'waiting', 'in-progress', 'completed'].includes(getVisitStatusCategory(v)));
 
       return {
         ...patient,
