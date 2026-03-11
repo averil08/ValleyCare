@@ -1158,6 +1158,7 @@ export const PatientProvider = ({ children }) => {
         patient_type: 'walk-in',
         queue_no: 999999, // Mandatory field
         is_inactive: true, // Keep it hidden from most queries
+        in_queue: false, // Ensure it doesn't show in counts
         status: 'waiting',
         assigned_doctor_name: 'System'
       };
@@ -1178,9 +1179,11 @@ export const PatientProvider = ({ children }) => {
       }
 
       if (targetId) {
-        await supabase.from('patients').update(settingsData).eq('id', targetId);
+        const { error } = await supabase.from('patients').update(settingsData).eq('id', targetId);
+        if (error) throw error;
       } else {
-        const { data } = await supabase.from('patients').insert([settingsData]).select();
+        const { data, error } = await supabase.from('patients').insert([settingsData]).select();
+        if (error) throw error;
         if (data?.[0]) settingsIdRef.current = data[0].id;
       }
       console.log("🕒 Clinic settings synced to cloud:", adjustment);
@@ -1352,6 +1355,7 @@ export const PatientProvider = ({ children }) => {
       updatePatientStatus,
       callNextPatient,
       avgWaitTime,
+      manualWaitTimeAdjustment,
       addWaitTime,
       reduceWaitTime,
       queueInfo: isLoadingFromDB ? { total: 0, waitingCount: 0, currentServing: null } : queueInfo,

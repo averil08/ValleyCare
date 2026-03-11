@@ -68,7 +68,8 @@ const QueueStatus = () => {
     activePatient,
     currentServing,
     avgWaitTime,
-    getDoctorCurrentServing, // Added this
+    manualWaitTimeAdjustment,
+    getDoctorCurrentServing,
     setActivePatient,
     clearActivePatient,
     requeuePatient,
@@ -356,7 +357,8 @@ const QueueStatus = () => {
   }, [doctorPatients, currentPatient]);
 
   const peopleAhead = myQueuePosition;
-  const estimatedWait = avgWaitTime * (peopleAhead + 1);
+  const calculatedAvg = avgWaitTime - manualWaitTimeAdjustment;
+  const estimatedWait = (calculatedAvg * (peopleAhead + 1)) + manualWaitTimeAdjustment;
 
   const isAppointmentPending = currentPatient?.status !== 'cancelled' && ((currentPatient?.type === 'Appointment' && currentPatient?.appointmentStatus === 'pending') ||
     (currentPatient?.queueNo >= 900000));
