@@ -155,6 +155,8 @@ const PatientProfile = () => {
           if (apptDate && apptDate > today) return 'upcoming';
           return 'accepted';
         }
+      } else if (appointment.appointmentStatus === 'cancelled' || appointment.appointmentStatus === 'withdrawn') {
+        return 'withdrawn';
       }
     }
 
@@ -183,7 +185,8 @@ const PatientProfile = () => {
       'cancelled': 'bg-red-100 text-red-700 border-red-300',
       'pending': 'bg-amber-100 text-amber-700 border-amber-300',
       'upcoming': 'bg-blue-600 text-white border-none',
-      'accepted': 'bg-green-600 text-white border-none'
+      'accepted': 'bg-green-600 text-white border-none',
+      'withdrawn': 'bg-gray-100 text-gray-500 border-gray-200'
     };
     return styles[category] || 'bg-gray-100 text-gray-700 border-gray-300';
   };
@@ -197,7 +200,8 @@ const PatientProfile = () => {
       'cancelled': 'Cancelled',
       'pending': 'Pending',
       'upcoming': 'Upcoming',
-      'accepted': 'Accepted'
+      'accepted': 'Accepted',
+      'withdrawn': 'Withdrawn/Cancelled'
     };
     return labels[category] || category;
   };
@@ -237,10 +241,10 @@ const PatientProfile = () => {
 
       // Filter: only valid statuses for patient history
       const category = getVisitStatusCategory(visit);
-      if (category === 'unknown' || category === 'not-approved') return;
+      if (category === 'unknown' || category === 'not-approved' || category === 'cancelled' || category === 'withdrawn') return;
 
-      // EXCLUDE: Pending appointment requests from patient history
-      if (visit.type === 'Appointment' && visit.appointmentStatus === 'pending') return;
+      // EXCLUDE: Pending, Cancelled, or Withdrawn appointment requests from patient history
+      if (visit.type === 'Appointment' && (visit.appointmentStatus === 'pending' || visit.appointmentStatus === 'cancelled' || visit.appointmentStatus === 'withdrawn')) return;
 
       // Primary identification: Use email if available to group all records from the same account.
       // Fall back to normalized name for walk-ins or records without email.
