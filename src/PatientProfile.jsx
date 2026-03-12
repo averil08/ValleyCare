@@ -163,7 +163,7 @@ const PatientProfile = () => {
         }
       }
  else if (appointment.appointmentStatus === 'cancelled' || appointment.appointmentStatus === 'withdrawn') {
-        return 'withdrawn';
+        return 'cancelled';
       }
     }
 
@@ -248,10 +248,10 @@ const PatientProfile = () => {
 
       // Filter: only valid statuses for patient history
       const category = getVisitStatusCategory(visit);
-      if (category === 'unknown' || category === 'not-approved' || category === 'cancelled' || category === 'withdrawn') return;
+      if (category === 'unknown' || category === 'not-approved' || category === 'pending') return;
 
-      // EXCLUDE: Pending, Cancelled, or Withdrawn appointment requests from patient history
-      if (visit.type === 'Appointment' && (visit.appointmentStatus === 'pending' || visit.appointmentStatus === 'cancelled' || visit.appointmentStatus === 'withdrawn')) return;
+      // EXCLUDE: Pending requests from patient history (cancelled/withdrawn should now show)
+      if (visit.type === 'Appointment' && visit.appointmentStatus === 'pending') return;
 
       // Primary identification: Use email if available to group all records from the same account.
       // Fall back to normalized name for walk-ins or records without email.
