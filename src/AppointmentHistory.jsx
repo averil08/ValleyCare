@@ -193,11 +193,12 @@ const AppointmentHistory = () => {
 
   // Calculate statistics
   const stats = React.useMemo(() => {
+    const visitsOnly = myAppointments.filter(a => getAppointmentStatusCategory(a) !== 'not-approved');
     return {
-      total: myAppointments.length,
-      completed: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'completed').length,
-      upcoming: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'upcoming').length,
-      inProgress: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'in-progress').length
+      total: visitsOnly.length,
+      completed: visitsOnly.filter(a => getAppointmentStatusCategory(a) === 'completed').length,
+      upcoming: visitsOnly.filter(a => getAppointmentStatusCategory(a) === 'upcoming').length,
+      inProgress: visitsOnly.filter(a => getAppointmentStatusCategory(a) === 'in-progress').length
     };
   }, [myAppointments]);
 
