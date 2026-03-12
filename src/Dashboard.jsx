@@ -605,10 +605,13 @@ const Dashboard = () => {
       cancelPatient(currentPatient.queueNo);
     }
 
-    // First, check if there are any waiting priority patients
-    const nextPriorityPatient = patients.find(p =>
-      p.status === "waiting" && p.inQueue && p.isPriority && !p.isInactive
-    );
+    // ✅ FIX: Use pre-filtered, time-sensitive lists so upcoming appointments are NOT called.
+    // filteredPriorityPatients and filteredQueuePatients already exclude future appointments.
+
+    // First, check if there are any ready priority patients
+    const nextPriorityPatient = filteredPriorityPatients
+      .filter(p => p.status === "waiting")
+      .sort((a, b) => a.queueNo - b.queueNo)[0];
 
     if (nextPriorityPatient) {
       updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
@@ -616,17 +619,16 @@ const Dashboard = () => {
       return;
     }
 
-    // Find the next patient who is waiting
-    const nextWaitingPatient = patients.find(p =>
-      p.status === "waiting" && p.inQueue && !p.isInactive
-    );
+    // Find the next ready regular patient
+    const nextWaitingPatient = filteredQueuePatients
+      .filter(p => p.status === "waiting")
+      .sort((a, b) => a.queueNo - b.queueNo)[0];
 
     if (nextWaitingPatient) {
-      // Mark the next waiting patient as in progress
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
       setCurrentServing(nextWaitingPatient.queueNo);
     } else {
-      // ADDED CHANGE: Reset to null when no patients left
+      // Reset to null when no ready patients
       setCurrentServing(null);
     }
   };
@@ -642,15 +644,15 @@ const Dashboard = () => {
     if (p.status === "done" || p.status === "cancelled") return false;
     if (p.isPriority) return false;
 
-    // ✅ FIX: Strict Type-Aware Date Checks
-
-    // 1. Appointments: Check appointmentDateTime
+    // ✅ FIX: For appointments, also enforce that their scheduled time has arrived
     if (p.type === "Appointment") {
+      const appDate = new Date(p.appointmentDateTime);
+      // Allow 'in progress' patients through even if their time window has passed
+      const isReady = p.status === 'in progress' || new Date() >= appDate;
+      if (!isReady) return false;
       return isWithinDateRange(p.appointmentDateTime);
     }
 
-    // 2. Walk-Ins: Check registeredAt
-    // Removed isOngoing bypass - strictly check today's date
     return isWithinDateRange(p.registeredAt);
   });
 
@@ -676,8 +678,11 @@ const Dashboard = () => {
     if (p.status === "done" || p.status === "cancelled") return false;
     if (!p.isPriority || !p.inQueue) return false;
 
-    // ✅ FIX: Strict Type-Aware Date Checks
+    // ✅ FIX: For appointments, also enforce that their scheduled time has arrived
     if (p.type === "Appointment") {
+      const appDate = new Date(p.appointmentDateTime);
+      const isReady = p.status === 'in progress' || new Date() >= appDate;
+      if (!isReady) return false;
       return isWithinDateRange(p.appointmentDateTime);
     }
     return isWithinDateRange(p.registeredAt);

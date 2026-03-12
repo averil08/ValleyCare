@@ -1269,24 +1269,27 @@ export const PatientProvider = ({ children }) => {
       updatePatientStatus(currentPatientQueueNo, 'done');
     }
 
-
-    // Smart Date Check Helper
-    const isForToday = (p) => {
-      if (p.type === 'Appointment') {
-        return isToday(p.appointmentDateTime);
+    // ✅ Strict helper: patient must also be past their appointment time
+    const isReadyForQueue = (p) => {
+      if (p.type === 'Appointment' && p.appointmentDateTime) {
+        const appDate = new Date(p.appointmentDateTime);
+        // Must be for today AND the appointment time must have passed
+        return isToday(p.appointmentDateTime) && new Date() >= appDate;
       }
       return isToday(p.registeredAt);
     };
 
-    // Find next priority patient (waiting, assigned to this doctor, FOR TODAY)
-    const nextPriorityPatient = patients.find(p =>
-      p.status === "waiting" &&
-      p.inQueue &&
-      p.isPriority &&
-      p.assignedDoctor?.id === dId &&
-      !p.isInactive &&
-      isForToday(p)
-    );
+    // Find next priority patient (waiting, assigned to this doctor, READY)
+    const nextPriorityPatient = patients
+      .filter(p =>
+        p.status === "waiting" &&
+        p.inQueue &&
+        p.isPriority &&
+        p.assignedDoctor?.id === dId &&
+        !p.isInactive &&
+        isReadyForQueue(p)
+      )
+      .sort((a, b) => a.queueNo - b.queueNo)[0];
 
     if (nextPriorityPatient) {
       console.log(`Debug: Calling Priority Patient ${nextPriorityPatient.queueNo}`);
@@ -1294,15 +1297,17 @@ export const PatientProvider = ({ children }) => {
       return;
     }
 
-    // Find next normal patient (waiting, assigned to this doctor, FOR TODAY)
-    const nextWaitingPatient = patients.find(p =>
-      p.status === "waiting" &&
-      p.inQueue &&
-      !p.isPriority &&
-      p.assignedDoctor?.id === dId &&
-      !p.isInactive &&
-      isForToday(p)
-    );
+    // Find next normal patient (waiting, assigned to this doctor, READY)
+    const nextWaitingPatient = patients
+      .filter(p =>
+        p.status === "waiting" &&
+        p.inQueue &&
+        !p.isPriority &&
+        p.assignedDoctor?.id === dId &&
+        !p.isInactive &&
+        isReadyForQueue(p)
+      )
+      .sort((a, b) => a.queueNo - b.queueNo)[0];
 
     if (nextWaitingPatient) {
       console.log(`Debug: Calling Waiting Patient ${nextWaitingPatient.queueNo}`);
@@ -1318,29 +1323,41 @@ export const PatientProvider = ({ children }) => {
 
     cancelPatient(currentPatientQueueNo);
 
+    // ✅ Strict helper: patient must also be past their appointment time
+    const isReadyForQueue = (p) => {
+      if (p.type === 'Appointment' && p.appointmentDateTime) {
+        const appDate = new Date(p.appointmentDateTime);
+        return isToday(p.appointmentDateTime) && new Date() >= appDate;
+      }
+      return isToday(p.registeredAt);
+    };
 
-    const nextPriorityPatient = patients.find(p =>
-      p.status === "waiting" &&
-      p.inQueue &&
-      p.isPriority &&
-      p.assignedDoctor?.id === dId &&
-      !p.isInactive &&
-      isForToday(p)
-    );
+    const nextPriorityPatient = patients
+      .filter(p =>
+        p.status === "waiting" &&
+        p.inQueue &&
+        p.isPriority &&
+        p.assignedDoctor?.id === dId &&
+        !p.isInactive &&
+        isReadyForQueue(p)
+      )
+      .sort((a, b) => a.queueNo - b.queueNo)[0];
 
     if (nextPriorityPatient) {
       updatePatientStatus(nextPriorityPatient.queueNo, 'in progress');
       return;
     }
 
-    const nextWaitingPatient = patients.find(p =>
-      p.status === "waiting" &&
-      p.inQueue &&
-      !p.isPriority &&
-      p.assignedDoctor?.id === dId &&
-      !p.isInactive &&
-      isForToday(p)
-    );
+    const nextWaitingPatient = patients
+      .filter(p =>
+        p.status === "waiting" &&
+        p.inQueue &&
+        !p.isPriority &&
+        p.assignedDoctor?.id === dId &&
+        !p.isInactive &&
+        isReadyForQueue(p)
+      )
+      .sort((a, b) => a.queueNo - b.queueNo)[0];
 
     if (nextWaitingPatient) {
       updatePatientStatus(nextWaitingPatient.queueNo, 'in progress');
