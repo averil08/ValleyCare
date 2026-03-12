@@ -759,46 +759,76 @@ function Checkin() {
   }, [formData, expandedCategory, bookingMode, selectedDoctor, selectedPatientType, isNewBooking]);
 
   useEffect(() => {
-    // Check validation based on login status rather than just sidebar source
-    const currentEmail = localStorage.getItem('currentPatientEmail');
-    if (currentEmail && selectedPatientType && !profileLoadedRef.current) {
-      try {
-        const userProfileStr = localStorage.getItem(`userProfile_${currentEmail}`);
-        if (userProfileStr) {
-          const userProfile = JSON.parse(userProfileStr);
+    const loadProfileWithFallback = async () => {
+      const currentEmail = localStorage.getItem('currentPatientEmail');
+      if (currentEmail && selectedPatientType && !profileLoadedRef.current) {
+        try {
+          const userProfileStr = localStorage.getItem(`userProfile_${currentEmail}`);
+          if (userProfileStr) {
+            const userProfile = JSON.parse(userProfileStr);
 
-          console.log('📋 Loading profile data for:', currentEmail);
-          console.log('📋 Profile data:', userProfile);
+            console.log('📋 Loading profile data for:', currentEmail);
+            console.log('📋 Profile data:', userProfile);
 
-          // Split fullName into parts when loading from profile
-          const nameParts = (userProfile.fullName || '').trim().split(/\s+/);
-          const loadedFirstName = nameParts[0] || '';
-          const loadedLastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
-          const loadedMiddleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
-          setFormData(prev => ({
-            ...prev,
-            firstName: loadedFirstName || prev.firstName,
-            middleName: loadedMiddleName || prev.middleName,
-            lastName: loadedLastName || prev.lastName,
-            age: userProfile.age || prev.age,
-            phoneNum: (() => {
-              let p = (userProfile.phoneNumber || '');
-              if (p.startsWith('+63')) return p.slice(3);
-              if (p.startsWith('09')) return p.slice(1);
-              return p || prev.phoneNum;
-            })(),
-            patientEmail: userProfile.email || prev.patientEmail,
-          }));
+            // Split fullName into parts when loading from profile
+            const nameParts = (userProfile.fullName || '').trim().split(/\s+/);
+            const loadedFirstName = nameParts[0] || '';
+            const loadedLastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+            const loadedMiddleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+            setFormData(prev => ({
+              ...prev,
+              firstName: loadedFirstName || prev.firstName,
+              middleName: loadedMiddleName || prev.middleName,
+              lastName: loadedLastName || prev.lastName,
+              age: userProfile.age || prev.age,
+              phoneNum: (() => {
+                let p = (userProfile.phoneNumber || '');
+                if (p.startsWith('+63')) return p.slice(3);
+                if (p.startsWith('09')) return p.slice(1);
+                return p || prev.phoneNum;
+              })(),
+              patientEmail: userProfile.email || prev.patientEmail,
+            }));
 
-          profileLoadedRef.current = true;
-          console.log('✅ Profile loaded and marked');
-        } else {
-          console.log('⚠️ No profile found for:', currentEmail);
+            profileLoadedRef.current = true;
+            console.log('✅ Profile loaded and marked');
+          } else {
+            console.log('⚠️ No profile found for:', currentEmail, '- Attempting fallback to Auth metadata...');
+            // FALLBACK: Load from Supabase Auth metadata
+            const { getProfileMetadata } = await import('./lib/supabaseClient');
+            const metadata = await getProfileMetadata();
+            if (metadata && metadata.email.toLowerCase() === currentEmail.toLowerCase()) {
+              console.log('📋 Found Auth metadata:', metadata);
+              const nameParts = (metadata.fullName || '').trim().split(/\s+/);
+              const loadedFirstName = nameParts[0] || '';
+              const loadedLastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+              const loadedMiddleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
+              setFormData(prev => ({
+                ...prev,
+                firstName: loadedFirstName || prev.firstName,
+                middleName: loadedMiddleName || prev.middleName,
+                lastName: loadedLastName || prev.lastName,
+                age: metadata.age || prev.age,
+                phoneNum: (() => {
+                  let p = (metadata.phoneNumber || '');
+                  if (p.startsWith('+63')) return p.slice(3);
+                  if (p.startsWith('09')) return p.slice(1);
+                  return p || prev.phoneNum;
+                })(),
+                patientEmail: metadata.email || prev.patientEmail,
+              }));
+              profileLoadedRef.current = true;
+              console.log('✅ Profile loaded from metadata and marked');
+            }
+          }
+        } catch (error) {
+          console.error('Error loading user profile:', error);
         }
-      } catch (error) {
-        console.error('Error loading user profile:', error);
       }
-    }
+    };
+
+    loadProfileWithFallback();
 
     if (!selectedPatientType) {
       profileLoadedRef.current = false;

@@ -379,7 +379,7 @@ export const getPatientStats = async () => {
 };
 
 // Patient login or signup functions
-export const registerUser = async (email, password, fullName, phoneNumber, role = "patient") => {
+export const registerUser = async (email, password, fullName, phoneNumber, age, role = "patient") => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -387,6 +387,7 @@ export const registerUser = async (email, password, fullName, phoneNumber, role 
       data: {
         full_name: fullName,
         phone_number: phoneNumber,
+        age: age,
         role: role,
       },
     },
@@ -481,6 +482,7 @@ export const getProfileMetadata = async () => {
   return {
     fullName: user.user_metadata?.full_name || "",
     phoneNumber: user.user_metadata?.phone_number || "",
+    age: user.user_metadata?.age || "",
     email: user.email || ""
   };
 };

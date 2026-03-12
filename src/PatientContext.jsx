@@ -60,6 +60,29 @@ export const PatientProvider = ({ children }) => {
           localStorage.setItem('isPatientLoggedIn', 'true');
           setCurrentPatientEmail(email);
           setIsPatientLoggedIn(true);
+
+          // Central Profile Sync: Ensure localStorage has profile data from metadata if missing
+          const profileKey = `userProfile_${email}`;
+          if (!localStorage.getItem(profileKey)) {
+            const metadata = session.user.user_metadata || {};
+            const nameParts = (metadata.full_name || '').trim().split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const surname = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+            const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
+
+            const profile = {
+              email: email,
+              fullName: metadata.full_name || "",
+              firstName: firstName,
+              middleName: middleName,
+              surname: surname,
+              age: metadata.age || "",
+              phoneNumber: metadata.phone_number || ""
+            };
+            localStorage.setItem(profileKey, JSON.stringify(profile));
+            console.log("💾 Initialized local profile from Auth metadata:", profileKey);
+          }
+
           console.log("🔐 Syncing Patient Context with Supabase session:", email);
         }
       }

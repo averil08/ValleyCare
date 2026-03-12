@@ -80,6 +80,7 @@ function PatientSettings() {
               firstName: firstName,
               middleName: middleName,
               surname: surname,
+              age: metadata.age || '',
               phoneNumber: (() => {
                 let p = (metadata.phoneNumber || '');
                 if (p.startsWith('+63')) return p.slice(3);
