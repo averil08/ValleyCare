@@ -921,7 +921,7 @@ function Checkin() {
               <div className="bg-white p-8 rounded-xl border-2 border-green-200 flex flex-col items-center">
                 <div className="bg-white p-4 rounded-lg shadow-inner">
                   <QRCodeSVG
-                    value={`${import.meta.env.VITE_APP_URL}/checkin?view=patient&type=walkin`}
+                    value={`${window.location.origin}/checkin?view=patient&type=walkin`}
                     size={200} level="H" marginSize={4} className="w-48 h-48 sm:w-64 sm:h-64"
                   />
                 </div>
