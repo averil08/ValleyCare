@@ -385,6 +385,7 @@ export const registerUser = async (email, password, fullName, phoneNumber, age, 
     email,
     password,
     options: {
+      emailRedirectTo: window.location.origin,
       data: {
         full_name: fullName,
         phone_number: phoneNumber,
