@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
-import { Calendar, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell } from 'lucide-react';
+import { Calendar, CalendarDays, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 //automatic added dialog in components/ui (run npx shadcn@latest add dialog to install + make dialog.jsx)
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 //automatic added textarea in components/ui (run npx shadcn@latest add textarea to install + make textarea.jsx)
@@ -34,6 +34,14 @@ const Appointment = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+
+  // Calendar modal navigation state
+  const today = new Date();
+  const [calendarYear, setCalendarYear] = useState(today.getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(today.getMonth()); // 0-indexed
+  const [calendarSelectedDay, setCalendarSelectedDay] = useState(null);
+
   const { patients, acceptAppointment, rejectAppointment, unreadSecretaryNotificationsCount, markSecretaryNotificationsAsRead } = useContext(PatientContext);
 
   // Helper to get label for date filter
@@ -610,87 +618,103 @@ const Appointment = () => {
                 </div>
               </div>
 
-              {/* Notification Bell */}
-              <div className="relative">
+              {/* Icon Group: Calendar + Notification Bell */}
+              <div className="flex items-center gap-1">
+
+                {/* Calendar Icon Button */}
                 <button
                   onClick={() => {
-                    setShowNotifications(!showNotifications);
-                    if (!showNotifications) {
-                      markSecretaryNotificationsAsRead();
-                    }
+                    setShowCalendarModal(true);
+                    setCalendarSelectedDay(null);
                   }}
-                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-all duration-200 focus:outline-none relative group"
-                  title="Cancellations"
+                  className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-all duration-200 focus:outline-none"
+                  title="Accepted Appointments Calendar"
                 >
-                  <Bell className={`w-6 h-6 ${unreadSecretaryNotificationsCount > 0 ? 'animate-swing' : ''}`} />
-                  {unreadSecretaryNotificationsCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
-                      {unreadSecretaryNotificationsCount}
-                    </span>
-                  )}
+                  <CalendarDays className="w-6 h-6" />
                 </button>
 
-                {/* Notifications Dropdown */}
-                {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                    <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
-                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <Bell className="w-4 h-4 text-green-600" />
-                        Patient Cancellations
-                      </h3>
-                      <button
-                        onClick={() => setShowNotifications(false)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <XCircle className="w-5 h-5" />
-                      </button>
-                    </div>
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setShowNotifications(!showNotifications);
+                      if (!showNotifications) {
+                        markSecretaryNotificationsAsRead();
+                      }
+                    }}
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-all duration-200 focus:outline-none relative group"
+                    title="Cancellations"
+                  >
+                    <Bell className={`w-6 h-6 ${unreadSecretaryNotificationsCount > 0 ? 'animate-swing' : ''}`} />
+                    {unreadSecretaryNotificationsCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white ring-2 ring-white">
+                        {unreadSecretaryNotificationsCount}
+                      </span>
+                    )}
+                  </button>
 
-                    <div className="max-h-[400px] overflow-y-auto">
-                      {(patients || [])
-                        .filter(p => p.type === "Appointment" && p.status === "cancelled" && p.appointmentStatus === "cancelled")
-                        .sort((a, b) => new Date(b.queueExitTime || b.registeredAt) - new Date(a.queueExitTime || a.registeredAt))
-                        .length > 0 ? (
-                        (patients || [])
+                  {/* Notifications Dropdown */}
+                  {showNotifications && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                          <Bell className="w-4 h-4 text-green-600" />
+                          Patient Cancellations
+                        </h3>
+                        <button
+                          onClick={() => setShowNotifications(false)}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {(patients || [])
                           .filter(p => p.type === "Appointment" && p.status === "cancelled" && p.appointmentStatus === "cancelled")
                           .sort((a, b) => new Date(b.queueExitTime || b.registeredAt) - new Date(a.queueExitTime || a.registeredAt))
-                          .map((notif) => (
-                            <div
-                              key={notif.id}
-                              className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-default"
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="mt-1 flex-shrink-0 w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
-                                  <XCircle className="w-4 h-4 text-red-600" />
-                                </div>
-                                <div className="flex-1">
-                                  <p className="text-sm font-semibold text-gray-900">
-                                    {notif.name}
-                                  </p>
-                                  <p className="text-xs text-gray-600 mt-0.5">
-                                    Cancelled their appointment for {formatDateTime(notif.appointmentDateTime || notif.appointment_datetime)}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <Clock className="w-3 h-3 text-gray-400" />
-                                    <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
-                                      {new Date(notif.queueExitTime || notif.registeredAt).toLocaleString()}
-                                    </span>
+                          .length > 0 ? (
+                          (patients || [])
+                            .filter(p => p.type === "Appointment" && p.status === "cancelled" && p.appointmentStatus === "cancelled")
+                            .sort((a, b) => new Date(b.queueExitTime || b.registeredAt) - new Date(a.queueExitTime || a.registeredAt))
+                            .map((notif) => (
+                              <div
+                                key={notif.id}
+                                className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-default"
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="mt-1 flex-shrink-0 w-8 h-8 rounded-full bg-red-50 flex items-center justify-center">
+                                    <XCircle className="w-4 h-4 text-red-600" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-semibold text-gray-900">
+                                      {notif.name}
+                                    </p>
+                                    <p className="text-xs text-gray-600 mt-0.5">
+                                      Cancelled their appointment for {formatDateTime(notif.appointmentDateTime || notif.appointment_datetime)}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <Clock className="w-3 h-3 text-gray-400" />
+                                      <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
+                                        {new Date(notif.queueExitTime || notif.registeredAt).toLocaleString()}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
+                            ))
+                        ) : (
+                          <div className="p-8 text-center">
+                            <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                              <CheckCircle className="w-6 h-6 text-gray-300" />
                             </div>
-                          ))
-                      ) : (
-                        <div className="p-8 text-center">
-                          <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <CheckCircle className="w-6 h-6 text-gray-300" />
+                            <p className="text-sm text-gray-500 font-medium">No new cancellations</p>
                           </div>
-                          <p className="text-sm text-gray-500 font-medium">No new cancellations</p>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1188,6 +1212,239 @@ const Appointment = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== Calendar Modal ===== */}
+      <Dialog open={showCalendarModal} onOpenChange={setShowCalendarModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+          {/* Modal Header */}
+          <div className="bg-gradient-to-r from-green-600 to-emerald-500 px-6 py-4 rounded-t-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-white text-xl">
+                <CalendarDays className="w-6 h-6" />
+                Accepted Appointments Calendar
+              </DialogTitle>
+              <DialogDescription className="text-green-100">
+                Showing only accepted appointments for{' '}
+                {new Date(calendarYear, calendarMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {/* Month Navigation */}
+          <div className="flex items-center justify-between px-6 py-3 border-b bg-gray-50">
+            <button
+              onClick={() => {
+                if (calendarMonth === 0) {
+                  setCalendarMonth(11);
+                  setCalendarYear(y => y - 1);
+                } else {
+                  setCalendarMonth(m => m - 1);
+                }
+                setCalendarSelectedDay(null);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Prev
+            </button>
+
+            <span className="text-base font-bold text-gray-800">
+              {new Date(calendarYear, calendarMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+            </span>
+
+            <button
+              onClick={() => {
+                if (calendarMonth === 11) {
+                  setCalendarMonth(0);
+                  setCalendarYear(y => y + 1);
+                } else {
+                  setCalendarMonth(m => m + 1);
+                }
+                setCalendarSelectedDay(null);
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Calendar Grid */}
+          {(() => {
+            // All accepted appointments
+            const acceptedAppts = (patients || []).filter(
+              p => p.type === 'Appointment' && p.appointmentStatus === 'accepted'
+            );
+
+            // Build a map: dateKey (YYYY-MM-DD) -> [appointments]
+            const apptsByDay = {};
+            acceptedAppts.forEach(a => {
+              const raw = a.appointmentDateTime || a.appointment_datetime;
+              if (!raw) return;
+              const d = new Date(raw);
+              if (isNaN(d.getTime())) return;
+              const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+              if (!apptsByDay[key]) apptsByDay[key] = [];
+              apptsByDay[key].push(a);
+            });
+
+            // Calendar math
+            const firstDay = new Date(calendarYear, calendarMonth, 1).getDay(); // 0=Sun
+            const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+            const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            const cells = [];
+            for (let i = 0; i < totalCells; i++) {
+              const dayNum = i - firstDay + 1;
+              const isValid = dayNum >= 1 && dayNum <= daysInMonth;
+              const dayKey = isValid
+                ? `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+                : null;
+              const dayAppts = (dayKey && apptsByDay[dayKey]) || [];
+              const isToday = dayKey === todayStr;
+              const isSelected = calendarSelectedDay === dayKey;
+
+              cells.push(
+                <div
+                  key={i}
+                  onClick={() => isValid && dayAppts.length > 0 && setCalendarSelectedDay(isSelected ? null : dayKey)}
+                  className={[
+                    'min-h-[80px] p-1.5 rounded-lg border transition-all duration-150',
+                    !isValid ? 'bg-gray-50/40 border-transparent' : 'border-gray-100 bg-white',
+                    isValid && dayAppts.length > 0 ? 'cursor-pointer hover:border-green-300 hover:shadow-sm' : '',
+                    isSelected ? 'border-green-500 ring-1 ring-green-400 shadow-sm' : '',
+                    isToday && isValid ? 'bg-green-50' : '',
+                  ].join(' ')}
+                >
+                  {isValid && (
+                    <>
+                      <div className={[
+                        'text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full',
+                        isToday ? 'bg-green-600 text-white' : 'text-gray-700',
+                      ].join(' ')}>
+                        {dayNum}
+                      </div>
+                      <div className="space-y-0.5">
+                        {dayAppts.slice(0, 2).map((appt, idx) => {
+                          const apptDate = new Date(appt.appointmentDateTime || appt.appointment_datetime);
+                          const timeStr = apptDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                          const label = appt.assignedDoctor
+                            ? appt.assignedDoctor.name
+                            : (appt.services && appt.services.length > 0 ? getServiceLabel(appt.services[0]) : 'Service');
+                          const colors = [
+                            'bg-emerald-100 text-emerald-800 border-emerald-200',
+                            'bg-teal-100 text-teal-800 border-teal-200',
+                            'bg-cyan-100 text-cyan-800 border-cyan-200',
+                          ];
+                          return (
+                            <div
+                              key={appt.id}
+                              className={`text-[9px] leading-tight px-1 py-0.5 rounded border font-medium truncate ${colors[idx % colors.length]}`}
+                              title={`${appt.name} — ${timeStr} — ${label}`}
+                            >
+                              {appt.name}
+                            </div>
+                          );
+                        })}
+                        {dayAppts.length > 2 && (
+                          <div className="text-[9px] text-gray-500 font-medium pl-1">
+                            +{dayAppts.length - 2} more
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            }
+
+            // Selected day detail
+            const selectedAppts = calendarSelectedDay ? (apptsByDay[calendarSelectedDay] || []) : [];
+
+            return (
+              <div className="px-6 pt-4 pb-2">
+                {/* Day Headers */}
+                <div className="grid grid-cols-7 mb-2">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                    <div key={d} className="text-center text-xs font-bold text-gray-500 py-1 uppercase tracking-wider">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day Cells */}
+                <div className="grid grid-cols-7 gap-1">
+                  {cells}
+                </div>
+
+                {/* Selected Day Detail Panel */}
+                {calendarSelectedDay && selectedAppts.length > 0 && (
+                  <div className="mt-5 border-t pt-4">
+                    <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                      <CalendarDays className="w-4 h-4 text-green-600" />
+                      Appointments on{' '}
+                      {new Date(calendarSelectedDay + 'T00:00:00').toLocaleDateString('en-US', {
+                        weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+                      })}
+                      <Badge className="ml-1 bg-green-600 text-white text-[10px]">{selectedAppts.length}</Badge>
+                    </h4>
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                      {selectedAppts
+                        .slice()
+                        .sort((a, b) => new Date(a.appointmentDateTime || a.appointment_datetime) - new Date(b.appointmentDateTime || b.appointment_datetime))
+                        .map(appt => {
+                          const apptDate = new Date(appt.appointmentDateTime || appt.appointment_datetime);
+                          const timeStr = apptDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                          const label = appt.assignedDoctor
+                            ? appt.assignedDoctor.name
+                            : (appt.services && appt.services.length > 0
+                                ? appt.services.map(s => getServiceLabel(s)).join(', ')
+                                : 'None');
+                          const isDoc = !!appt.assignedDoctor;
+                          return (
+                            <div key={appt.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-green-200 hover:bg-green-50/30 transition-colors">
+                              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-green-100 flex items-center justify-center">
+                                <User className="w-4 h-4 text-green-700" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-sm font-semibold text-gray-900 truncate">{appt.name}</p>
+                                  <Badge className="bg-green-600 text-white text-[10px] flex-shrink-0">Accepted</Badge>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1">
+                                  <Clock className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                  <span className="text-xs text-gray-600">{timeStr}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <Stethoscope className={`w-3 h-3 flex-shrink-0 ${isDoc ? 'text-purple-500' : 'text-green-500'}`} />
+                                  <span className={`text-xs truncate ${isDoc ? 'text-purple-700 font-medium' : 'text-green-700'}`}>
+                                    {isDoc ? `Dr. ${label}` : label}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Legend */}
+                <div className="mt-4 pb-3 flex items-center gap-3 text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-full bg-green-600 inline-block"></span> Today
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-200 inline-block"></span> Accepted appointment
+                  </span>
+                  <span className="ml-auto text-[11px] italic text-gray-400">Click a day to see details</span>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
