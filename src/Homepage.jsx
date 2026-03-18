@@ -306,66 +306,66 @@ const Homepage = () => {
   // ── Service category grouping ────────────────────────────────────────────
   const SERVICE_CATEGORY_MAP = {
     // General Consultation
-    pedia:       'General Consultation',
-    adult:       'General Consultation',
-    senior:      'General Consultation',
-    preventive:  'General Consultation',
+    pedia: 'General Consultation',
+    adult: 'General Consultation',
+    senior: 'General Consultation',
+    preventive: 'General Consultation',
     'follow-up': 'General Consultation',
     // Hematology
-    cbc:     'Hematology',
-    platelet:'Hematology',
-    esr:     'Hematology',
-    abo:     'Hematology',
+    cbc: 'Hematology',
+    platelet: 'Hematology',
+    esr: 'Hematology',
+    abo: 'Hematology',
     // Immunology & Serology
-    hbsag:     'Immunology & Serology',
-    vdrl:      'Immunology & Serology',
-    antiHCV:   'Immunology & Serology',
-    hpylori:   'Immunology & Serology',
-    dengueIg:  'Immunology & Serology',
+    hbsag: 'Immunology & Serology',
+    vdrl: 'Immunology & Serology',
+    antiHCV: 'Immunology & Serology',
+    hpylori: 'Immunology & Serology',
+    dengueIg: 'Immunology & Serology',
     dengueNs1: 'Immunology & Serology',
     dengueDuo: 'Immunology & Serology',
-    typhidot:  'Immunology & Serology',
+    typhidot: 'Immunology & Serology',
     // Clinical Chemistry
-    fbs:          'Clinical Chemistry',
-    rbs:          'Clinical Chemistry',
-    lipid:        'Clinical Chemistry',
-    totalCh:      'Clinical Chemistry',
-    triglycerides:'Clinical Chemistry',
-    hdl:          'Clinical Chemistry',
-    ldl:          'Clinical Chemistry',
-    alt:          'Clinical Chemistry',
-    ast:          'Clinical Chemistry',
-    uric:         'Clinical Chemistry',
-    creatinine:   'Clinical Chemistry',
-    bun:          'Clinical Chemistry',
-    hba1c:        'Clinical Chemistry',
-    albumin:      'Clinical Chemistry',
-    magnesium:    'Clinical Chemistry',
+    fbs: 'Clinical Chemistry',
+    rbs: 'Clinical Chemistry',
+    lipid: 'Clinical Chemistry',
+    totalCh: 'Clinical Chemistry',
+    triglycerides: 'Clinical Chemistry',
+    hdl: 'Clinical Chemistry',
+    ldl: 'Clinical Chemistry',
+    alt: 'Clinical Chemistry',
+    ast: 'Clinical Chemistry',
+    uric: 'Clinical Chemistry',
+    creatinine: 'Clinical Chemistry',
+    bun: 'Clinical Chemistry',
+    hba1c: 'Clinical Chemistry',
+    albumin: 'Clinical Chemistry',
+    magnesium: 'Clinical Chemistry',
     totalProtein: 'Clinical Chemistry',
-    alp:          'Clinical Chemistry',
-    phosphorus:   'Clinical Chemistry',
-    sodium:       'Clinical Chemistry',
-    potassium:    'Clinical Chemistry',
-    ionizedCal:   'Clinical Chemistry',
-    totalCal:     'Clinical Chemistry',
-    chloride:     'Clinical Chemistry',
-    tsh:          'Clinical Chemistry',
-    ft3:          'Clinical Chemistry',
-    '75g':        'Clinical Chemistry',
-    t4:           'Clinical Chemistry',
-    t3:           'Clinical Chemistry',
-    psa:          'Clinical Chemistry',
+    alp: 'Clinical Chemistry',
+    phosphorus: 'Clinical Chemistry',
+    sodium: 'Clinical Chemistry',
+    potassium: 'Clinical Chemistry',
+    ionizedCal: 'Clinical Chemistry',
+    totalCal: 'Clinical Chemistry',
+    chloride: 'Clinical Chemistry',
+    tsh: 'Clinical Chemistry',
+    ft3: 'Clinical Chemistry',
+    '75g': 'Clinical Chemistry',
+    t4: 'Clinical Chemistry',
+    t3: 'Clinical Chemistry',
+    psa: 'Clinical Chemistry',
     totalBilirubin: 'Clinical Chemistry',
     // Clinical Microscopy & Parasitology
     urinalysis: 'Clinical Microscopy & Parasitology',
-    fecalysis:  'Clinical Microscopy & Parasitology',
+    fecalysis: 'Clinical Microscopy & Parasitology',
     pregnancyT: 'Clinical Microscopy & Parasitology',
-    fecal:      'Clinical Microscopy & Parasitology',
-    semen:      'Clinical Microscopy & Parasitology',
+    fecal: 'Clinical Microscopy & Parasitology',
+    semen: 'Clinical Microscopy & Parasitology',
     // Surgery
     'general surgery': 'Surgery',
-    generalSurgery:    'Surgery',
-    orthopedic:        'Surgery',
+    generalSurgery: 'Surgery',
+    orthopedic: 'Surgery',
     // ENT
     ent: 'ENT',
   };
@@ -516,7 +516,7 @@ const Homepage = () => {
                   </button>
 
                   {showNotifications && (
-                    <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute right-[-40px] mt-3 w-[calc(100vw-32px)] max-w-sm sm:right-0 sm:w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                       <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                         <h3 className="text-xs font-black text-gray-800 uppercase tracking-tight">Notifications</h3>
                         <div className="flex items-center gap-3">
@@ -539,7 +539,7 @@ const Homepage = () => {
                           </button>
                         </div>
                       </div>
-                      <div className="max-h-80 overflow-y-auto no-scrollbar">
+                      <div className="max-h-[60vh] overflow-y-auto no-scrollbar">
                         {notifications.length === 0 ? (
                           <div className="p-8 text-center">
                             <p className="text-xs font-bold text-gray-400">No notifications yet.</p>
