@@ -186,6 +186,37 @@ function Checkin() {
     return parts.join(" ").trim();
   };
 
+  // Helper: Calculate real-time active queue length for a specific doctor
+  const getDoctorQueueLength = (doctorId) => {
+    if (!patients) return 0;
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const isToday = (dateString) => {
+      if (!dateString) return false;
+      const d = new Date(dateString);
+      return d >= startOfToday && d <= endOfToday;
+    };
+
+    return patients.filter(p => {
+      if (p.isInactive) return false;
+      if (p.status === "done" || p.status === "cancelled") return false;
+      if (p.assignedDoctor?.id !== doctorId) return false;
+
+      if (p.type === "Appointment") {
+        if (p.appointmentStatus !== "accepted") return false;
+        const appDate = new Date(p.appointmentDateTime);
+        const isReady = p.status === 'in progress' || new Date() >= appDate;
+        if (!isReady) return false;
+        return isToday(p.appointmentDateTime);
+      }
+      return isToday(p.registeredAt);
+    }).length;
+  };
+
   const symptomsList = [
     'Fever', 'Cough', 'Sore Throat', 'Headache', 'Stomach Pain',
     'Vomiting', 'Diarrhea', 'Rash', 'Ear Pain', 'Runny Nose',
@@ -1258,6 +1289,7 @@ function Checkin() {
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {availableDoctors.map(doctor => {
                       const isAvailable = isDoctorAvailable(doctor, formData.appointmentDateTime);
+                      const queueLength = getDoctorQueueLength(doctor.id);
 
                       return (
                         <div
@@ -1271,12 +1303,17 @@ function Checkin() {
                             }`}
                         >
                           <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                                 <h4 className="font-bold text-gray-900">{doctor.name}</h4>
                                 {!isAvailable && formData.appointmentDateTime && (
-                                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                                  <span className="inline-flex shrink-0 items-center px-2.5 py-0.5 bg-red-100 text-red-700 text-[11px] sm:text-xs rounded-full font-medium whitespace-nowrap">
                                     Not Available
+                                  </span>
+                                )}
+                                {isAvailable && (
+                                  <span className="inline-flex shrink-0 items-center px-2.5 py-0.5 bg-blue-100 text-blue-700 text-[11px] sm:text-xs rounded-full font-medium whitespace-nowrap">
+                                    Active Queue: {queueLength}
                                   </span>
                                 )}
                               </div>

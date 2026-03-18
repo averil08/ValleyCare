@@ -129,6 +129,7 @@ const Homepage = () => {
     {
       id: 1,
       name: "Dr. Melissa B. Edic",
+      consultationPrice: 1000,
       specializations: ["pedia", "follow-up"],
       schedule: [
         { days: "Thu - Fri", time: "9:00 AM - 11:00 PM" },
@@ -140,6 +141,7 @@ const Homepage = () => {
     {
       id: 2,
       name: "Dr. Genevive Bandiwan-Laking",
+      consultationPrice: 1200,
       specializations: ["pedia", "follow-up"],
       schedule: [
         { type: "byAppointment", note: "Book an appointment to arrange" }
@@ -148,6 +150,7 @@ const Homepage = () => {
     {
       id: 3,
       name: "Dr. Cynthia Moran",
+      consultationPrice: 1200,
       specializations: [
         "adult", "senior", "preventive", "follow-up",
         "cbc", "platelet", "esr", "abo",
@@ -164,6 +167,7 @@ const Homepage = () => {
     {
       id: 4,
       name: "Dr. Edrian O. Geronimo",
+      consultationPrice: 1500,
       specializations: [
         "adult", "senior", "preventive", "follow-up",
         "cbc", "platelet", "esr", "abo",
@@ -177,6 +181,7 @@ const Homepage = () => {
     {
       id: 5,
       name: "Dr. Feb Golocan-Alquiza",
+      consultationPrice: 1500,
       specializations: ["fbs", "rbs", "creatinine", "bun", "hba1c"],
       schedule: [
         { days: "Mon, Tue, Thu", time: "1:00 PM - 5:00 PM" }
@@ -185,6 +190,7 @@ const Homepage = () => {
     {
       id: 6,
       name: "Dr. Tanya Charissa Diomampo",
+      consultationPrice: 1200,
       specializations: ["creatinine", "bun", "hba1c"],
       schedule: [
         { days: "Wed", time: "1:00 PM - 5:00 PM" },
@@ -194,6 +200,7 @@ const Homepage = () => {
     {
       id: 7,
       name: "Dr. Maricar Josephine A. Geronimo",
+      consultationPrice: 1500,
       specializations: ["lipid", "totalCh", "triglycerides", "hdl", "ldl", "fbs", "rbs"],
       schedule: [
         { days: "Fri", time: "1:00 PM - 5:00 PM" }
@@ -202,6 +209,7 @@ const Homepage = () => {
     {
       id: 8,
       name: "Dr. Elvira T. Lampacan",
+      consultationPrice: 800,
       specializations: ["pregnancyT", "follow-up"],
       schedule: [
         { days: "Wed, Fri", time: "9:30 AM - 12:00 PM" },
@@ -211,6 +219,7 @@ const Homepage = () => {
     {
       id: 9,
       name: "Dr. Clarissa Mae L. Lee",
+      consultationPrice: 1000,
       specializations: ["pregnancyT", "follow-up"],
       schedule: [
         { days: "Mon, Tue", time: "9:30 AM - 12:00 PM" },
@@ -220,6 +229,7 @@ const Homepage = () => {
     {
       id: 10,
       name: "Dr. Herschel Charisse C. Rivera-Ang",
+      consultationPrice: 1000,
       specializations: ["pregnancyT", "follow-up"],
       schedule: [
         { days: "Mon - Wed", time: "1:00 PM - 3:00 PM" }
@@ -228,6 +238,7 @@ const Homepage = () => {
     {
       id: 11,
       name: "Dr. Cecille P. Pating",
+      consultationPrice: 1200,
       specializations: ["pregnancyT", "follow-up"],
       schedule: [
         { days: "Thu, Sat", time: "9:30 AM - 12:00 PM" },
@@ -237,6 +248,7 @@ const Homepage = () => {
     {
       id: 12,
       name: "Dr. Richard S. Ang",
+      consultationPrice: 1500,
       specializations: ["follow-up", "psa"],
       schedule: [
         { days: "Mon - Fri", time: "8:00 AM - 5:00 PM" }
@@ -245,6 +257,7 @@ const Homepage = () => {
     {
       id: 13,
       name: "Dr. Rajiv D. Laoagan",
+      consultationPrice: 1200,
       specializations: ["generalSurgery"],
       schedule: [
         { days: "Thu", time: "8:00 AM - 5:00 PM" },
@@ -254,6 +267,7 @@ const Homepage = () => {
     {
       id: 14,
       name: "Dr. Jefferson Richmond G. Chomenwey",
+      consultationPrice: 1500,
       specializations: ["generalSurgery"],
       schedule: [
         { type: "byAppointment", note: "Book an appointment to arrange" }
@@ -262,6 +276,7 @@ const Homepage = () => {
     {
       id: 15,
       name: "Dr. Rhea Jeanne L. Awas",
+      consultationPrice: 1200,
       specializations: ["ent"],
       schedule: [
         { days: "Mon, Tue, Wed", time: "8:00 AM - 5:00 PM" }
@@ -635,6 +650,13 @@ const Homepage = () => {
                         </div>
                       )}
                     </div>
+                    {/* Consultation Price Badge */}
+                    <div className="ml-2 shrink-0 flex flex-col items-end">
+                      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Consultation</span>
+                      <span className="text-base font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg leading-tight">
+                        ₱{doctor.consultationPrice.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -708,6 +730,13 @@ const Homepage = () => {
                           <span>Not Available</span>
                         </div>
                       )}
+                    </div>
+                    {/* Consultation Price Badge */}
+                    <div className="shrink-0 flex flex-col items-end ml-2">
+                      <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Consultation</span>
+                      <span className="text-sm font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg leading-tight">
+                        ₱{doctor.consultationPrice.toLocaleString()}
+                      </span>
                     </div>
                   </div>
 
