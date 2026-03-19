@@ -634,7 +634,7 @@ const Homepage = () => {
             {/* Desktop Grid View */}
             <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredDoctors.map(doctor => (
-                <div key={doctor.id} className="border border-gray-200 rounded-lg p-5 hover:shadow-lg transition-shadow bg-gradient-to-br from-white to-gray-50">
+                <div key={doctor.id} className="border border-gray-200 rounded-lg p-5 bg-gradient-to-br from-white to-gray-50">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-gray-900 mb-1">{doctor.name}</h3>
@@ -715,7 +715,7 @@ const Homepage = () => {
             {/* Mobile/Tablet List View */}
             <div className="lg:hidden space-y-4">
               {filteredDoctors.map(doctor => (
-                <div key={doctor.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-white">
+                <div key={doctor.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-bold text-base text-gray-900">{doctor.name}</h3>
