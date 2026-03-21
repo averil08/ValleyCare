@@ -972,6 +972,39 @@ function Checkin() {
     }
   }, []); // Run once on mount
 
+  // ✅ NEW: Handle pre-selected or default doctor (for Guest/Secretary)
+  useEffect(() => {
+    if (selectedPatientType === 'Appointment') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const doctorIdFromUrl = urlParams.get('doctorId');
+
+      if (doctorIdFromUrl) {
+        const doctorByUrl = doctors.find(d => String(d.id) === String(doctorIdFromUrl));
+        if (doctorByUrl) {
+          console.log(`🩺 Pre-selecting doctor ID ${doctorIdFromUrl}: ${doctorByUrl.name}`);
+          setBookingMode('doctor');
+          setSelectedDoctor(doctorByUrl);
+          return; // URL takes priority
+        }
+      }
+
+      // Default to Dr. Melissa (ID: 1) if Guest or Secretary and no selection made yet
+      if (!selectedDoctor) {
+        const isGuest = !isPatientLoggedIn;
+        const isSecretary = viewMode === 'patient' && !isPatientAccess;
+
+        if (isGuest || isSecretary) {
+          const melissa = doctors.find(d => String(d.id) === "1");
+          if (melissa) {
+            console.log("🌸 Defaulting to Dr. Melissa for Guest/Secretary");
+            setBookingMode('doctor');
+            setSelectedDoctor(melissa);
+          }
+        }
+      }
+    }
+  }, [selectedPatientType, isPatientLoggedIn, viewMode, isPatientAccess]);
+
   // Reset the ref when patient type is selected (so we can check again if they go back)
   useEffect(() => {
     if (selectedPatientType) {
