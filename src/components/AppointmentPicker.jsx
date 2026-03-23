@@ -375,7 +375,8 @@ const AppointmentPicker = ({
                 ? getSlotAvailability(slot.value)
                 : 1;
 
-              const isFullyBooked = availableSlotsCount <= 0;
+              const isNotOnDuty = availableSlotsCount === -1;
+              const isFullyBooked = availableSlotsCount === 0;
 
               // 3. Logic for the 24-hour advance rule
               const now = new Date();
@@ -392,10 +393,10 @@ const AppointmentPicker = ({
                 <option
                   key={slot.value}
                   value={slot.value}
-                  disabled={isTooSoon || isFullyBooked}
+                  disabled={isTooSoon || isFullyBooked || isNotOnDuty}
                 >
                   {slot.label}
-                  {isTooSoon ? ' (Requires 2-day notice)' : isFullyBooked ? ' (Fully Booked)' : ` (${availableSlotsCount} available)`}
+                  {isTooSoon ? ' (Requires 2-day notice)' : isNotOnDuty ? ' (Not on Duty)' : isFullyBooked ? ' (Fully Booked)' : ` (${availableSlotsCount} available)`}
                 </option>
               );
             })}
@@ -405,20 +406,24 @@ const AppointmentPicker = ({
           {selectedTime && (
             <div className={`flex items-center gap-2 p-3 rounded-md ${currentAvailableSlots > 0
               ? 'bg-blue-50 border border-blue-200'
-              : 'bg-red-50 border border-red-200'
+              : currentAvailableSlots === -1
+                ? 'bg-gray-50 border border-gray-200'
+                : 'bg-red-50 border border-red-200'
               }`}>
-              <AlertCircle className={`w-5 h-5 ${currentAvailableSlots > 0 ? 'text-blue-600' : 'text-red-600'
+              <AlertCircle className={`w-5 h-5 ${currentAvailableSlots > 0 ? 'text-blue-600' : currentAvailableSlots === -1 ? 'text-gray-500' : 'text-red-600'
                 }`} />
               <div>
-                <p className={`font-semibold text-sm ${currentAvailableSlots > 0 ? 'text-blue-900' : 'text-red-900'
+                <p className={`font-semibold text-sm ${currentAvailableSlots > 0 ? 'text-blue-900' : currentAvailableSlots === -1 ? 'text-gray-600' : 'text-red-900'
                   }`}>
-                  {currentAvailableSlots > 0 ? 'Slot available' : 'Slot not available'}
+                  {currentAvailableSlots > 0 ? 'Slot available' : currentAvailableSlots === -1 ? 'Not on Duty' : 'Slot not available'}
                 </p>
-                <p className={`text-xs ${currentAvailableSlots > 0 ? 'text-blue-700' : 'text-red-700'
+                <p className={`text-xs ${currentAvailableSlots > 0 ? 'text-blue-700' : currentAvailableSlots === -1 ? 'text-gray-500' : 'text-red-700'
                   }`}>
                   {currentAvailableSlots > 0
                     ? 'Book now to secure your appointment'
-                    : 'This time is already booked, please select another time'}
+                    : currentAvailableSlots === -1
+                      ? 'The selected doctor is not on duty at this time.'
+                      : 'This time is already booked, please select another time'}
                 </p>
               </div>
             </div>

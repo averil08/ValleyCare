@@ -18,7 +18,12 @@ const QueueStatus = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
     const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
-    return (isPatientView || isFromPatientSidebar) ? 'patient' : 'clinic';
+    const isFromHomepage = urlParams.get('from') === 'homepage';
+    const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
+
+    // If it's a logged-in account (via sidebar, homepage, or general login status), use clinic view
+    if (isFromPatientSidebar || isFromHomepage || (isPatientLoggedIn && isPatientView)) return 'clinic';
+    return isPatientView ? 'patient' : 'clinic';
   };
 
   // Helper function to check if patient accessed directly
@@ -26,13 +31,18 @@ const QueueStatus = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
     const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
-    return isPatientView || isFromPatientSidebar;
+    const isFromHomepage = urlParams.get('from') === 'homepage';
+    return isPatientView || isFromPatientSidebar || isFromHomepage;
   };
 
   const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [isFromPatientSidebar, setIsFromPatientSidebar] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('from') === 'patient-sidebar';
+  });
+  const [isFromHomepage, setIsFromHomepage] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('from') === 'homepage';
   });
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
   const [showDoneModal, setShowDoneModal] = useState(false);
@@ -45,23 +55,24 @@ const QueueStatus = () => {
 
   // Set initial view mode based on access type
   useEffect(() => {
-    if (isFromPatientSidebar) {
+    // If it's a logged-in account style access, force clinic view
+    if (isFromPatientSidebar || isFromHomepage || (isPatientLoggedIn && isPatientAccess)) {
       if (viewMode !== 'clinic') {
         setViewMode('clinic');
       }
-    } else if (isPatientAccess && !isFromPatientSidebar) {
+    } else if (isPatientAccess) {
       if (viewMode !== 'patient') {
         setViewMode('patient');
       }
     }
-  }, [isPatientAccess, isFromPatientSidebar, viewMode]);
+  }, [isPatientAccess, isFromPatientSidebar, isFromHomepage, isPatientLoggedIn, viewMode]);
 
-  // Force patient sidebar users to stay in clinic view
+  // Force patient account users to stay in clinic view
   useEffect(() => {
-    if (isFromPatientSidebar && viewMode === 'patient') {
+    if ((isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) && viewMode === 'patient') {
       setViewMode('clinic');
     }
-  }, [viewMode, isFromPatientSidebar]);
+  }, [viewMode, isFromPatientSidebar, isFromHomepage, isPatientLoggedIn]);
 
   const {
     patients,
@@ -460,8 +471,8 @@ const QueueStatus = () => {
       clearActivePatient();
 
       // Fix: Redirect to appointment form if it's a patient, otherwise to appointment page
-      if (isFromPatientSidebar || isPatientLoggedIn) {
-        navigate('/checkin?view=patient&from=patient-sidebar&type=appointment&skipCheck=true');
+      if (isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) {
+        navigate(`/checkin?view=patient&from=${isFromHomepage ? 'homepage' : 'patient-sidebar'}&type=appointment&skipCheck=true`);
       } else if (isPatientAccess) {
         navigate('/checkin?view=patient&type=appointment&skipCheck=true');
       } else {
@@ -483,8 +494,8 @@ const QueueStatus = () => {
     clearActivePatient();
 
     const params = new URLSearchParams();
-    if (isFromPatientSidebar) {
-      params.append('from', 'patient-sidebar');
+    if (isFromPatientSidebar || isFromHomepage) {
+      params.append('from', isFromHomepage ? 'homepage' : 'patient-sidebar');
       params.append('type', 'appointment');
     } else if (isPatientAccess) {
       params.append('view', 'patient');
@@ -677,10 +688,14 @@ const QueueStatus = () => {
   if (isPatientLoggedIn && !isMyAppointment) {
     return (
       <div className="flex w-full min-h-screen">
-        {isFromPatientSidebar ? (
+        {(isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) ? (
           <PatientSidebar nav={nav} handleNav={handleNav} />
-        ) : null}
-        <div className={`flex-1 min-h-screen bg-gray-50 ${isFromPatientSidebar ? 'ml-0 md:ml-52' : ''} flex items-center justify-center p-4`}>
+        ) : (
+          <Sidebar nav={nav} handleNav={handleNav} />
+        )}
+        <PushNotification />
+        <DoneConfirmationModal />
+        <div className="flex-1 min-h-screen bg-gray-50 ml-0 md:ml-52 p-3 sm:p-4 overflow-x-hidden">
           <Card className="max-w-md w-full">
             <CardContent className="p-4 sm:p-6 text-center">
               <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-red-500 mb-3 sm:mb-4" />
@@ -706,7 +721,7 @@ const QueueStatus = () => {
     if (viewMode === 'clinic') {
       return (
         <div className="flex w-full min-h-screen">
-          {isFromPatientSidebar ? (
+          {(isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) ? (
             <PatientSidebar nav={nav} handleNav={handleNav} />
           ) : (
             <Sidebar nav={nav} handleNav={handleNav} />
@@ -779,7 +794,9 @@ const QueueStatus = () => {
                     <div className="text-left text-xs sm:text-sm md:text-base lg:text-lg">
                       <p className="font-medium text-blue-900 mb-1">What happens next?</p>
                       <p className="text-[10px] xs:text-xs sm:text-sm text-blue-800">
-                        Our secretary will review your appointment request. Once approved, you'll see your queue number and estimated wait time. Please check back later or wait for a notification.
+                        {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar))
+                          ? "Your appointment request is being reviewed. You can access your appointment status in the \"Book Appointment\" section." 
+                          : "Our secretary will review your appointment request. Once approved, you'll see your queue number and estimated wait time. Please check back later or wait for a notification."}
                       </p>
                     </div>
                   </div>
@@ -813,9 +830,15 @@ const QueueStatus = () => {
                     variant="outline"
                     className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
                     size="lg"
-                    onClick={handleDoneClick}
+                    onClick={() => {
+                        if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
+                            navigate('/homepage');
+                        } else {
+                            handleDoneClick();
+                        }
+                    }}
                   >
-                    Done
+                    {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) ? "Back to Homepage" : "Done"}
                   </Button>
                 </div>
               </div>
@@ -964,7 +987,7 @@ const QueueStatus = () => {
     if (viewMode === 'clinic') {
       return (
         <div className="flex w-full min-h-screen">
-          {isFromPatientSidebar ? (
+          {(isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) ? (
             <PatientSidebar nav={nav} handleNav={handleNav} />
           ) : (
             <Sidebar nav={nav} handleNav={handleNav} />
@@ -1084,9 +1107,15 @@ const QueueStatus = () => {
                     variant="outline"
                     className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
                     size="lg"
-                    onClick={handleDoneClick}
+                    onClick={() => {
+                        if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
+                            navigate('/homepage');
+                        } else {
+                            handleDoneClick();
+                        }
+                    }}
                   >
-                    Done
+                    {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) ? "Back to Homepage" : "Done"}
                   </Button>
                 </div>
               </div>
@@ -1231,7 +1260,7 @@ const QueueStatus = () => {
   if (viewMode === 'clinic') {
     return (
       <div className="flex w-full min-h-screen">
-        {isFromPatientSidebar ? (
+        {(isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) ? (
           <PatientSidebar nav={nav} handleNav={handleNav} />
         ) : (
           <Sidebar nav={nav} handleNav={handleNav} />
@@ -1345,9 +1374,15 @@ const QueueStatus = () => {
                   variant="outline"
                   className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
                   size="lg"
-                  onClick={handleDoneClick}
+                  onClick={() => {
+                      if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
+                          navigate('/homepage');
+                      } else {
+                          handleDoneClick();
+                      }
+                  }}
                 >
-                  Done
+                  {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) ? "Back to Homepage" : "Done"}
                 </Button>
               </div>
             </div>

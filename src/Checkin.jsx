@@ -40,7 +40,8 @@ function Checkin() {
     const isPatientView = urlParams.get('view') === 'patient';
     const isFromLogin = urlParams.get('from') === 'login';
     const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
-    return (isPatientView || isFromLogin || isFromPatientSidebar) ? 'patient' : 'clinic';
+    const isFromHomepage = urlParams.get('from') === 'homepage';
+    return (isPatientView || isFromLogin || isFromPatientSidebar || isFromHomepage) ? 'patient' : 'clinic';
   };
 
   const isFromQRCode = () => {
@@ -55,7 +56,8 @@ function Checkin() {
     const isPatientView = urlParams.get('view') === 'patient';
     const isFromLogin = urlParams.get('from') === 'login';
     const isFromPatientSidebar = urlParams.get('from') === 'patient-sidebar';
-    return isPatientView || isFromLogin || isFromPatientSidebar;
+    const isFromHomepage = urlParams.get('from') === 'homepage';
+    return isPatientView || isFromLogin || isFromPatientSidebar || isFromHomepage;
   };
 
   const getInitialPatientType = () => {
@@ -69,7 +71,7 @@ function Checkin() {
   //ADDED to preserve data when users navigate to complete their profile
   const saveFormDataToTemp = () => {
     const currentEmail = localStorage.getItem('currentPatientEmail');
-    if (currentEmail && isFromPatientSidebar) {
+    if (currentEmail && (isFromPatientSidebar || isFromHomepage)) {
       const tempData = {
         symptoms: formData.symptoms,
         services: formData.services,
@@ -99,26 +101,33 @@ function Checkin() {
         if (Date.now() - tempData.timestamp < oneHour) {
           console.log('📥 Restoring form data from temp storage:', tempData);
 
-          setFormData(prev => ({
-            ...prev,
-            symptoms: tempData.symptoms || [],
-            services: tempData.services || [],
-            appointmentDateTime: tempData.appointmentDateTime || '',
-            isPriority: tempData.isPriority || false,
-            priorityType: tempData.priorityType || null,
-            isReturningPatient: tempData.isReturningPatient || false,
-          }));
+          setFormData(prev => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hasUrlDoctor = urlParams.get('doctorId') !== null;
+            return {
+              ...prev,
+              symptoms: tempData.symptoms || [],
+              services: tempData.services || [],
+              appointmentDateTime: hasUrlDoctor ? '' : (tempData.appointmentDateTime || ''),
+              isPriority: tempData.isPriority || false,
+              priorityType: tempData.priorityType || null,
+              isReturningPatient: tempData.isReturningPatient || false,
+            };
+          });
 
           if (tempData.expandedCategory) {
             setExpandedCategory(tempData.expandedCategory);
           }
 
-          if (tempData.bookingMode) {
-            setBookingMode(tempData.bookingMode);
-          }
-
-          if (tempData.selectedDoctor) {
+          // Only restore doctor/mode if not already selected via URL OR from a fresh entry point like sidebar
+          const urlParams = new URLSearchParams(window.location.search);
+          const hasUrlDoctor = urlParams.get('doctorId') !== null;
+          
+          if (tempData.selectedDoctor && !hasUrlDoctor && !isFromPatientSidebar && !isFromHomepage) {
             setSelectedDoctor(tempData.selectedDoctor);
+          }
+          if (tempData.bookingMode && !hasUrlDoctor && !isFromPatientSidebar && !isFromHomepage) {
+            setBookingMode(tempData.bookingMode);
           }
 
           return true;
@@ -142,15 +151,32 @@ function Checkin() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('from') === 'patient-sidebar';
   });
+  const [isFromHomepage, setIsFromHomepage] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('from') === 'homepage';
+  });
+  const [bookingMode, setBookingMode] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const doctorIdFromUrl = urlParams.get('doctorId');
+    // Default to service unless a doctor is pre-selected in the URL
+    return doctorIdFromUrl ? 'doctor' : 'service';
+  });
+  const [selectedDoctor, setSelectedDoctor] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const doctorIdFromUrl = urlParams.get('doctorId');
+    if (doctorIdFromUrl) {
+      const doctorByUrl = doctors.find(d => String(d.id) === String(doctorIdFromUrl));
+      if (doctorByUrl) return doctorByUrl;
+    }
+    return null;
+  });
   const [skipCheck] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('skipCheck') === 'true';
   });
+  const [availableSlots, setAvailableSlots] = useState(1);
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [availableSlots, setAvailableSlots] = useState(1);
-  const [bookingMode, setBookingMode] = useState('doctor');
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
 
   const currentPatientEmail = localStorage.getItem('currentPatientEmail');
   const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
@@ -597,7 +623,7 @@ function Checkin() {
         return;
       }
 
-      if (isFromPatientSidebar) {
+      if (isFromPatientSidebar || isFromHomepage) {
         if ((!formData.firstName && !formData.lastName) || !formData.age || !formData.phoneNum || !formData.patientEmail) {
           showMessage(
             "Profile Incomplete",
@@ -648,8 +674,12 @@ function Checkin() {
           return;
         }
 
-        if (availableSlots <= 0) {
+        if (availableSlots === 0) {
           showMessage("No Slots Available", "This time slot is fully booked. Please choose another time.", false);
+          setIsSubmitting(false);
+          return;
+        } else if (availableSlots === -1) {
+          showMessage("Not on Duty", `${selectedDoctor?.name || 'The doctor'} is not on duty at this time. Please choose another time.`, false);
           setIsSubmitting(false);
           return;
         }
@@ -755,7 +785,13 @@ function Checkin() {
           const params = new URLSearchParams();
           if (isPatientAccess) params.append('view', 'patient');
           if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
-          navigate(`/qstatus${params.toString() ? '?' + params.toString() : ''}`);
+          if (isFromHomepage) params.append('from', 'homepage');
+
+          if (isFromHomepage) {
+            navigate(`/homepage?booking_success=true`);
+          } else {
+            navigate(`/qstatus${params.toString() ? '?' + params.toString() : ''}`);
+          }
         }, 1000);
       } else {
         showMessage("Error", result.error, false);
@@ -775,7 +811,7 @@ function Checkin() {
     // Doctor mode availability check
     if (bookingMode === 'doctor') {
       if (!selectedDoctor) return 0;
-      if (!isDoctorAvailable(selectedDoctor, dateTimeString)) return 0;
+      if (!isDoctorAvailable(selectedDoctor, dateTimeString)) return -1;
     }
 
     const MAX_SLOTS_PER_TIME = 1;
@@ -808,8 +844,8 @@ function Checkin() {
     if (selectedDoctor && formData.appointmentDateTime && bookingMode === 'doctor') {
       const isStillAvailable = isDoctorAvailable(selectedDoctor, formData.appointmentDateTime);
       if (!isStillAvailable) {
-        console.log(`⚠️ ${selectedDoctor.name} is not available at selected time, clearing selection`);
-        setSelectedDoctor(null);
+        console.log(`⚠️ ${selectedDoctor.name} is not available at selected time, clearing time selection`);
+        setFormData(prev => ({ ...prev, appointmentDateTime: "" }));
       }
     }
   }, [formData.appointmentDateTime, selectedDoctor, bookingMode]);
@@ -987,23 +1023,16 @@ function Checkin() {
           return; // URL takes priority
         }
       }
-
-      // Default to Dr. Melissa (ID: 1) if Guest or Secretary and no selection made yet
-      if (!selectedDoctor) {
-        const isGuest = !isPatientLoggedIn;
-        const isSecretary = viewMode === 'patient' && !isPatientAccess;
-
-        if (isGuest || isSecretary) {
-          const melissa = doctors.find(d => String(d.id) === "1");
-          if (melissa) {
-            console.log("🌸 Defaulting to Dr. Melissa for Guest/Secretary");
-            setBookingMode('doctor');
-            setSelectedDoctor(melissa);
-          }
+      // NEW: For ANYONE switching to Doctor mode, default to Dr. Melissa (ID: 1) if no selection made yet
+      if (bookingMode === 'doctor' && !selectedDoctor) {
+        const melissa = doctors.find(d => String(d.id) === "1");
+        if (melissa) {
+          console.log(`🌸 Defaulting to Dr. Melissa now that Doctor mode is active`);
+          setSelectedDoctor(melissa);
         }
       }
     }
-  }, [selectedPatientType, isPatientLoggedIn, viewMode, isPatientAccess]);
+  }, [selectedPatientType, isPatientLoggedIn, viewMode, isPatientAccess, bookingMode, selectedDoctor]);
 
   // Reset the ref when patient type is selected (so we can check again if they go back)
   useEffect(() => {
@@ -1014,7 +1043,14 @@ function Checkin() {
 
   // ✅ Navigation redirect - simple and clean
   // GUARD: Do NOT redirect if we are in 'clinic' view or if user explicitly clicked 'Done' (skipCheck)
-  if (activePatient && viewMode !== 'clinic' && !skipCheck) {
+  const isSessionFinished = activePatient && (
+    activePatient.status === 'done' || 
+    activePatient.status === 'completed' || 
+    activePatient.status === 'cancelled' || 
+    (activePatient.type === 'Appointment' && activePatient.appointmentStatus === 'rejected')
+  );
+
+  if (activePatient && !isSessionFinished && viewMode !== 'clinic' && !skipCheck) {
     const params = new URLSearchParams();
     if (isPatientAccess) params.append('view', 'patient');
     if (isFromPatientSidebar) params.append('from', 'patient-sidebar');
@@ -1066,7 +1102,7 @@ function Checkin() {
 
   // === PATIENT UI CONTROLS === 
   if (!selectedPatientType) {
-    const isFromSidebar = isFromPatientSidebar;
+    const isFromSidebar = isFromPatientSidebar || isFromHomepage;
     return (
       <div className={isFromSidebar ? "min-h-screen w-full overflow-x-hidden" : "min-h-screen bg-gray-50 flex items-center justify-center p-4"}>
         {isFromSidebar && <PatientSidebar nav={nav} handleNav={handleNav} />}
@@ -1099,11 +1135,11 @@ function Checkin() {
 
   // Step 2: Patient Registration Forms
   return (
-    <div className={isFromPatientSidebar ? "min-h-screen w-full overflow-x-hidden" : "min-h-screen bg-gray-50 flex items-center justify-center p-4"}>
-      {isFromPatientSidebar && <PatientSidebar nav={nav} handleNav={handleNav} />}
-      <div className={isFromPatientSidebar ? "min-h-screen bg-gray-50 ml-0 md:ml-52 flex items-center justify-center p-4 overflow-x-hidden" : "w-full flex justify-center"}>
+    <div className={(isFromPatientSidebar || isFromHomepage) ? "min-h-screen w-full overflow-x-hidden" : "min-h-screen bg-gray-50 flex items-center justify-center p-4"}>
+      {(isFromPatientSidebar || isFromHomepage) && <PatientSidebar nav={nav} handleNav={handleNav} />}
+      <div className={(isFromPatientSidebar || isFromHomepage) ? "min-h-screen bg-gray-50 ml-0 md:ml-52 flex items-center justify-center p-4 overflow-x-hidden" : "w-full flex justify-center"}>
         <Card className="w-full max-w-lg shadow-xl border-t-4 border-green-600 my-8">
-          {!isFromPatientSidebar && (
+          {!(isFromPatientSidebar || isFromHomepage) && (
             <div className="p-4 border-b border-gray-200">
               <Button onClick={() => isPatientAccess ? navigate('/') : setViewMode('clinic')} variant="outline" size="sm" className="text-green-600 border-green-600 hover:bg-green-50">← Back</Button>
             </div>
@@ -1115,24 +1151,6 @@ function Checkin() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (bookingMode !== 'doctor') {
-                      setBookingMode('doctor');
-                      setFormData(prev => ({ ...prev, services: [], appointmentDateTime: "" }));
-                      setAvailableSlots(1);
-                      setSelectedDoctor(null);
-                    }
-                  }}
-                  className={`flex-1 py-2 text-center text-sm font-semibold rounded-md transition-all ${
-                    bookingMode === 'doctor'
-                      ? 'bg-white text-indigo-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Book by Doctor
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
                     if (bookingMode !== 'service') {
                       setBookingMode('service');
                       setFormData(prev => ({ ...prev, services: [], appointmentDateTime: "" }));
@@ -1140,13 +1158,29 @@ function Checkin() {
                       setSelectedDoctor(null);
                     }
                   }}
-                  className={`flex-1 py-2 text-center text-sm font-semibold rounded-md transition-all ${
-                    bookingMode === 'service'
+                  className={`flex-1 py-2 text-center text-sm font-semibold rounded-md transition-all ${bookingMode === 'service'
                       ? 'bg-white text-green-700 shadow-sm'
                       : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                    }`}
                 >
                   Book by Service
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (bookingMode !== 'doctor') {
+                      setBookingMode('doctor');
+                      setFormData(prev => ({ ...prev, services: [], appointmentDateTime: "" }));
+                      setAvailableSlots(1);
+                      setSelectedDoctor(null);
+                    }
+                  }}
+                  className={`flex-1 py-2 text-center text-sm font-semibold rounded-md transition-all ${bookingMode === 'doctor'
+                      ? 'bg-white text-indigo-700 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  Book by Doctor
                 </button>
               </div>
             )}
@@ -1171,8 +1205,8 @@ function Checkin() {
                             key={doctor.id}
                             onClick={() => handleDoctorSelect(doctor.id)}
                             className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${selectedDoctor?.id === doctor.id
-                                ? 'border-indigo-600 bg-indigo-100 shadow-md'
-                                : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-indigo-50'
+                              ? 'border-indigo-600 bg-indigo-100 shadow-md'
+                              : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-indigo-50'
                               }`}
                           >
                             <div className="flex items-start justify-between">
@@ -1248,7 +1282,7 @@ function Checkin() {
                       </div>
 
                       {/* PROFILE INFO - Only show for logged-in users */}
-                      {isFromPatientSidebar && (
+                      {(isFromPatientSidebar || isFromHomepage) && (
                         <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg">
                           <div className="flex items-start gap-3 mb-3">
                             <div className="bg-green-600 p-2 rounded-full">
@@ -1322,7 +1356,7 @@ function Checkin() {
                       )}
 
                       {/* Input fields for non-sidebar users */}
-                      {!isFromPatientSidebar && (
+                      {!(isFromPatientSidebar || isFromHomepage) && (
                         <>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -1474,7 +1508,7 @@ function Checkin() {
                         </div>
                       )}
                       {/* PROFILE INFO - Only show for logged-in users */}
-                      {isFromPatientSidebar && (
+                      {(isFromPatientSidebar || isFromHomepage) && (
                         <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg">
                           <div className="flex items-start gap-3 mb-3">
                             <div className="bg-green-600 p-2 rounded-full">
@@ -1548,7 +1582,7 @@ function Checkin() {
                       )}
 
                       {/* Input fields — only for non-sidebar users */}
-                      {!isFromPatientSidebar && (
+                      {!(isFromPatientSidebar || isFromHomepage) && (
                         <>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
@@ -1681,7 +1715,13 @@ function Checkin() {
                 <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg" disabled={isSubmitting || (selectedPatientType === "Appointment" && availableSlots <= 0)}>
                   {isSubmitting ? "Submitting..." : "Submit Registration"}
                 </Button>
-                <Button type="button" className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800" onClick={() => setSelectedPatientType(null)}>← Back</Button>
+                <Button
+                  type="button"
+                  className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800"
+                  onClick={() => isFromHomepage ? navigate('/homepage') : setSelectedPatientType(null)}
+                >
+                  {isFromHomepage ? "Back to Homepage" : "← Back"}
+                </Button>
               </div>
             </form>
           </CardContent>

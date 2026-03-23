@@ -475,6 +475,8 @@ export const PatientProvider = ({ children }) => {
           if (!p.patientEmail || p.patientEmail.toLowerCase().trim() !== normalizedCurrentEmail) return false;
           if (p.isInactive) return false;
 
+          if (p.status === 'done' || p.status === 'completed' || p.status === 'cancelled') return false;
+
           const isActiveState = (p.appointmentStatus === 'pending' || p.appointmentStatus === 'accepted' || p.inQueue);
           if (!isActiveState) return false;
 

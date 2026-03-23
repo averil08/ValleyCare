@@ -1,12 +1,14 @@
 import React, { useState, useContext } from 'react';
+import { useNavigate } from "react-router-dom";
 import PatientSidebar from "@/components/PatientSidebar";
 import { PatientContext } from "./PatientContext";
-import { Bell, Clock } from "lucide-react";
+import { Bell, Clock, TicketCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
 
 //THIS IS THE PATIENT DASHBOARD IN PATIENT UI
 const Homepage = () => {
+  const navigate = useNavigate();
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
   const { patients, activePatient, notifications, markNotificationsRead, clearNotifications } = useContext(PatientContext);
@@ -14,13 +16,19 @@ const Homepage = () => {
   // State for specialization filter and search
   const [selectedSpecialization, setSelectedSpecialization] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showBookingSuccessModal, setShowBookingSuccessModal] = useState(false);
 
-  // Handle ?showNotifications=true from sidebar
+  // Handle ?showNotifications=true and ?booking_success=true
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('showNotifications') === 'true') {
       setShowNotifications(true);
       markNotificationsRead();
+      // Clean up URL
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    } else if (params.get('booking_success') === 'true') {
+      setShowBookingSuccessModal(true);
       // Clean up URL
       const newUrl = window.location.pathname;
       window.history.replaceState({}, '', newUrl);
@@ -92,35 +100,31 @@ const Homepage = () => {
     },
     'pediatrics': {
       label: 'Pediatrics',
-      doctorIds: [1, 2] // Melissa, Genevive
+      doctorIds: [1, 2, 3] // Melissa, Leila, Genevieve
     },
     'internalMedicine': {
       label: 'Internal Medicine',
-      doctorIds: [3] // Cynthia
-    },
-    'infectiousDisease': {
-      label: 'Infectious Disease',
-      doctorIds: [4] // Edrian
+      doctorIds: [11, 12] // Cynthia, Richard Boado
     },
     'nephrology': {
       label: 'Nephrology',
-      doctorIds: [5, 6, 7] // Feb, Tanya, Maricar
+      doctorIds: [13] // Ian Feb
     },
     'obgyn': {
       label: 'OB-GYN',
-      doctorIds: [8, 9, 10, 11] // Elvira, Clarissa Mae, Herschel Charisse, Cecille
+      doctorIds: [4, 5, 6, 7] // Elvira, Herschel, Clarissa, Cecille
     },
     'orthopedicsUrology': {
       label: 'Orthopedics & Urology',
-      doctorIds: [12] // Richard
+      doctorIds: [9] // Richard Ang
     },
     'generalSurgery': {
       label: 'General Surgery',
-      doctorIds: [13, 14] // Rajiv, Jefferson
+      doctorIds: [8, 14] // Rajiv, Jefferson
     },
     'ent': {
       label: 'ENT',
-      doctorIds: [15] // Rhea Jeanne
+      doctorIds: [10] // Rhea
     }
   };
 
@@ -128,27 +132,107 @@ const Homepage = () => {
   const doctors = [
     {
       id: 1,
-      name: "Dr. Melissa B. Edic",
+      name: "Dr. Melissa Edic",
       consultationPrice: 1000,
       specializations: ["pedia", "follow-up"],
       schedule: [
-        { days: "Thu - Fri", time: "9:00 AM - 11:00 PM" },
-        { days: "Thu - Fri", time: "2:00 AM - 5:00 PM" },
-        { days: "Wednesday", frequency: "2nd and 4th", time: "9:00 AM - 3:00 PM" },
-        { days: "Saturday", frequency: "1st and 3rd", time: "9:00 AM - 3:00 PM" }
+        { days: "Thu - Fri", time: "10:00 AM - 12:00 NN" },
+        { days: "Thu - Fri", time: "2:00 PM - 4:00 PM" },
+        { days: "Wednesday", frequency: "2nd and 4th", time: "10:00 AM - 4:00 PM" },
+        { days: "Saturday", frequency: "1st and 3rd", time: "10:00 AM - 4:00 PM" }
       ]
     },
     {
       id: 2,
-      name: "Dr. Genevive Bandiwan-Laking",
-      consultationPrice: 1200,
+      name: "Dr. Leila Rachel Dupiag",
+      consultationPrice: 1000,
       specializations: ["pedia", "follow-up"],
       schedule: [
-        { type: "byAppointment", note: "Book an appointment to arrange" }
+        { days: "Mon - Tue", time: "10:00 AM - 12:00 NN" },
+        { days: "Thu - Fri", time: "12:00 PM - 2:00 PM" },
+        { days: "Wednesday", frequency: "1st and 3rd", time: "10:00 AM - 12:00 NN" },
+        { days: "Saturday", frequency: "2nd and 4th", time: "10:00 AM - 12:00 NN" }
       ]
     },
     {
       id: 3,
+      name: "Dr. Genevieve Laking",
+      consultationPrice: 1200,
+      specializations: ["pedia", "follow-up"],
+      schedule: [
+        { days: "Mon - Tue", time: "2:30 PM - 5:00 PM" },
+        { days: "Wednesday", frequency: "1st and 3rd", time: "2:30 PM - 5:00 PM" },
+        { days: "Saturday", frequency: "2nd and 4th", time: "2:30 PM - 5:00 PM" }
+      ]
+    },
+    {
+      id: 4,
+      name: "Dr. Elvira Lampacan",
+      consultationPrice: 800,
+      specializations: ["pregnancyT", "follow-up"],
+      schedule: [
+        { days: "Wed, Fri", time: "10:00 AM - 12:00 NN" },
+        { days: "Thu", time: "10:00 AM - 12:00 NN" },
+        { days: "Thu", time: "1:00 PM - 3:00 PM" }
+      ]
+    },
+    {
+      id: 5,
+      name: "Dr. Herschel Charisse Rivera-Ang",
+      consultationPrice: 1000,
+      specializations: ["pregnancyT", "follow-up"],
+      schedule: [
+        { days: "Mon - Wed", time: "3:00 PM - 5:00 PM" }
+      ]
+    },
+    {
+      id: 6,
+      name: "Dr. Clarissa Lee",
+      consultationPrice: 1000,
+      specializations: ["pregnancyT", "follow-up"],
+      schedule: [
+        { days: "Mon - Tue", time: "10:00 AM - 12:00 NN" },
+        { days: "Fri", time: "1:00 PM - 3:00 PM" }
+      ]
+    },
+    {
+      id: 7,
+      name: "Dr. Cecille Pating",
+      consultationPrice: 1200,
+      specializations: ["pregnancyT", "follow-up"],
+      schedule: [
+        { days: "Sat", time: "10:00 AM - 3:00 PM" }
+      ]
+    },
+    {
+      id: 8,
+      name: "Dr. Rajiv Laoagan",
+      consultationPrice: 1200,
+      specializations: ["generalSurgery"],
+      schedule: [
+        { days: "Thu, Sat", time: "10:00 AM - 3:00 PM" }
+      ]
+    },
+    {
+      id: 9,
+      name: "Dr. Richard Ang",
+      consultationPrice: 1500,
+      specializations: ["follow-up", "psa"],
+      schedule: [
+        { days: "Mon - Wed", time: "1:00 PM - 3:00 PM" }
+      ]
+    },
+    {
+      id: 10,
+      name: "Dr. Rhea Jeanne Awas",
+      consultationPrice: 1200,
+      specializations: ["ent"],
+      schedule: [
+        { days: "Fri", time: "10:00 AM - 1:00 PM" }
+      ]
+    },
+    {
+      id: 11,
       name: "Dr. Cynthia Moran",
       consultationPrice: 1200,
       specializations: [
@@ -161,107 +245,25 @@ const Homepage = () => {
         "sodium", "potassium", "chloride", "ionizedCal", "totalCal", "magnesium"
       ],
       schedule: [
-        { days: "Wed", time: "9:00 AM - 12:00 PM" }
-      ]
-    },
-    {
-      id: 4,
-      name: "Dr. Edrian O. Geronimo",
-      consultationPrice: 1500,
-      specializations: [
-        "adult", "senior", "preventive", "follow-up",
-        "cbc", "platelet", "esr", "abo",
-        "hbsag", "vdrl", "antiHCV", "hpylori",
-        "dengueIg", "dengueNs1", "dengueDuo", "typhidot"
-      ],
-      schedule: [
-        { days: "Tue, Thu", time: "9:00 AM - 12:00 PM" }
-      ]
-    },
-    {
-      id: 5,
-      name: "Dr. Feb Golocan-Alquiza",
-      consultationPrice: 1500,
-      specializations: ["fbs", "rbs", "creatinine", "bun", "hba1c"],
-      schedule: [
-        { days: "Mon, Tue, Thu", time: "1:00 PM - 5:00 PM" }
-      ]
-    },
-    {
-      id: 6,
-      name: "Dr. Tanya Charissa Diomampo",
-      consultationPrice: 1200,
-      specializations: ["creatinine", "bun", "hba1c"],
-      schedule: [
-        { days: "Wed", time: "1:00 PM - 5:00 PM" },
-        { days: "Sat", time: "10:00 AM - 1:00 PM" }
-      ]
-    },
-    {
-      id: 7,
-      name: "Dr. Maricar Josephine A. Geronimo",
-      consultationPrice: 1500,
-      specializations: ["lipid", "totalCh", "triglycerides", "hdl", "ldl", "fbs", "rbs"],
-      schedule: [
-        { days: "Fri", time: "1:00 PM - 5:00 PM" }
-      ]
-    },
-    {
-      id: 8,
-      name: "Dr. Elvira T. Lampacan",
-      consultationPrice: 800,
-      specializations: ["pregnancyT", "follow-up"],
-      schedule: [
-        { days: "Wed, Fri", time: "9:30 AM - 12:00 PM" },
-        { days: "Thu", time: "1:00 PM - 3:00 PM" }
-      ]
-    },
-    {
-      id: 9,
-      name: "Dr. Clarissa Mae L. Lee",
-      consultationPrice: 1000,
-      specializations: ["pregnancyT", "follow-up"],
-      schedule: [
-        { days: "Mon, Tue", time: "9:30 AM - 12:00 PM" },
-        { days: "Sat", time: "1:00 PM - 3:00 PM" }
-      ]
-    },
-    {
-      id: 10,
-      name: "Dr. Herschel Charisse C. Rivera-Ang",
-      consultationPrice: 1000,
-      specializations: ["pregnancyT", "follow-up"],
-      schedule: [
-        { days: "Mon - Wed", time: "1:00 PM - 3:00 PM" }
-      ]
-    },
-    {
-      id: 11,
-      name: "Dr. Cecille P. Pating",
-      consultationPrice: 1200,
-      specializations: ["pregnancyT", "follow-up"],
-      schedule: [
-        { days: "Thu, Sat", time: "9:30 AM - 12:00 PM" },
-        { days: "Fri", time: "1:00 PM - 3:00 PM" }
+        { days: "Fri", time: "10:00 AM - 12:00 NN" }
       ]
     },
     {
       id: 12,
-      name: "Dr. Richard S. Ang",
+      name: "Dr. Richard Boado",
       consultationPrice: 1500,
-      specializations: ["follow-up", "psa"],
+      specializations: ["adult", "senior", "preventive", "follow-up"],
       schedule: [
-        { days: "Mon - Fri", time: "8:00 AM - 5:00 PM" }
+        { days: "Mon, Sat", time: "9:00 AM - 12:00 NN" }
       ]
     },
     {
       id: 13,
-      name: "Dr. Rajiv D. Laoagan",
-      consultationPrice: 1200,
-      specializations: ["generalSurgery"],
+      name: "Dr. Ian Feb Golocan-Alquiza",
+      consultationPrice: 1500,
+      specializations: ["fbs", "rbs", "creatinine", "bun", "hba1c"],
       schedule: [
-        { days: "Thu", time: "8:00 AM - 5:00 PM" },
-        { days: "Fri, Sat", time: "8:00 AM - 12:00 PM" }
+        { days: "Mon, Thu", time: "12:00 PM - 4:00 PM" }
       ]
     },
     {
@@ -271,15 +273,6 @@ const Homepage = () => {
       specializations: ["generalSurgery"],
       schedule: [
         { type: "byAppointment", note: "Book an appointment to arrange" }
-      ]
-    },
-    {
-      id: 15,
-      name: "Dr. Rhea Jeanne L. Awas",
-      consultationPrice: 1200,
-      specializations: ["ent"],
-      schedule: [
-        { days: "Mon, Tue, Wed", time: "8:00 AM - 5:00 PM" }
       ]
     }
   ];
@@ -634,7 +627,7 @@ const Homepage = () => {
             {/* Desktop Grid View */}
             <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredDoctors.map(doctor => (
-                <div key={doctor.id} className="border border-gray-200 rounded-lg p-5 bg-gradient-to-br from-white to-gray-50">
+                <div key={doctor.id} className="border border-gray-200 rounded-lg p-5 bg-gradient-to-br from-white to-gray-50 flex flex-col h-full">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-bold text-lg text-gray-900 mb-1">{doctor.name}</h3>
@@ -708,6 +701,15 @@ const Homepage = () => {
                       </div>
                     </div>
                   </div>
+
+                  <div className="pt-4 mt-auto">
+                    <button
+                      onClick={() => navigate(`/checkin?view=patient&from=homepage&type=appointment&doctorId=${doctor.id}`)}
+                      className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-sm shadow-sm transition-all hover:shadow-md flex items-center justify-center gap-2"
+                    >
+                      Book Doctor
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -715,7 +717,7 @@ const Homepage = () => {
             {/* Mobile/Tablet List View */}
             <div className="lg:hidden space-y-4">
               {filteredDoctors.map(doctor => (
-                <div key={doctor.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                <div key={doctor.id} className="border border-gray-200 rounded-lg p-4 bg-white flex flex-col h-full">
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h3 className="font-bold text-base text-gray-900">{doctor.name}</h3>
@@ -745,7 +747,7 @@ const Homepage = () => {
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Specializations</p>
                       <div className="flex flex-wrap gap-1.5">
                         {getServiceCategories(doctor.specializations).map((cat, idx) => (
-                          <span key={idx} className="inline-block bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-medium">
+                          <span key={idx} className="inline-block bg-blue-100 text-blue-700 text-xs px-2.5 py-0.5 rounded-full font-medium">
                             {cat}
                           </span>
                         ))}
@@ -771,6 +773,15 @@ const Homepage = () => {
                       </div>
                     </div>
                   </div>
+
+                  <div className="pt-3 mt-auto">
+                    <button
+                      onClick={() => navigate(`/checkin?view=patient&from=homepage&type=appointment&doctorId=${doctor.id}`)}
+                      className="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2"
+                    >
+                      Book Doctor
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -790,6 +801,29 @@ const Homepage = () => {
           </div>
         </div>
       </div>
+
+      {/* BOOKING SUCCESS MODAL */}
+      {showBookingSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+            <div className="p-8 text-center bg-gradient-to-b from-green-50 to-white">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm border-2 border-green-200">
+                <TicketCheck className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 uppercase  mb-3">Booking Submitted!</h3>
+              <p className="text-slate-600 leading-relaxed mb-8">
+                Your appointment request is pending. To view your status, please head   over to the <span className="text-green-600">‘Book Appointment’</span> section in your sidebar.
+              </p>
+              <button
+                onClick={() => setShowBookingSuccessModal(false)}
+                className="w-full py-4 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-lg shadow-green-200 transition-all hover:-translate-y-0.5"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
