@@ -4,7 +4,7 @@ import {
     Users, Search, Calendar, Clock, User, ChevronRight, ChevronDown,
     MoreHorizontal, History, CheckCircle2, Filter,
     Bell, CalendarDays, Menu, X, Phone, Stethoscope,
-    ArrowLeft, DoorOpen, Activity, XCircle, Eye, ChevronLeft
+    ArrowLeft, DoorOpen, Activity, XCircle, Eye, ChevronLeft, RotateCcw
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -18,9 +18,11 @@ import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import { PatientContext } from "./PatientContext";
-import { supabase } from "./lib/supabaseClient";
+import { supabase, registerAppointmentPatient } from "./lib/supabaseClient";
 import { useNavigate } from 'react-router-dom';
 import logoValley from '@/assets/logo-valley.png';
+import AppointmentPicker from './components/AppointmentPicker';
+import './calendar.css';
 
 /* ─── Static Helpers ─── */
 function getApptDateFilterLabel(filter) {
@@ -103,7 +105,16 @@ const DoctorDashboard = () => {
     const [rejectionReason, setRejectionReason] = useState("");
     const [showIndividualDeclineModal, setShowIndividualDeclineModal] = useState(false);
 
-    const { patients, lastDoctorNotificationCheck, markDoctorNotificationsAsRead, rejectAppointment, acceptAppointment } = useContext(PatientContext);
+    // ── Follow-Up Modal state ─────────────────────────────────────────────
+    const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+    const [followUpPatient, setFollowUpPatient] = useState(null);
+    const [followUpReason, setFollowUpReason] = useState('');
+    const [followUpDateTime, setFollowUpDateTime] = useState('');
+    const [followUpSymptoms, setFollowUpSymptoms] = useState([]);
+    const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
+    const [followUpSuccess, setFollowUpSuccess] = useState(false);
+
+    const { patients, addPatient, lastDoctorNotificationCheck, markDoctorNotificationsAsRead, rejectAppointment, acceptAppointment, getAvailableSlots } = useContext(PatientContext);
     const dropdownRef = useRef(null);
     const desktopDropdownRef = useRef(null);
     const workspaceRef = useRef(null);
@@ -168,6 +179,89 @@ const DoctorDashboard = () => {
             }
         }
     }, [patients, selectedPatient]);
+
+    // ── Follow-Up handlers ────────────────────────────────────────────────
+    const handleOpenFollowUp = (patient, e) => {
+        e.stopPropagation();
+        setFollowUpPatient(patient);
+        setFollowUpReason('');
+        setFollowUpDateTime('');
+        setFollowUpSymptoms(patient.symptoms || []);
+        setFollowUpSuccess(false);
+        setShowFollowUpModal(true);
+    };
+
+    const handleFollowUpSubmit = async () => {
+        if (!followUpDateTime || !followUpReason.trim()) return;
+        setIsSubmittingFollowUp(true);
+        try {
+            const p = followUpPatient;
+            const assignedDoc = p.assignedDoctor || currentDoctor;
+            const formData = {
+                name: p.name || 'Patient',
+                age: p.age || '',
+                phoneNum: p.phoneNum || '',
+                physician: assignedDoc?.name || currentDoctor.name,
+                assignedDoctorName: assignedDoc?.name || currentDoctor.name,
+                symptoms: followUpSymptoms,
+                services: ['follow-up-doctor'],
+                isPriority: false,
+                priorityType: null,
+                patientEmail: p.patientEmail || null,
+                notes: `Follow-up reason: ${followUpReason}`,
+            };
+
+            const result = await registerAppointmentPatient(formData, followUpDateTime);
+
+            if (result.success) {
+                const dbPatient = result.patient;
+                const newAppt = {
+                    id: dbPatient?.id,
+                    dbId: dbPatient?.id,
+                    name: p.name,
+                    age: p.age,
+                    phoneNum: p.phoneNum,
+                    type: 'Appointment',
+                    symptoms: followUpSymptoms,
+                    services: ['follow-up-doctor'],
+                    appointmentDateTime: followUpDateTime,
+                    isPriority: false,
+                    priorityType: null,
+                    isReturningPatient: true,
+                    patientEmail: p.patientEmail || null,
+                    assignedDoctor: assignedDoc ? {
+                        id: assignedDoc.id,
+                        name: assignedDoc.name,
+                        specialization: assignedDoc.specialization
+                    } : null,
+                    preferredDoctor: assignedDoc ? {
+                        id: assignedDoc.id,
+                        name: assignedDoc.name,
+                        specialization: assignedDoc.specialization
+                    } : null,
+                    bookingMode: 'doctor',
+                    status: 'waiting',
+                    appointmentStatus: 'accepted',
+                    inQueue: true,
+                    queueNo: dbPatient?.queue_no || null,
+                    registeredAt: new Date().toISOString(),
+                    notes: `Follow-up reason: ${followUpReason}`,
+                };
+                addPatient(newAppt);
+                setFollowUpSuccess(true);
+                setTimeout(() => {
+                    setShowFollowUpModal(false);
+                    setFollowUpSuccess(false);
+                }, 1800);
+            } else {
+                console.error('Follow-up submission failed:', result.error);
+            }
+        } catch (err) {
+            console.error('Follow-up error:', err);
+        } finally {
+            setIsSubmittingFollowUp(false);
+        }
+    };
 
     const handleLogoutClick = () => {
         setShowLogoutModal(true);
@@ -548,6 +642,7 @@ const DoctorDashboard = () => {
                             patient={p}
                             selectedPatient={selectedPatient}
                             onClick={handlePatientClick}
+                            onFollowUp={handleOpenFollowUp}
                         />
                     ))
                 ) : (
@@ -879,6 +974,7 @@ const DoctorDashboard = () => {
                                     patient={p}
                                     selectedPatient={selectedPatient}
                                     onClick={handlePatientClick}
+                                    onFollowUp={handleOpenFollowUp}
                                 />
                             ))
                         ) : (
@@ -1388,6 +1484,168 @@ const DoctorDashboard = () => {
                 </DialogContent>
             </Dialog>
 
+            {/* ===== FOLLOW-UP MODAL ===== */}
+            <Dialog open={showFollowUpModal} onOpenChange={(open) => {
+                if (!open) { setShowFollowUpModal(false); setFollowUpSuccess(false); }
+            }}>
+                <DialogContent
+                    className="sm:max-w-xl w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] rounded-2xl border-none shadow-2xl p-0 overflow-hidden flex flex-col"
+                    style={{ fontFamily: "'Poppins', sans-serif", maxHeight: 'min(90dvh, 720px)' }}
+                >
+                    {/* ── Sticky Header gradient ── */}
+                    <div className="bg-gradient-to-r from-emerald-600 to-teal-500 px-6 py-5 shrink-0">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-white text-lg font-semibold">
+                                <RotateCcw className="w-5 h-5" />
+                                Schedule a Follow-Up
+                            </DialogTitle>
+                            <DialogDescription className="text-emerald-100 text-sm mt-1">
+                                {followUpPatient?.name} — create a follow-up consultation
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+
+                    {followUpSuccess ? (
+                        <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center flex-1">
+                            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+                                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+                            </div>
+                            <p className="text-base font-semibold text-slate-800">Follow-up scheduled!</p>
+                            <p className="text-sm text-slate-500">It will appear under <span className="font-medium text-blue-600">Upcoming</span> in the patient's profile.</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* ── Scrollable body ── */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pt-5 pb-4 space-y-5 min-h-0">
+
+                            {/* Previously Recorded Symptoms (read-only) — with Visit # badge */}
+                            <div>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">Previously Recorded Symptoms</label>
+                                    {followUpPatient?.queueNo != null && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 leading-none">
+                                            Visit #{String(followUpPatient.queueNo).padStart(3, '0')}
+                                        </span>
+                                    )}
+                                </div>
+                                {followUpSymptoms && followUpSymptoms.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                        {followUpSymptoms.map((s, i) => (
+                                            <Badge
+                                                key={i}
+                                                variant="outline"
+                                                className="text-[11px] py-0.5 px-2 bg-blue-100 text-blue-700 border-blue-200 pointer-events-none"
+                                            >
+                                                {s}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-slate-400 italic">No previous symptoms recorded.</p>
+                                )}
+                            </div>
+
+                            {/* Reason for Follow-Up */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest mb-2">
+                                    Reason for Follow-Up <span className="text-red-500">*</span>
+                                </label>
+                                <Textarea
+                                    placeholder="e.g., Monitor blood pressure, re-evaluate lab results…"
+                                    value={followUpReason}
+                                    onChange={e => setFollowUpReason(e.target.value)}
+                                    className="min-h-[80px] resize-none text-sm rounded-xl border-slate-200 focus-visible:ring-emerald-500"
+                                    maxLength={500}
+                                />
+                                <p className="text-right text-[11px] text-slate-400 mt-1">{followUpReason.length}/500</p>
+                            </div>
+
+                            {/* Date & Time — doctor-aware AppointmentPicker */}
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest mb-3">
+                                    Date and Time of Follow-Up <span className="text-red-500">*</span>
+                                </label>
+                                <AppointmentPicker
+                                    selectedDateTime={followUpDateTime}
+                                    onDateTimeChange={setFollowUpDateTime}
+                                    getAvailableSlots={(dateTimeString) => {
+                                        if (!dateTimeString) return 1;
+                                        // Check doctor's schedule availability
+                                        if (currentDoctor?.availability) {
+                                            const apptDate = new Date(dateTimeString);
+                                            const dayOfWeek = apptDate.getDay();
+                                            const apptHour = apptDate.getHours() + (apptDate.getMinutes() / 60);
+                                            const weekOfMonth = Math.ceil(apptDate.getDate() / 7);
+                                            const isOnDuty = currentDoctor.schedule?.includes('By Appointment Only')
+                                                ? dayOfWeek !== 0
+                                                : currentDoctor.availability.some(slot => {
+                                                    if (!slot.days.includes(dayOfWeek)) return false;
+                                                    if (apptHour < slot.startHour || apptHour >= slot.endHour) return false;
+                                                    if (slot.weeksOfMonth && !slot.weeksOfMonth.includes(weekOfMonth)) return false;
+                                                    return true;
+                                                });
+                                            if (!isOnDuty) return -1; // 'Not on Duty'
+                                        }
+                                        const MAX_SLOTS = 1;
+                                        const targetDate = new Date(dateTimeString);
+                                        const mins = targetDate.getMinutes();
+                                        targetDate.setMinutes(mins < 30 ? 0 : 30, 0, 0);
+                                        const bookedCount = patients.filter(p => {
+                                            if (!p.appointmentDateTime) return false;
+                                            if (p.appointmentStatus === 'rejected' || p.appointmentStatus === 'cancelled') return false;
+                                            const pDate = new Date(p.appointmentDateTime);
+                                            pDate.setMinutes(pDate.getMinutes() < 30 ? 0 : 30, 0, 0);
+                                            if (pDate.getTime() !== targetDate.getTime()) return false;
+                                            const pDoctorId = p.assignedDoctor?.id || p.preferredDoctor?.id || null;
+                                            return String(pDoctorId) === String(currentDoctor?.id);
+                                        }).length;
+                                        return Math.max(0, MAX_SLOTS - bookedCount);
+                                    }}
+                                    checkIsDoctorWorkingDay={currentDoctor?.availability ? (date) => {
+                                        if (currentDoctor.schedule?.includes('By Appointment Only')) {
+                                            return date.getDay() !== 0;
+                                        }
+                                        const dayOfWeek = date.getDay();
+                                        const weekOfMonth = Math.ceil(date.getDate() / 7);
+                                        return currentDoctor.availability.some(slot => {
+                                            if (!slot.days.includes(dayOfWeek)) return false;
+                                            if (slot.weeksOfMonth && !slot.weeksOfMonth.includes(weekOfMonth)) return false;
+                                            return true;
+                                        });
+                                    } : undefined}
+                                />
+                            </div>
+                            </div>
+
+                            {/* ── Sticky Footer ── */}
+                            <div className="flex gap-3 px-6 py-4 border-t border-slate-100 bg-white shrink-0">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowFollowUpModal(false)}
+                                    disabled={isSubmittingFollowUp}
+                                    className="flex-1 rounded-xl"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleFollowUpSubmit}
+                                    disabled={isSubmittingFollowUp || !followUpDateTime || !followUpReason.trim()}
+                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
+                                >
+                                    {isSubmittingFollowUp ? (
+                                        <><span className="w-4 h-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</>
+                                    ) : (
+                                        <><RotateCcw className="w-4 h-4 mr-2" /> Confirm Follow-Up</>
+                                    )}
+                                </Button>
+                            </div>
+                        </>
+                    )}
+
+
+                </DialogContent>
+            </Dialog>
+
             <style>{`
                 .no-scrollbar::-webkit-scrollbar { display: none; }
                 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -1472,7 +1730,7 @@ const getPatientBadge = (p) => {
 };
 
 /* ─── Patient Card (shared) ─── */
-const PatientCard = ({ patient, selectedPatient, onClick }) => {
+const PatientCard = ({ patient, selectedPatient, onClick, onFollowUp }) => {
     const isSelected = selectedPatient?.queueNo === patient.queueNo;
     const badge = getPatientBadge(patient);
 
@@ -1513,6 +1771,20 @@ const PatientCard = ({ patient, selectedPatient, onClick }) => {
                             {formatDateShort(patient.type === 'Appointment' ? patient.appointmentDateTime : patient.registeredAt)}
                         </span>
                     </div>
+                    {/* Follow-Up button */}
+                    {onFollowUp && (
+                        <button
+                            onClick={(e) => onFollowUp(patient, e)}
+                            className={`mt-2.5 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                                isSelected
+                                    ? 'bg-white/20 text-white hover:bg-white/30 border border-white/30'
+                                    : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-100'
+                            }`}
+                        >
+                            <RotateCcw className="w-3 h-3" />
+                            Follow-Up
+                        </button>
+                    )}
                 </div>
                 <ChevronRight className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-slate-200 group-hover:text-emerald-400'}`} />
             </div>

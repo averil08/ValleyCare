@@ -183,6 +183,7 @@ const Appointment = () => {
     senior: "Senior Consultation (60+)",
     preventive: "Preventive/Annual Physical Exam",
     "follow-up": "Follow-up Consultation",
+    "follow-up-doctor": "Follow-up – Requested by Doctor",
 
     // Hematology
     cbc: "CBC (Complete Blood Count)",
@@ -361,11 +362,18 @@ const Appointment = () => {
 
         {/* Doctor or Services */}
         {appointment.assignedDoctor ? (
-          <div className="flex items-center gap-2 mb-3">
-            <Stethoscope className="w-4 h-4 text-purple-600" />
-            <span className="text-purple-700 font-medium text-sm">
-              {appointment.assignedDoctor.name}
-            </span>
+          <div className="flex flex-col gap-1 mb-3">
+            <div className="flex items-center gap-2">
+              <Stethoscope className="w-4 h-4 text-purple-600" />
+              <span className="text-purple-700 font-medium text-sm">
+                {appointment.assignedDoctor.name}
+              </span>
+            </div>
+            {appointment.services?.includes('follow-up-doctor') && (
+              <span className="text-[11px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded-sm w-fit ml-6 border border-blue-100">
+                Follow-up – Requested by Doctor
+              </span>
+            )}
           </div>
         ) : (
           <div className="mb-3">
@@ -506,11 +514,18 @@ const Appointment = () => {
 
                 <TableCell className="py-3">
                   {appointment.assignedDoctor ? (
-                    <div className="flex items-center gap-1.5">
-                      <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
-                      <span className="text-purple-700 font-medium text-xs xl:text-sm truncate max-w-[100px] xl:max-w-none">
-                        {appointment.assignedDoctor.name}
-                      </span>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+                        <span className="text-purple-700 font-medium text-xs xl:text-sm truncate max-w-[100px] xl:max-w-none">
+                          {appointment.assignedDoctor.name}
+                        </span>
+                      </div>
+                      {appointment.services?.includes('follow-up-doctor') && (
+                        <span className="text-[10px] text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded-sm w-fit border border-blue-100">
+                          Follow-up – Requested by Doctor
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-1">
@@ -1135,7 +1150,7 @@ const Appointment = () => {
 
               {/* Doctor or Services */}
               {selectedAppointment.assignedDoctor ? (
-                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-100 mb-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Stethoscope className="w-5 h-5 text-purple-600" />
                     <p className="text-sm font-semibold text-purple-900">Requested Doctor</p>
@@ -1144,6 +1159,11 @@ const Appointment = () => {
                     <p className="font-semibold text-purple-900">{selectedAppointment.assignedDoctor.name}</p>
                     {selectedAppointment.assignedDoctor.specialization && (
                       <p className="text-sm text-purple-700">{selectedAppointment.assignedDoctor.specialization}</p>
+                    )}
+                    {selectedAppointment.services?.includes('follow-up-doctor') && (
+                      <Badge variant="outline" className="mt-1.5 text-[10px] bg-blue-50 text-blue-700 border-blue-200">
+                        Follow-up – Requested by Doctor
+                      </Badge>
                     )}
                   </div>
                 </div>
