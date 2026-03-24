@@ -1238,13 +1238,13 @@ const Appointment = () => {
 
       {/* ===== Calendar Modal ===== */}
       <Dialog open={showCalendarModal} onOpenChange={setShowCalendarModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-          {/* Modal Header */}
-          <div className="bg-gradient-to-r from-green-600 to-emerald-500 px-6 py-4 rounded-t-lg">
+        <DialogContent className="sm:max-w-5xl w-[95vw] sm:w-full max-h-[95vh] overflow-y-auto p-0 border-none shadow-2xl rounded-2xl overflow-x-hidden">
+          {/* Modal Header — added right padding to avoid close button overlap */}
+          <div className="bg-gradient-to-r from-green-600 to-emerald-500 px-6 pr-12 py-5 rounded-t-lg">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <DialogHeader className="text-left">
                 <DialogTitle className="flex items-center gap-2 text-white text-xl">
-                  <CalendarDays className="w-6 h-6" />
+                  <CalendarDays className="w-6 h-6 shrink-0" />
                   Accepted Appointments
                 </DialogTitle>
                 <DialogDescription className="text-green-100 mt-1">
@@ -1255,17 +1255,17 @@ const Appointment = () => {
 
               {/* Doctor filter for Secretary */}
               {!isDoctor && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <Stethoscope className="w-4 h-4 text-green-100 hidden sm:block" />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Stethoscope className="w-4 h-4 text-green-100 hidden sm:block shrink-0" />
                   <select
                     value={calendarFilterDoctor}
                     onChange={(e) => setCalendarFilterDoctor(e.target.value)}
-                    className="text-sm rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-green-600 bg-white"
+                    className="text-sm rounded-md border-0 py-1.5 pl-3 pr-8 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-green-600 bg-white w-full sm:w-64 truncate"
                   >
                     <option value="all">All Doctors</option>
                     {doctors.map(d => (
                       <option key={d.id} value={d.id}>
-                        {d.name} ({d.schedule || 'Schedule NA'})
+                        {d.name}
                       </option>
                     ))}
                   </select>
@@ -1368,8 +1368,8 @@ const Appointment = () => {
                   key={i}
                   onClick={() => isValid && dayAppts.length > 0 && setCalendarSelectedDay(isSelected ? null : dayKey)}
                   className={[
-                    'min-h-[80px] p-1.5 rounded-lg border transition-all duration-150',
-                    !isValid ? 'bg-gray-50/40 border-transparent' : 'border-gray-100 bg-white',
+                    'min-h-[70px] sm:min-h-[90px] p-1 sm:p-2 rounded-lg border transition-all duration-150',
+                    !isValid ? 'bg-gray-50/40 border-transparent' : 'border-gray-100 bg-white shadow-sm sm:shadow-none',
                     isValid && dayAppts.length > 0 ? 'cursor-pointer hover:border-green-300 hover:shadow-sm' : '',
                     isSelected ? 'border-green-500 ring-1 ring-green-400 shadow-sm' : '',
                     isToday && isValid ? 'bg-green-50' : '',
@@ -1378,7 +1378,7 @@ const Appointment = () => {
                   {isValid && (
                     <>
                       <div className={[
-                        'text-xs font-semibold mb-1 w-6 h-6 flex items-center justify-center rounded-full',
+                        'text-[10px] sm:text-xs font-semibold mb-0.5 sm:mb-1 w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full',
                         isToday ? 'bg-green-600 text-white' : 'text-gray-700',
                       ].join(' ')}>
                         {dayNum}
@@ -1397,12 +1397,12 @@ const Appointment = () => {
                           ];
                           return (
                             <div
-                              key={appt.id}
-                              className={`text-[9px] leading-tight px-1 py-0.5 rounded border font-medium truncate ${colors[idx % colors.length]}`}
-                              title={`${appt.name} — ${timeStr} — ${label}`}
-                            >
-                              {appt.name}
-                            </div>
+                                key={appt.id}
+                                className={`text-[10px] sm:text-[11px] leading-tight px-1 py-0.5 rounded border font-semibold truncate ${colors[idx % colors.length]}`}
+                                title={`${appt.name} — ${timeStr} — ${label}`}
+                              >
+                                {appt.name}
+                              </div>
                           );
                         })}
                         {dayAppts.length > 2 && (
@@ -1423,16 +1423,16 @@ const Appointment = () => {
             return (
               <div className="px-6 pt-4 pb-2">
                 {/* Day Headers */}
-                <div className="grid grid-cols-7 mb-2">
+                <div className="grid grid-cols-7 mb-1 sm:mb-2">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
-                    <div key={d} className="text-center text-xs font-bold text-gray-500 py-1 uppercase tracking-wider">
+                    <div key={d} className="text-center text-[10px] sm:text-xs font-bold text-gray-500 py-1 uppercase tracking-wider">
                       {d}
                     </div>
                   ))}
                 </div>
 
                 {/* Day Cells */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
                   {cells}
                 </div>
 
