@@ -430,6 +430,10 @@ function Checkin() {
       if (!value || value.length === 0) {
         error = "Please select at least one symptom.";
       }
+    } else if (['firstName', 'middleName', 'lastName'].includes(id) && value) {
+      if (!/^[a-zA-Z\s]*$/.test(value)) {
+        error = "Only alphabetic characters are allowed.";
+      }
     } else if (!value && ['firstName', 'lastName', 'age', 'phoneNum', 'patientEmail'].includes(id)) {
       error = "This field is required.";
     } else if (id === "phoneNum" && value) {
@@ -455,6 +459,10 @@ function Checkin() {
 
   const handleInputChange = (e) => {
     let { id, value } = e.target;
+
+    if (['firstName', 'middleName', 'lastName'].includes(id)) {
+      value = value.replace(/[^a-zA-Z\s]/g, '');
+    }
 
     // Prevent negative age values if typed manually
     if (id === 'age' && value !== '') {

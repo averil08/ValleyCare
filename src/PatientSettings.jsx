@@ -117,10 +117,10 @@ function PatientSettings() {
     let error = '';
     switch (id) {
       case 'firstName':
-        if (!value.trim()) error = 'First name is required';
-        break;
+      case 'middleName':
       case 'surname':
-        if (!value.trim()) error = 'Surname is required';
+        if (id !== 'middleName' && !value.trim()) error = `${id === 'firstName' ? 'First name' : 'Surname'} is required`;
+        else if (value && !/^[a-zA-Z\s]*$/.test(value)) error = 'Only alphabetic characters are allowed';
         break;
       case 'age':
         if (!value) error = 'Age is required';
@@ -162,6 +162,10 @@ function PatientSettings() {
 
   const handleInputChange = (e) => {
     let { id, value } = e.target;
+
+    if (['firstName', 'middleName', 'surname'].includes(id)) {
+      value = value.replace(/[^a-zA-Z\s]/g, '');
+    }
 
     if (id === 'phoneNumber') {
       value = value.replace(/\D/g, '');

@@ -28,6 +28,10 @@ function Signup() {
     let error = "";
     if (!value && id !== "middleName") {
       error = "This field is required.";
+    } else if (["firstName", "middleName", "lastName"].includes(id) && value) {
+      if (!/^[a-zA-Z\s]*$/.test(value)) {
+        error = "This field must contain only alphabetic characters.";
+      }
     } else if (id === "phoneNumber" && value) {
       if (!/^9\d{9}$/.test(value)) {
         error = "Phone number must be exactly 10 digits starting with 9.";
@@ -52,6 +56,10 @@ function Signup() {
 
   const handleInputChange = (e) => {
     let { id, value } = e.target;
+    if (["firstName", "middleName", "lastName"].includes(id)) {
+      value = value.replace(/[^a-zA-Z\s]/g, "");
+    }
+    
     if (id === "phoneNumber") {
       value = value.replace(/\D/g, "");
       value = value.slice(0, 10);
