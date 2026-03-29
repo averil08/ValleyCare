@@ -1329,10 +1329,12 @@ const DoctorDashboard = () => {
                             p => p.type === 'Appointment' &&
                                 p.appointmentStatus === 'accepted' &&
                                 (() => {
+                                    const targetDoctor = p.assignedDoctor || p.preferredDoctor;
+                                    if (!targetDoctor) return false;
                                     const myName = currentDoctor.name?.toLowerCase().trim();
-                                    const assignedName = p.assignedDoctor?.name?.toLowerCase().trim();
-                                    return p.assignedDoctor?.id === doctorId ||
-                                        (assignedName && assignedName === myName);
+                                    const targetName = targetDoctor.name?.toLowerCase().trim();
+                                    return targetDoctor.id === doctorId ||
+                                        (targetName && targetName === myName);
                                 })()
                         );
 
@@ -1389,8 +1391,9 @@ const DoctorDashboard = () => {
                                                 {dayAppts.slice(0, 2).map((appt, idx) => {
                                                     const apptDate = new Date(appt.appointmentDateTime || appt.appointment_datetime);
                                                     const timeStr = apptDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                                                    const label = appt.assignedDoctor
-                                                        ? appt.assignedDoctor.name
+                                                    const targetDoctor = appt.assignedDoctor || appt.preferredDoctor;
+                                                    const label = targetDoctor
+                                                        ? targetDoctor.name
                                                         : (appt.services && appt.services.length > 0 ? getServiceLabel(appt.services[0]) : 'Service');
                                                     const colors = [
                                                         'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -1450,12 +1453,13 @@ const DoctorDashboard = () => {
                                                 .map(appt => {
                                                     const apptDate = new Date(appt.appointmentDateTime || appt.appointment_datetime);
                                                     const timeStr = apptDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                                                    const label = appt.assignedDoctor
-                                                        ? appt.assignedDoctor.name
+                                                    const targetDoctor = appt.assignedDoctor || appt.preferredDoctor;
+                                                    const label = targetDoctor
+                                                        ? targetDoctor.name
                                                         : (appt.services && appt.services.length > 0
                                                             ? appt.services.map(s => getServiceLabel(s)).join(', ')
                                                             : 'None');
-                                                    const isDoc = !!appt.assignedDoctor;
+                                                    const isDoc = !!targetDoctor;
                                                     return (
                                                         <div key={appt.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-colors">
                                                             <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -2030,7 +2034,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                     <div className="flex items-start gap-1.5">
                                                         <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0 mt-0.5" />
                                                         <span className="text-purple-700 font-medium text-xs xl:text-sm whitespace-normal break-words">
-                                                            {visit.assignedDoctor?.name || 'Unassigned'}
+                                                            {visit.assignedDoctor?.name || visit.preferredDoctor?.name || 'Unassigned'}
                                                         </span>
                                                     </div>
                                                     {visit.services?.includes('follow-up-doctor') && (
@@ -2221,7 +2225,9 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                 <Stethoscope className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
                                                 <div>
                                                     <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1">Doctor Assigned</p>
-                                                    <p className="text-sm font-medium text-purple-700">{visit.assignedDoctor?.name || 'Unassigned'}</p>
+                                                    <p className="text-sm font-medium text-purple-700">
+                                                        {visit.assignedDoctor?.name || visit.preferredDoctor?.name || 'Unassigned'}
+                                                    </p>
                                                 </div>
                                             </div>
 
@@ -2350,16 +2356,20 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                         </div>
 
                         {/* Doctor or Services */}
-                        {selectedVisit.assignedDoctor ? (
+                        {(selectedVisit.assignedDoctor || selectedVisit.preferredDoctor) ? (
                             <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
                                 <div className="flex items-center gap-2 mb-2">
                                     <Stethoscope className="w-5 h-5 text-purple-600" />
-                                    <p className="text-sm font-semibold text-purple-900">Assigned Doctor</p>
+                                    <p className="text-sm font-semibold text-purple-900">
+                                        Assigned Doctor
+                                    </p>
                                 </div>
                                 <div>
-                                    <p className="font-semibold text-purple-900">{selectedVisit.assignedDoctor.name}</p>
-                                    {selectedVisit.assignedDoctor.specialization && (
-                                        <p className="text-sm text-purple-700">{selectedVisit.assignedDoctor.specialization}</p>
+                                    <p className="font-semibold text-purple-900">
+                                        {(selectedVisit.assignedDoctor || selectedVisit.preferredDoctor).name}
+                                    </p>
+                                    {(selectedVisit.assignedDoctor || selectedVisit.preferredDoctor).specialization && (
+                                        <p className="text-sm text-purple-700">{(selectedVisit.assignedDoctor || selectedVisit.preferredDoctor).specialization}</p>
                                     )}
                                     {selectedVisit.services?.includes('follow-up-doctor') && (
                                         <Badge variant="outline" className="mt-1.5 text-[10px] bg-blue-50 text-blue-700 border-blue-200">

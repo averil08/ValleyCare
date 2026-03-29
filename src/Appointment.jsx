@@ -361,12 +361,12 @@ const Appointment = () => {
         </div>
 
         {/* Doctor or Services */}
-        {appointment.assignedDoctor ? (
+        {(appointment.assignedDoctor || appointment.preferredDoctor) ? (
           <div className="flex flex-col gap-1 mb-3">
             <div className="flex items-center gap-2">
               <Stethoscope className="w-4 h-4 text-purple-600" />
               <span className="text-purple-700 font-medium text-sm">
-                {appointment.assignedDoctor.name}
+                {(appointment.assignedDoctor || appointment.preferredDoctor).name}
               </span>
             </div>
             {appointment.services?.includes('follow-up-doctor') && (
@@ -513,12 +513,12 @@ const Appointment = () => {
                 </TableCell>
 
                 <TableCell className="py-3">
-                  {appointment.assignedDoctor ? (
+                  {(appointment.assignedDoctor || appointment.preferredDoctor) ? (
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5">
                         <Stethoscope className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
                         <span className="text-purple-700 font-medium text-xs xl:text-sm truncate max-w-[100px] xl:max-w-none">
-                          {appointment.assignedDoctor.name}
+                          {(appointment.assignedDoctor || appointment.preferredDoctor).name}
                         </span>
                       </div>
                       {appointment.services?.includes('follow-up-doctor') && (
@@ -1149,16 +1149,18 @@ const Appointment = () => {
               </div>
 
               {/* Doctor or Services */}
-              {selectedAppointment.assignedDoctor ? (
+              {(selectedAppointment.assignedDoctor || selectedAppointment.preferredDoctor) ? (
                 <div className="p-4 bg-purple-50 rounded-lg border border-purple-100 mb-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Stethoscope className="w-5 h-5 text-purple-600" />
-                    <p className="text-sm font-semibold text-purple-900">Requested Doctor</p>
+                    <p className="text-sm font-semibold text-purple-900">Assigned Doctor</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-purple-900">{selectedAppointment.assignedDoctor.name}</p>
-                    {selectedAppointment.assignedDoctor.specialization && (
-                      <p className="text-sm text-purple-700">{selectedAppointment.assignedDoctor.specialization}</p>
+                    <p className="font-semibold text-purple-900">
+                      {(selectedAppointment.assignedDoctor || selectedAppointment.preferredDoctor).name}
+                    </p>
+                    {(selectedAppointment.assignedDoctor || selectedAppointment.preferredDoctor).specialization && (
+                      <p className="text-sm text-purple-700">{(selectedAppointment.assignedDoctor || selectedAppointment.preferredDoctor).specialization}</p>
                     )}
                     {selectedAppointment.services?.includes('follow-up-doctor') && (
                       <Badge variant="outline" className="mt-1.5 text-[10px] bg-blue-50 text-blue-700 border-blue-200">
