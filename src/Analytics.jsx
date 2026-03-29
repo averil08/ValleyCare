@@ -571,6 +571,10 @@ const Analytics = () => {
     // --- PATIENT VOLUME PREDICTION ---
     const tomorrow = new Date(now);
     tomorrow.setDate(now.getDate() + 1);
+    // Skip Sunday (0), predict for Monday instead
+    if (tomorrow.getDay() === 0) {
+      tomorrow.setDate(tomorrow.getDate() + 1);
+    }
     const tomorrowDayIdx = tomorrow.getDay(); // 0-6
     const tomorrowDayName = dayNames[tomorrowDayIdx];
 
