@@ -7,6 +7,72 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { PatientContext } from "./PatientContext";
+import { Volume2, VolumeX } from "lucide-react";
+
+// Notification Sound Logic (Web Audio API)
+const playChime = () => {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const playNote = (freq, startTime, duration, volume = 0.5) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle'; // Triangle waves cut through noise better than sine
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(volume, startTime + 0.02); // Sharper attack
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+        };
+
+        const now = audioCtx.currentTime;
+        // Stronger triple-tone "attention" chime (C5, E5, G5)
+        playNote(523.25, now, 0.8);        // C5
+        playNote(659.25, now + 0.15, 0.8);   // E5
+        playNote(783.99, now + 0.3, 1.2);    // G5 (sustained)
+    } catch (err) {
+        console.error("Audio error:", err);
+    }
+};
+
+const playCancelChime = () => {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const playNote = (freq, startTime, duration, volume = 0.4) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle'; 
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+        };
+
+        const now = audioCtx.currentTime;
+        // Descending "warning" chime (G4, E4, C4)
+        playNote(392.00, now, 0.6);      // G4
+        playNote(329.63, now + 0.2, 0.6); // E4
+        playNote(261.63, now + 0.4, 0.8); // C4
+    } catch (err) {
+        console.error("Audio error:", err);
+    }
+};
 
 const QueueStatus = () => {
   const navigate = useNavigate();
@@ -133,6 +199,15 @@ const QueueStatus = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const [notificationType, setNotificationType] = useState("success");
+  const [isSoundEnabled, setIsSoundEnabled] = useState(() => {
+    return localStorage.getItem('queue-sound-enabled') === 'true';
+  });
+  const lastStatusRef = React.useRef(null);
+
+  // Sync sound preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('queue-sound-enabled', isSoundEnabled);
+  }, [isSoundEnabled]);
 
   const queueNumber = (currentPatient?.queueNo && currentPatient.queueNo > 0) ? currentPatient.queueNo : 0;
   const service = currentPatient?.type || "Walk-in";
@@ -401,6 +476,14 @@ const QueueStatus = () => {
       setNotificationMessage("Your queue has been cancelled. You didn't show up.");
       setNotificationType("cancelled");
       setShowNotification(true);
+      
+      // Play cancellation sound if status just changed to cancelled
+      if (lastStatusRef.current !== "cancelled" && isSoundEnabled) {
+          console.log("🔔 Playing personalized cancellation sound");
+          playCancelChime();
+      }
+      
+      lastStatusRef.current = "cancelled";
       return;
     }
 
@@ -408,8 +491,19 @@ const QueueStatus = () => {
       setNotificationMessage("It's your turn now! Please proceed to the counter.");
       setNotificationType("success");
       setShowNotification(true);
+      
+      // Play sound if status just changed to in progress
+      if (lastStatusRef.current !== "in progress" && isSoundEnabled) {
+          console.log("🔔 Playing personalized call notification sound");
+          playChime();
+      }
+      
+      lastStatusRef.current = "in progress";
       return;
     }
+    
+    // Update ref for other statuses too
+    lastStatusRef.current = currentPatient.status;
 
     if (difference === 1 && currentPatient.status === "waiting") {
       setNotificationMessage("Your turn is coming up soon! Please be ready.");
@@ -1347,14 +1441,29 @@ const QueueStatus = () => {
               </div>
 
               <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 md:p-4 bg-amber-50 rounded-lg sm:rounded-xl border border-amber-200">
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <Bell className="w-4 h-4 sm:w-5 sm:h-6 text-amber-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-left text-xs sm:text-sm md:text-base lg:text-lg">
-                    <p className="font-medium text-amber-900 mb-1">Notifications Enabled</p>
-                    <p className="text-[10px] xs:text-xs sm:text-sm text-amber-800">
-                      You'll receive a push notification when your turn is near and when it's your turn.
-                    </p>
+                <div className="flex items-start justify-between gap-2 sm:gap-3">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-6 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-left text-xs sm:text-sm md:text-base lg:text-lg">
+                      <p className="font-medium text-amber-900 mb-1">Notifications Enabled</p>
+                      <p className="text-[10px] xs:text-xs sm:text-sm text-amber-800">
+                        You'll receive a push notification when your turn is near.
+                      </p>
+                    </div>
                   </div>
+                  
+                  {/* Sound Toggle */}
+                  <button 
+                    onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                    className={`flex-shrink-0 p-2 rounded-full transition-all ${
+                      isSoundEnabled 
+                      ? 'bg-amber-200 text-amber-700' 
+                      : 'bg-gray-200 text-gray-500'
+                    }`}
+                    title={isSoundEnabled ? "Disable Sound" : "Enable Sound"}
+                  >
+                    {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 
@@ -1485,14 +1594,29 @@ const QueueStatus = () => {
             </div>
 
             <div className="mt-4 sm:mt-6 p-2.5 sm:p-3 md:p-4 bg-amber-50 rounded-lg sm:rounded-xl border border-amber-200">
-              <div className="flex items-start gap-2 sm:gap-3">
-                <Bell className="w-4 h-4 sm:w-5 sm:h-6 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div className="text-left text-xs sm:text-sm md:text-base lg:text-lg">
-                  <p className="font-medium text-amber-900 mb-1">Notifications Enabled</p>
-                  <p className="text-[10px] xs:text-xs sm:text-sm text-amber-800">
-                    You'll receive a push notification when your turn is near and when it's your turn.
-                  </p>
+              <div className="flex items-start justify-between gap-2 sm:gap-3">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <Bell className="w-4 h-4 sm:w-5 sm:h-6 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-left text-xs sm:text-sm md:text-base lg:text-lg">
+                    <p className="font-medium text-amber-900 mb-1">Notifications Enabled</p>
+                    <p className="text-[10px] xs:text-xs sm:text-sm text-amber-800">
+                      You'll receive a notification when it's your turn.
+                    </p>
+                  </div>
                 </div>
+                
+                {/* Sound Toggle */}
+                <button 
+                  onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+                  className={`flex-shrink-0 p-2 rounded-full transition-all ${
+                    isSoundEnabled 
+                    ? 'bg-amber-200 text-amber-700' 
+                    : 'bg-gray-200 text-gray-500'
+                  }`}
+                  title={isSoundEnabled ? "Disable Sound" : "Enable Sound"}
+                >
+                  {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                </button>
               </div>
             </div>
 

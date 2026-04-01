@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState, useMemo } from 'react';
+import React, { useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { PatientContext } from './PatientContext';
 import { doctors } from './doctorData';
 
@@ -18,11 +18,47 @@ const normalizeDoctorNameForMatch = (name) => {
     .toLowerCase();
 };
 
+// Notification Sound Logic (Web Audio API)
+const playChime = () => {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const playNote = (freq, startTime, duration, volume = 0.5) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'triangle'; // Triangle waves cut through noise better than sine
+            osc.frequency.setValueAtTime(freq, startTime);
+            
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(volume, startTime + 0.02); // Sharper attack
+            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(startTime);
+            osc.stop(startTime + duration);
+        };
+
+        const now = audioCtx.currentTime;
+        // Stronger triple-tone "attention" chime (C5, E5, G5)
+        playNote(523.25, now, 0.8);        // C5
+        playNote(659.25, now + 0.15, 0.8);   // E5
+        playNote(783.99, now + 0.3, 1.2);    // G5 (sustained)
+    } catch (err) {
+        console.error("Audio error:", err);
+    }
+};
+
 const ClinicTVDisplay = () => {
   const { patients, activeDoctors } = useContext(PatientContext);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [syncedPatients, setSyncedPatients] = useState(patients);
   const [syncedActiveDoctors, setSyncedActiveDoctors] = useState(activeDoctors || []);
+  const [isSoundEnabled, setIsSoundEnabled] = useState(false);
+  const lastCalledNumbersRef = useRef({});
+  const isFirstLoadRef = useRef(true);
 
   // Update time every second
   useEffect(() => {
@@ -193,6 +229,41 @@ const ClinicTVDisplay = () => {
     });
   }, [syncedPatients, syncedActiveDoctors]);
 
+  // Handle Play Notification Sound
+  useEffect(() => {
+    if (!doctorsInfo || doctorsInfo.length === 0) return;
+
+    let shouldPlaySound = false;
+    const currentCalled = {};
+
+    doctorsInfo.forEach(doc => {
+      if (doc.isActive && doc.currentServing) {
+        currentCalled[doc.doctorId] = doc.currentServing;
+        
+        // If this doctor has a different serving number than before
+        if (lastCalledNumbersRef.current[doc.doctorId] !== doc.currentServing) {
+          // Don't play on the very first load of the page
+          if (!isFirstLoadRef.current) {
+            console.log(`🔔 Playing chime for Doctor ${doc.doctorName}, Patient #${doc.currentServing}`);
+            shouldPlaySound = true;
+          }
+        }
+      }
+    });
+
+    // Update the ref for next comparison
+    lastCalledNumbersRef.current = currentCalled;
+    
+    if (shouldPlaySound && isSoundEnabled) {
+      playChime();
+    }
+    
+    // After first pass, we are no longer on first load
+    if (doctorsInfo.length > 0) {
+        isFirstLoadRef.current = false;
+    }
+  }, [doctorsInfo, isSoundEnabled]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-100 via-white to-red-100 p-4">
       {/* Header */}
@@ -204,9 +275,33 @@ const ClinicTVDisplay = () => {
             <div className="font-semibold">{formatTime(currentTime)}</div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-          <span className="text-sm font-semibold">LIVE</span>
+        <div className="flex items-center gap-4">
+          {/* Sound Toggle */}
+          <button 
+            onClick={() => setIsSoundEnabled(!isSoundEnabled)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                isSoundEnabled 
+                ? 'bg-white text-green-700 shadow-inner' 
+                : 'bg-green-800 text-green-300 hover:bg-green-700'
+            }`}
+          >
+            {isSoundEnabled ? (
+                <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    SOUND ON
+                </>
+            ) : (
+                <>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    SOUND OFF
+                </>
+            )}
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-semibold">LIVE</span>
+          </div>
         </div>
       </div>
 
