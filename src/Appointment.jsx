@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from "@/components/ui/badge";
 import { PatientContext } from "./PatientContext";
+import NotificationModal from "@/components/NotificationModal";
 import {
   Table,
   TableBody,
@@ -43,7 +44,15 @@ const Appointment = () => {
   const [calendarSelectedDay, setCalendarSelectedDay] = useState(null);
   const [calendarFilterDoctor, setCalendarFilterDoctor] = useState('all');
 
-  const { patients, acceptAppointment, rejectAppointment, unreadSecretaryNotificationsCount, markSecretaryNotificationsAsRead } = useContext(PatientContext);
+  const { 
+    patients, 
+    acceptAppointment, 
+    rejectAppointment, 
+    unreadSecretaryNotificationsCount, 
+    markSecretaryNotificationsAsRead,
+    modalNotification,
+    clearModalNotification
+  } = useContext(PatientContext);
 
   // Helper to get label for date filter
   const getDateFilterLabel = () => {
@@ -619,6 +628,16 @@ const Appointment = () => {
   return (
     <div className="min-h-screen w-full overflow-x-hidden">
       <Sidebar nav={nav} handleNav={handleNav} />
+
+      <NotificationModal 
+        isOpen={!!modalNotification}
+        onClose={clearModalNotification}
+        title={modalNotification?.title}
+        description={modalNotification?.description}
+        type={modalNotification?.type}
+        data={modalNotification?.data}
+        actionLabel="Understood"
+      />
 
       {/* MAIN CONTENT */}
       <div className="min-h-screen bg-gray-50 ml-0 md:ml-52 transition-all duration-300 overflow-x-hidden">

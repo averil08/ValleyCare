@@ -2,7 +2,7 @@ import React, { createContext, useState, useMemo, useEffect, useRef } from "reac
 import { assignDoctor, doctors } from './doctorData';
 import { syncPatientToDatabase, getAllPatientProfiles, getMaxQueueNumber } from './lib/patientService';
 import { supabase } from './lib/supabaseClient'; // Import Supabase client
-import { sendAppointmentEmail } from './lib/emailService';
+import { sendAppointmentEmail, sendReminderEmail } from './lib/emailService';
 
 export const PatientContext = createContext();
 
@@ -62,6 +62,10 @@ export const PatientProvider = ({ children }) => {
   // NEW: Auth State
   const [isPatientLoggedIn, setIsPatientLoggedIn] = useState(() => localStorage.getItem('isPatientLoggedIn') === 'true');
   const [currentPatientEmail, setCurrentPatientEmail] = useState(() => localStorage.getItem('currentPatientEmail'));
+
+  // NEW: Modal Notification state (for REAL-TIME triggers)
+  const [modalNotification, setModalNotification] = useState(null);
+  const clearModalNotification = () => setModalNotification(null);
 
   // NEW: Robust Supabase Auth sync
   useEffect(() => {
@@ -281,6 +285,46 @@ export const PatientProvider = ({ children }) => {
           setManualWaitTimeAdjustment(cloudAdjustment);
         }
 
+        // ✅ AUTO-REMINDER SYSTEM (Only run if user is a clinic staff)
+        const userRole = localStorage.getItem('userRole');
+        if (userRole === 'admin' || userRole === 'staff' || userRole === 'secretary') {
+          transformedPatients.forEach(p => {
+             // Only target future accepted appointments that haven't received a reminder
+             // and aren't already completed/cancelled
+             if (p.type === 'Appointment' && p.appointmentStatus === 'accepted' && 
+                 p.status !== 'cancelled' && p.status !== 'done' &&
+                 p.appointmentDateTime && p.rejectionReason !== 'REMINDER_SENT') {
+                 
+                 const appointmentDate = new Date(p.appointmentDateTime);
+                 const tomorrow = new Date();
+                 tomorrow.setDate(tomorrow.getDate() + 1);
+                 
+                 // Check if the appointment is EXACTLY tomorrow (matching year, month, day)
+                 if (
+                   appointmentDate.getDate() === tomorrow.getDate() &&
+                   appointmentDate.getMonth() === tomorrow.getMonth() &&
+                   appointmentDate.getFullYear() === tomorrow.getFullYear()
+                 ) {
+                    console.log(`⏰ [CRON] Sending 24h reminder to ${p.name}`);
+                    // 1. Optimistically mark as sent to avoid duplicates
+                    p.rejectionReason = 'REMINDER_SENT';
+                    
+                    // 2. Persist the marked status to the database right away
+                    syncPatientToDatabase(p).then(() => {
+                        // 3. Dispatch the actual email
+                        sendReminderEmail(p, {
+                           dateTime: p.appointmentDateTime,
+                           doctor: p.assignedDoctor?.name,
+                           queueNo: p.queueNo
+                        });
+                    }).catch(err => {
+                        console.error('⚠️ Failed to sync reminder status:', err);
+                    });
+                 }
+             }
+          });
+        }
+
         // Filter out the system settings record from the public list
         const publicPatients = transformedPatients.filter(p => p.patientEmail !== 'clinic_settings@abante.com');
 
@@ -368,7 +412,7 @@ export const PatientProvider = ({ children }) => {
               if (oldStatus === 'pending' && (newStatus === 'accepted' || newStatus === 'rejected')) {
                 const message = newStatus === 'accepted'
                   ? `Your appointment for ${new Date(newData.appointment_datetime).toLocaleDateString()} has been ACCEPTED.`
-                  : `Your appointment for ${new Date(newData.appointment_datetime).toLocaleDateString()} has been DECLINED. Reason: ${newData.rejection_reason || 'No reason provided'}`;
+                  : `Your appointment for ${new Date(newData.appointment_datetime).toLocaleDateString()} has been DECLINED.`;
 
                 setNotifications(prev => [{
                   id: Date.now(),
@@ -377,9 +421,60 @@ export const PatientProvider = ({ children }) => {
                   timestamp: new Date().toISOString(),
                   read: false
                 }, ...prev]);
+
+                // TRIGGER MODAL FOR PATIENT
+                setModalNotification({
+                  type: newStatus === 'accepted' ? 'success' : 'error',
+                  title: newStatus === 'accepted' ? 'Appointment Accepted!' : 'Appointment Declined',
+                  description: message,
+                  data: {
+                    patientName: newData.name,
+                    dateTime: new Date(newData.appointment_datetime).toLocaleString(),
+                    reason: newStatus === 'rejected' ? newData.rejection_reason : null
+                  }
+                });
+              }
+            }
+
+            // NEW: Notification logic for SECRETARY (on cancellation)
+            const userRole = localStorage.getItem('userRole');
+            if (userRole === 'secretary' || userRole === 'staff' || userRole === 'admin') {
+              const oldPatient = patientsRef.current.find(p => p.id === newData.id);
+              const oldStatus = oldPatient?.appointmentStatus;
+              const newStatus = newData.appointment_status;
+
+              if (oldStatus !== 'cancelled' && newStatus === 'cancelled') {
+                setModalNotification({
+                  type: 'cancel',
+                  title: 'Appointment Cancelled',
+                  description: `Patient ${newData.name} has cancelled their appointment.`,
+                  data: {
+                    patientName: newData.name,
+                    dateTime: new Date(newData.appointment_datetime || newData.created_at).toLocaleString(),
+                  }
+                });
               }
             }
           }
+
+          // NEW: Notification logic for SECRETARY (on new submission)
+          if (payload.eventType === 'INSERT') {
+            const newData = payload.new;
+            const userRole = localStorage.getItem('userRole');
+            
+            if ((userRole === 'secretary' || userRole === 'staff' || userRole === 'admin') && newData.patient_type === 'appointment') {
+              setModalNotification({
+                type: 'appointment',
+                title: 'New Appointment Request',
+                description: `A new appointment request has been submitted by ${newData.name}.`,
+                data: {
+                  patientName: newData.name,
+                  dateTime: new Date(newData.appointment_datetime || newData.created_at).toLocaleString(),
+                }
+              });
+            }
+          }
+
 
           // SURGICAL UPDATE: If it's the settings record, update adjustment immediately
           if (payload.new && payload.new.patient_email === 'clinic_settings@abante.com') {
@@ -1467,7 +1562,9 @@ export const PatientProvider = ({ children }) => {
       lastDoctorNotificationCheck,
       markDoctorNotificationsAsRead,
       isPatientLoggedIn,
-      currentPatientEmail
+      currentPatientEmail,
+      modalNotification,
+      clearModalNotification
     }}>
       {children}
     </PatientContext.Provider>

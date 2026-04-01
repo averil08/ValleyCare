@@ -20,6 +20,7 @@ import DoctorDashboard from "./DoctorDashboard";
 import PatientDetails from "./PatientDetails";
 import ResetPassword from "./ResetPassword";
 import Notifications from "./Notifications";
+import GlobalModal from "./components/GlobalModal";
 
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
   return (
     <Router>
       <PatientProvider>
+        <GlobalModal />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
