@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { PatientContext } from "./PatientContext";
 import { supabase, registerAppointmentPatient } from "./lib/supabaseClient";
+import { sendAppointmentEmail } from './lib/emailService';
 import { useNavigate } from 'react-router-dom';
 import logoValley from '@/assets/logo-valley.png';
 import AppointmentPicker from './components/AppointmentPicker';
@@ -241,6 +242,12 @@ const DoctorDashboard = () => {
                 const updated = await requeuePatient(p.queueNo, extraUpdates);
                 if (updated) {
                     setFollowUpSuccess(true);
+                    // Send email notification for requeued follow-up
+                    sendAppointmentEmail(p, 'accepted', {
+                        queueNo: updated.queueNo || p.queueNo,
+                        doctor: assignedDoc?.name || currentDoctor.name,
+                        dateTime: followUpDateTime
+                    });
                     setTimeout(() => {
                         setShowFollowUpModal(false);
                         setFollowUpSuccess(false);
@@ -287,6 +294,12 @@ const DoctorDashboard = () => {
                     };
                     addPatient(newAppt);
                     setFollowUpSuccess(true);
+                    // Send email notification for new follow-up
+                    sendAppointmentEmail(p, 'accepted', {
+                        queueNo: dbPatient?.queue_no || null,
+                        doctor: assignedDoc?.name || currentDoctor.name,
+                        dateTime: followUpDateTime
+                    });
                     setTimeout(() => {
                         setShowFollowUpModal(false);
                         setFollowUpSuccess(false);
