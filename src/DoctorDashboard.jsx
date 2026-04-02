@@ -474,8 +474,7 @@ const DoctorDashboard = () => {
 
     const cancelledQueuePatients = myPatients.filter(p => {
         if (p.isInactive) return false;
-        // RELAXED: Removed inQueue check because cancelAppointment sets it to false,
-        // but we still want these today's cancellations to show in this tab.
+        if (p.type === 'Appointment' && p.appointmentStatus !== 'accepted') return false;
         if (p.status !== 'cancelled') return false;
         return isQueueDateInFilter(p.cancelledAt || p.queueExitTime || p.registeredAt);
     });
@@ -2097,31 +2096,17 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="py-4 text-center">
-                                                    {visit.type === 'Appointment' ? (
-                                                        visit.appointmentStatus === 'accepted' ? (
-                                                            (visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0, 0, 0, 0)) > new Date(new Date().setHours(0, 0, 0, 0))) ? (
-                                                                <Badge className="bg-blue-600 text-white text-[10px] xl:text-xs">Upcoming</Badge>
-                                                            ) : (
-                                                                <Badge className="bg-green-600 text-[10px] xl:text-xs">Accepted</Badge>
-                                                            )
-                                                        ) : visit.appointmentStatus === 'rejected' ? (
-                                                            <Badge variant="destructive" className="bg-red-600 text-white text-[10px] xl:text-xs h-auto whitespace-normal text-center">
-                                                                Not Accepted
-                                                            </Badge>
-                                                        ) : visit.appointmentStatus === 'cancelled' ? (
-                                                            <Badge variant="outline" className="border-gray-400 text-gray-500 text-[10px] xl:text-xs">
-                                                                Cancelled
-                                                            </Badge>
-                                                        ) : (
-                                                            <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px] xl:text-xs">
-                                                                Pending
-                                                            </Badge>
-                                                        )
-                                                    ) : (
-                                                        <Badge variant="outline" className={`text-[10px] xl:text-xs ${statusStyle(visit.status)}`}>
-                                                            {getDisplayStatus(visit.status)}
-                                                        </Badge>
-                                                    )}
+                                                    {(() => {
+                                                        const isFutureAppt = visit.type === 'Appointment' && visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0, 0, 0, 0)) > new Date(new Date().setHours(0, 0, 0, 0));
+                                                        const getBadge = (text, colors) => <Badge variant="outline" className={`${colors} text-[10px] xl:text-xs font-semibold`}>{text}</Badge>;
+                                                        
+                                                        if (visit.appointmentStatus === 'cancelled' || visit.status === 'cancelled') return getBadge('Cancelled', 'border-gray-400 text-gray-500 bg-gray-50');
+                                                        if (visit.status === 'done' || visit.status === 'completed') return getBadge('Completed', 'bg-emerald-100 text-emerald-700 border-emerald-300');
+                                                        if (visit.status === 'in progress') return getBadge('In Progress', 'bg-blue-100 text-blue-700 border-blue-300');
+                                                        
+                                                        if (visit.type === 'Appointment' && isFutureAppt) return getBadge('Upcoming', 'bg-blue-600 text-white border-blue-600');
+                                                        return getBadge('Waiting', 'bg-yellow-100 text-yellow-700 border-yellow-300');
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell className="py-4 align-middle">
                                                     <div className="flex justify-center gap-1 flex-nowrap">
@@ -2184,31 +2169,17 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                 <Badge variant="outline" className="font-mono text-xs w-fit">
                                                     Visit #{String(visitNum).padStart(3, '0')}
                                                 </Badge>
-                                                {visit.type === 'Appointment' ? (
-                                                    visit.appointmentStatus === 'accepted' ? (
-                                                        (visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0, 0, 0, 0)) > new Date(new Date().setHours(0, 0, 0, 0))) ? (
-                                                            <Badge className="bg-blue-600 text-white text-[10px] w-fit">Upcoming</Badge>
-                                                        ) : (
-                                                            <Badge className="bg-green-600 text-[10px] w-fit">Accepted</Badge>
-                                                        )
-                                                    ) : visit.appointmentStatus === 'rejected' ? (
-                                                        <Badge variant="destructive" className="bg-red-600 text-white text-[10px] w-fit">
-                                                            Not Accepted
-                                                        </Badge>
-                                                    ) : visit.appointmentStatus === 'cancelled' ? (
-                                                        <Badge variant="outline" className="border-gray-400 text-gray-500 text-[10px] w-fit">
-                                                            Cancelled
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px] w-fit">
-                                                            Pending
-                                                        </Badge>
-                                                    )
-                                                ) : (
-                                                    <Badge variant="outline" className={`text-[10px] w-fit ${statusStyle(visit.status)}`}>
-                                                        {getDisplayStatus(visit.status)}
-                                                    </Badge>
-                                                )}
+                                                {(() => {
+                                                    const isFutureAppt = visit.type === 'Appointment' && visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0, 0, 0, 0)) > new Date(new Date().setHours(0, 0, 0, 0));
+                                                    const getBadge = (text, colors) => <Badge variant="outline" className={`${colors} text-[10px] w-fit font-semibold`}>{text}</Badge>;
+                                                    
+                                                    if (visit.appointmentStatus === 'cancelled' || visit.status === 'cancelled') return getBadge('Cancelled', 'border-gray-400 text-gray-500 bg-gray-50');
+                                                    if (visit.status === 'done' || visit.status === 'completed') return getBadge('Completed', 'bg-emerald-100 text-emerald-700 border-emerald-300');
+                                                    if (visit.status === 'in progress') return getBadge('In Progress', 'bg-blue-100 text-blue-700 border-blue-300');
+                                                    
+                                                    if (visit.type === 'Appointment' && isFutureAppt) return getBadge('Upcoming', 'bg-blue-600 text-white border-blue-600');
+                                                    return getBadge('Waiting', 'bg-yellow-100 text-yellow-700 border-yellow-300');
+                                                })()}
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <Button

@@ -687,11 +687,8 @@ const Dashboard = () => {
 
   const cancelPatients = (patients || []).filter(p => {
     if (p.isInactive) return false;
-    // Check cancellation date, fallback to registration date for backward compatibility
-    // Prefer cancelledAt, then queueExitTime (persisted by cancel mutations), then registeredAt.
+    if (p.type === "Appointment" && p.appointmentStatus !== "accepted") return false;
     if (!isWithinDateRange(p.cancelledAt || p.queueExitTime || p.registeredAt)) return false;
-    // `inQueue` is not always reliably set/updated by cancel mutations,
-    // so only rely on status + date to ensure cancelled patients show up.
     return p.status === "cancelled";
   });
   const pendingTodayPatients = (patients || []).filter(p => {
