@@ -532,13 +532,18 @@ export const PatientProvider = ({ children }) => {
             
             // 2. Notification logic for SECRETARY (on new submission)
             if ((userRole === 'secretary' || userRole === 'staff' || userRole === 'admin') && newData.patient_type === 'appointment') {
+              const isDoctorFollowUp = newData.services?.includes('follow-up-doctor');
+              
               setModalNotification({
                 type: 'appointment',
-                title: 'New Appointment Request',
-                description: `A new appointment request has been submitted by ${newData.name}.`,
+                title: isDoctorFollowUp ? 'New Doctor Follow-up' : 'New Appointment Request',
+                description: isDoctorFollowUp 
+                  ? `Dr. ${newData.assigned_doctor_name || 'the doctor'} has scheduled a follow-up for ${newData.name}.`
+                  : `A new appointment request has been submitted by ${newData.name}.`,
                 data: {
                   patientName: newData.name,
                   dateTime: new Date(newData.appointment_datetime || newData.created_at).toLocaleString(),
+                  doctor: isDoctorFollowUp ? newData.assigned_doctor_name : null
                 }
               });
             }
