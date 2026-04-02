@@ -145,7 +145,10 @@ const PatientProfile = () => {
 
         // PRIORITY: Future accepted appointments are "upcoming" even if status is 'done' or 'waiting'
         if (apptDate && apptDate > today) {
-          if (appointment.status === 'cancelled') return 'cancelled';
+          // Only mark cancelled if secretary removed them from the active queue
+          if (appointment.status === 'cancelled' && (appointment.inQueue || appointment.appointmentStatus === 'accepted')) {
+            return 'cancelled';
+          }
           return 'upcoming';
         }
 
@@ -153,7 +156,8 @@ const PatientProfile = () => {
           return 'completed';
         } else if (appointment.status === 'in progress') {
           return 'in-progress';
-        } else if (appointment.status === 'cancelled') {
+        } else if (appointment.status === 'cancelled' && (appointment.inQueue || appointment.appointmentStatus === 'accepted')) {
+          // Only 'cancelled' when the secretary removed them from the active queue
           return 'cancelled';
         } else {
           if (appointment.status === 'waiting' || appointment.status === 'pending') {
@@ -163,17 +167,19 @@ const PatientProfile = () => {
         }
       }
       else if (appointment.appointmentStatus === 'cancelled' || appointment.appointmentStatus === 'withdrawn') {
-        return 'cancelled';
+        // Patient self-cancelled their appointment request — excluded from profile records
+        return 'self-cancelled';
       }
     }
 
-    // Walk-in status (or any other type like 'Walk-in')
+    // Walk-in status
     const status = appointment.status ? appointment.status.toLowerCase() : 'waiting';
     if (status === 'done' || status === 'completed') {
       return 'completed';
     } else if (status === 'in progress') {
       return 'in-progress';
     } else if (status === 'cancelled') {
+      // Walk-ins cancelled from the dashboard queue by secretary
       return 'cancelled';
     } else if (status === 'waiting' || status === 'pending') {
       return 'waiting';
@@ -248,7 +254,8 @@ const PatientProfile = () => {
 
       // Filter: only valid statuses for patient history
       const category = getVisitStatusCategory(visit);
-      if (category === 'unknown' || category === 'not-approved' || category === 'pending') return;
+      // Exclude: unknown, not-approved (rejected), pending requests, and patient self-cancellations
+      if (['unknown', 'not-approved', 'pending', 'self-cancelled'].includes(category)) return;
 
       // EXCLUDE: Pending requests from patient history (cancelled/withdrawn should now show)
       if (visit.type === 'Appointment' && visit.appointmentStatus === 'pending') return;
@@ -413,11 +420,10 @@ const PatientProfile = () => {
 
     return {
       all: selectedPatient.visits.length,
+      upcoming: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'upcoming').length,
       'in-progress': selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'in-progress').length,
       completed: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'completed').length,
       cancelled: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'cancelled').length,
-      upcoming: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'upcoming').length,
-      accepted: selectedPatient.visits.filter(v => getVisitStatusCategory(v) === 'accepted').length,
     };
   }, [selectedPatient]);
 
@@ -1041,6 +1047,14 @@ const PatientProfile = () => {
                     </Button>
                     <Button
                       size="sm"
+                      variant={visitStatusFilter === 'upcoming' ? 'default' : 'outline'}
+                      onClick={() => setVisitStatusFilter('upcoming')}
+                      className={visitStatusFilter === 'upcoming' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
+                    >
+                      Upcoming ({visitStatusCounts.upcoming || 0})
+                    </Button>
+                    <Button
+                      size="sm"
                       variant={visitStatusFilter === 'in-progress' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('in-progress')}
                       className={visitStatusFilter === 'in-progress' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
@@ -1057,27 +1071,11 @@ const PatientProfile = () => {
                     </Button>
                     <Button
                       size="sm"
-                      variant={visitStatusFilter === 'upcoming' ? 'default' : 'outline'}
-                      onClick={() => setVisitStatusFilter('upcoming')}
-                      className={visitStatusFilter === 'upcoming' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
-                    >
-                      Upcoming ({visitStatusCounts.upcoming || 0})
-                    </Button>
-                    <Button
-                      size="sm"
                       variant={visitStatusFilter === 'cancelled' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('cancelled')}
                       className={visitStatusFilter === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'border-red-300 text-red-700 hover:bg-red-50'}
                     >
                       Cancelled ({visitStatusCounts.cancelled || 0})
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={visitStatusFilter === 'accepted' ? 'default' : 'outline'}
-                      onClick={() => setVisitStatusFilter('accepted')}
-                      className={visitStatusFilter === 'accepted' ? 'bg-green-600 hover:bg-green-700' : 'border-green-300 text-green-700 hover:bg-green-50'}
-                    >
-                      Accepted ({visitStatusCounts.accepted || 0})
                     </Button>
                   </div>
                 </div>
