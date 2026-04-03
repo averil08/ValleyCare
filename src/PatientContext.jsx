@@ -219,7 +219,8 @@ export const PatientProvider = ({ children }) => {
     priorityType: dbPatient.priority_type || null,
     daysSinceOnset: dbPatient.days_since_onset || null,
     // Extract notes from joined appointments table if present
-    notes: dbPatient.notes || (dbPatient.appointments?.[0]?.notes) || null
+    notes: dbPatient.notes || (dbPatient.appointments?.[0]?.notes) || null,
+    updatedAt: dbPatient.updated_at
   });
 
   // ==========================================
@@ -770,7 +771,7 @@ export const PatientProvider = ({ children }) => {
       const isCancellation = p.appointmentStatus === 'cancelled';
       const isDoctorFollowUp = p.services?.includes('follow-up-doctor');
       
-      const notificationTime = new Date(p.registeredAt || p.created_at);
+      const notificationTime = new Date(p.updatedAt || p.registeredAt || p.created_at);
       const lastCheck = new Date(lastSecretaryNotificationCheck);
       
       return (isNewSubmission || isCancellation || isDoctorFollowUp) && notificationTime > lastCheck;

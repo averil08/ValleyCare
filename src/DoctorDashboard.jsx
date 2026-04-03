@@ -157,13 +157,12 @@ const DoctorDashboard = () => {
             const isCancelled = p.appointmentStatus === 'cancelled' || p.appointmentStatus === 'withdrawn';
             const isActioned = p.appointmentStatus === 'accepted' || p.appointmentStatus === 'rejected';
 
-            // Exclude follow-ups requested by the doctor that are already accepted 
-            // (since the doctor created them as accepted). We still want to see 
-            // if they are CANCELLED or REJECTED.
-            if (p.services?.includes('follow-up-doctor') && p.appointmentStatus === 'accepted') return false;
+            // Exclude follow-ups requested by the doctor while they are still PENDING. 
+            // We want to see when they are ACTIONED (Accepted/Rejected) or CANCELLED.
+            if (p.services?.includes('follow-up-doctor') && p.appointmentStatus === 'pending') return false;
 
             return isNew || isCancelled || isActioned;
-        }).sort((a, b) => new Date(b.registeredAt || b.created_at) - new Date(a.registeredAt || a.created_at))
+        }).sort((a, b) => new Date(b.updatedAt || b.registeredAt || b.created_at) - new Date(a.updatedAt || a.registeredAt || a.created_at))
             .slice(0, 30); // Keep fresh history
     }, [patients, doctorId]);
 
@@ -172,7 +171,7 @@ const DoctorDashboard = () => {
         const lastCheck = lastDoctorNotificationCheck[doctorId];
 
         return doctorNotifications.filter(p =>
-            !lastCheck || new Date(p.queueExitTime || p.registeredAt) > new Date(lastCheck)
+            !lastCheck || new Date(p.updatedAt || p.queueExitTime || p.registeredAt) > new Date(lastCheck)
         ).length;
     }, [doctorNotifications, lastDoctorNotificationCheck, doctorId]);
 
@@ -792,7 +791,7 @@ const DoctorDashboard = () => {
                                         <div className="flex items-center gap-2 mt-2">
                                             <Clock className="w-3 h-3 text-gray-400" />
                                             <span className="text-[10px] text-gray-400 font-medium tracking-tight">
-                                                {new Date(notif.registeredAt || notif.created_at).toLocaleString()}
+                                                {new Date(notif.updatedAt || notif.registeredAt || notif.created_at).toLocaleString()}
                                             </span>
                                         </div>
                                     </div>
