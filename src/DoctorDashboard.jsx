@@ -442,16 +442,10 @@ const DoctorDashboard = () => {
     // Matches doctor names even if the DB includes middle initials/extra punctuation.
     const normalizeDoctorNameForMatch = (name) => {
         if (!name) return '';
-        return name
-            .replace(/\bdr\.?\b/gi, ' ') // remove "Dr" token
-            .replace(/[.,]/g, ' ')
-            .replace(/[^a-zA-Z0-9\s-]/g, ' ')
-            .split(/\s+/)
-            .map(s => s.trim())
-            .filter(Boolean)
-            .filter(token => token.length > 1) // drop middle initials (single-letter tokens)
-            .join(' ')
-            .toLowerCase();
+        return name.toLowerCase()
+            .replace(/\bdr\.?\s+/gi, '')
+            .replace(/[^a-z0-9]/gi, '')
+            .trim();
     };
 
     const myPatients = (patients || []).filter(p => {
@@ -1624,7 +1618,7 @@ const DoctorDashboard = () => {
                                         <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">Previously Recorded Symptoms</label>
                                         {followUpPatient?.queueNo != null && (
                                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 leading-none">
-                                                Visit #{String(followUpPatient.queueNo).padStart(3, '0')}
+                                                Visit #{followUpPatient.displayQueueNo}
                                             </span>
                                         )}
                                     </div>
@@ -1842,7 +1836,7 @@ const PatientCard = ({ patient, selectedPatient, onClick, onFollowUp }) => {
             <div className="flex items-center gap-3 sm:gap-4">
                 <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex flex-col items-center justify-center font-bold relative transition-all shrink-0 ${isSelected ? 'bg-white/20 text-white' : (patient.isPriority ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-700')}`}>
                     <span className="text-[11px] opacity-60 leading-none">Q</span>
-                    <span className="text-lg sm:text-xl leading-none">{patient.queueNo}</span>
+                    <span className="text-lg sm:text-xl leading-none">{patient.displayQueueNo}</span>
                     {patient.status === 'in progress' && (
                         <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${isSelected ? 'bg-white border-emerald-600 animate-ping' : 'bg-emerald-500 border-white animate-pulse'}`} />
                     )}
@@ -2000,7 +1994,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                 <div className="hidden sm:flex flex-col items-center justify-center w-28 h-28 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 relative overflow-hidden group">
                                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-transparent opacity-50" />
                                     <span className="text-xs font-bold uppercase tracking-widest text-emerald-600/60 relative z-10 mb-0.5">Queue</span>
-                                    <span className="text-5xl font-bold relative z-10 leading-none">{patient.queueNo}</span>
+                                    <span className="text-5xl font-bold relative z-10 leading-none">{patient.displayQueueNo}</span>
                                 </div>
                                 <div className="flex-1 min-w-0 space-y-5">
                                     <div>
@@ -2358,7 +2352,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                     </Badge>
                                 )}
                                 <Badge variant="outline" className="font-mono text-xs">
-                                    #{String(selectedVisit.queueNo || 0).padStart(3, '0')}
+                                    #{selectedVisit.displayQueueNo || '---'}
                                 </Badge>
                             </div>
 

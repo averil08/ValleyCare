@@ -67,28 +67,41 @@ export const searchPatient = async (searchTerm) => {
   }
 };
 
-export const getMaxQueueNumber = async () => {
+export const getMaxQueueNumber = async (type = 'walk-in', date = null) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const targetDate = date ? new Date(date) : new Date();
+    targetDate.setHours(0, 0, 0, 0);
+
+    const nextDay = new Date(targetDate);
+    nextDay.setDate(targetDate.getDate() + 1);
+
+    const isAppointment = (type === 'appointment' || type === 'Appointment');
+    const rangeStart = isAppointment ? 10001 : 1;
+    const rangeEnd = isAppointment ? 19999 : 9999;
+    const dateColumn = isAppointment ? 'appointment_datetime' : 'registered_at';
 
     const { data, error } = await supabase
       .from('patients')
       .select('queue_no')
-      .lt('queue_no', 900000) // Exclude system records
-      .gte('registered_at', today.toISOString()) // Only today's patients
+      .gte('queue_no', rangeStart)
+      .lte('queue_no', rangeEnd)
+      .gte(dateColumn, targetDate.toISOString()) 
+      .lt(dateColumn, nextDay.toISOString())
       .order('queue_no', { ascending: false })
       .limit(1);
 
     if (error) {
       console.error('Error fetching max queue number:', error);
-      return { success: false, error: error.message, maxQueueNo: 0 };
+      return { success: false, error: error.message, maxQueueNo: rangeStart - 1 };
     }
 
-    return { success: true, maxQueueNo: data?.[0]?.queue_no || 0 };
+    // Return the max number found, or the base (e.g., 10000 for appointments) if none found
+    const maxVal = data?.[0]?.queue_no || (rangeStart - 1);
+    return { success: true, maxQueueNo: maxVal };
   } catch (error) {
+    const fallbackBase = (type === 'appointment' || type === 'Appointment') ? 10000 : 0;
     console.error('Error fetching max queue number:', error);
-    return { success: false, error: error.message, maxQueueNo: 0 };
+    return { success: false, error: error.message, maxQueueNo: fallbackBase };
   }
 };
 

@@ -12,10 +12,16 @@ export const registerWalkInPatient = async (patientData) => {
 
   while (attempts < maxAttempts) {
     try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Walk-in Range: 1 - 9,999
       const { data: maxQData } = await supabase
         .from('patients')
         .select('queue_no')
-        .lt('queue_no', 900000)
+        .gte('queue_no', 1)
+        .lte('queue_no', 9999)
+        .gte('registered_at', today.toISOString())
         .order('queue_no', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -70,15 +76,22 @@ export const registerAppointmentPatient = async (formData, appointmentDateTime) 
   while (attempts < maxAttempts) {
     try {
       // Unified Queue Logic: Appointments now share the same sequence as walk-ins
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Appointment Range: 10,001 - 19,999
       const { data: maxQData } = await supabase
         .from('patients')
         .select('queue_no')
-        .lt('queue_no', 900000)
+        .gte('queue_no', 10001)
+        .lte('queue_no', 19999)
+        .gte('registered_at', today.toISOString())
         .order('queue_no', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      const nextQueueNo = (maxQData?.queue_no || 0) + 1;
+      const nextBase = (maxQData?.queue_no || 10000);
+      const nextQueueNo = nextBase + 1;
 
       const { data: patientData, error: patientError } = await supabase
         .from('patients')

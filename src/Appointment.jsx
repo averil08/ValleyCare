@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
-import { Calendar, CalendarDays, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, CalendarDays, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 //automatic added dialog in components/ui (run npx shadcn@latest add dialog to install + make dialog.jsx)
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 //automatic added textarea in components/ui (run npx shadcn@latest add textarea to install + make textarea.jsx)
@@ -43,6 +43,7 @@ const Appointment = () => {
   const [calendarMonth, setCalendarMonth] = useState(today.getMonth()); // 0-indexed
   const [calendarSelectedDay, setCalendarSelectedDay] = useState(null);
   const [calendarFilterDoctor, setCalendarFilterDoctor] = useState('all');
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   const { 
     patients, 
@@ -51,7 +52,9 @@ const Appointment = () => {
     unreadSecretaryNotificationsCount, 
     markSecretaryNotificationsAsRead,
     modalNotification,
-    clearModalNotification
+    clearModalNotification,
+    finalizeTomorrowQueue,
+    formatQueueNumber
   } = useContext(PatientContext);
 
   // Helper to get label for date filter
@@ -179,6 +182,24 @@ const Appointment = () => {
       default:
         return filtered
           .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+    }
+  };
+
+  const handleFinalizeQueue = async () => {
+    // Only allow for tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    if (window.confirm(`Finalize queue for tomorrow (${tomorrow.toDateString()})? This will assign numbers and notify all accepted patients.`)) {
+      setIsFinalizing(true);
+      const result = await finalizeTomorrowQueue(tomorrow);
+      setIsFinalizing(false);
+      
+      if (result.success) {
+        alert(`Successfully finalized queue! Assigned queue numbers to ${result.count} patients.`);
+      } else {
+        alert(`Error finalizing queue: ${result.error}`);
+      }
     }
   };
 
@@ -335,7 +356,7 @@ const Appointment = () => {
         {/* Header with Queue Number and Status */}
         <div className="flex items-center justify-between mb-3">
           <Badge variant="outline" className="font-mono">
-            #{String(appointment.queueNo).padStart(3, '0')}
+            #{appointment.displayQueueNo}
           </Badge>
           {appointment.appointmentStatus === 'accepted' ? (
             <Badge className="bg-green-600">Accepted</Badge>
@@ -496,7 +517,7 @@ const Appointment = () => {
               >
                 <TableCell className="py-3">
                   <Badge variant="outline" className="font-mono text-xs">
-                    #{String(appointment.queueNo).padStart(3, '0')}
+                    #{appointment.displayQueueNo}
                   </Badge>
                 </TableCell>
 
@@ -655,6 +676,22 @@ const Appointment = () => {
 
               {/* Icon Group: Calendar + Notification Bell */}
               <div className="flex items-center gap-1">
+
+                {/* Finalize Tomorrow's Queue Button */}
+                <button
+                  onClick={handleFinalizeQueue}
+                  disabled={isFinalizing}
+                  className={`p-2 ${isFinalizing ? 'opacity-50 cursor-not-allowed' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'} rounded-full transition-all duration-200 focus:outline-none relative group`}
+                  title="Finalize Tomorrow's Queue"
+                >
+                  <Sparkles className={`w-6 h-6 ${isFinalizing ? 'animate-spin' : ''}`} />
+                  {isFinalizing && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+                    </span>
+                  )}
+                </button>
 
                 {/* Calendar Icon Button */}
                 <button
@@ -1126,7 +1163,7 @@ const Appointment = () => {
               Appointment Details
             </DialogTitle>
             <DialogDescription>
-              Queue #{String(selectedAppointment?.queueNo).padStart(3, '0')} • {selectedAppointment?.name}
+              Queue {selectedAppointment?.displayQueueNo} • {selectedAppointment?.name}
             </DialogDescription>
           </DialogHeader>
 
@@ -1179,7 +1216,7 @@ const Appointment = () => {
                   <Calendar className="w-5 h-5 text-gray-600 flex-shrink-0" />
                   <div>
                     <p className="text-xs text-gray-500 mb-1">Queue Number</p>
-                    <p className="font-semibold text-gray-900">#{String(selectedAppointment.queueNo).padStart(3, '0')}</p>
+                    <p className="font-semibold text-gray-900">{selectedAppointment.displayQueueNo}</p>
                   </div>
                 </div>
               </div>

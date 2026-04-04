@@ -78,6 +78,7 @@ const Dashboard = () => {
     startDoctorQueue,
     stopDoctorQueue,
     isDoctorActive,
+    formatQueueNumber,
   } = useContext(PatientContext);
 
   // Persist doctor selection to localStorage
@@ -264,7 +265,7 @@ const Dashboard = () => {
     doc.setFont(undefined, 'bold');
     doc.text('Summary Statistics', 14, 86);
     doc.setFont(undefined, 'normal');
-    const servingText = currentServing ? `#${String(currentServing).padStart(3, '0')}` : 'No Patient';
+    const servingText = currentServing ? formatQueueNumber(currentServing, 'walk-in') : 'No Patient';
     doc.text(`Current Serving: ${servingText}${viewMode === 'general' && totalServing > 0 ? ` (${totalServing} total)` : ''}`, 14, 92);
     doc.text(`Average Wait Time: ${avgWaitTime} mins`, 14, 98);
     const totalWaitingForReport = viewMode === 'general'
@@ -287,7 +288,7 @@ const Dashboard = () => {
           startY: yPosition,
           head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services', 'Status']],
           body: filteredQueuePatients.map(patient => [
-            `#${String(patient.queueNo).padStart(3, '0')}`,
+            patient.displayQueueNo,
             patient.name,
             patient.age,
             patient.phoneNum || 'N/A',
@@ -342,7 +343,7 @@ const Dashboard = () => {
           startY: yPosition,
           head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services', 'Status']],
           body: filteredPriorityPatients.map(patient => [
-            `#${String(patient.queueNo).padStart(3, '0')}`,
+            patient.displayQueueNo,
             patient.name,
             patient.age,
             patient.phoneNum || 'N/A',
@@ -400,7 +401,7 @@ const Dashboard = () => {
         startY: yPosition,
         head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services']],
         body: filteredDonePatients.map(patient => [
-          `#${String(patient.queueNo).padStart(3, '0')}`,
+          patient.displayQueueNo,
           patient.name,
           patient.age,
           patient.phoneNum || 'N/A',
@@ -448,7 +449,7 @@ const Dashboard = () => {
         startY: yPosition,
         head: [['Queue #', 'Name', 'Age', 'Phone', 'Doctor', 'Type', 'Symptoms', 'Services']],
         body: filteredCancelPatients.map(patient => [
-          `#${String(patient.queueNo).padStart(3, '0')}`,
+          patient.displayQueueNo,
           patient.name,
           patient.age,
           patient.phoneNum || 'N/A',
@@ -702,6 +703,7 @@ const Dashboard = () => {
     if (dateFilter !== 'today') return false;
     if (p.isInactive) return false;
     if (p.status === "done" || p.status === "cancelled") return false;
+    if (p.type === "Appointment" && p.appointmentStatus !== "accepted") return false;
     if (!p.isPriority || (p.type !== "Appointment" && !p.inQueue)) return false;
 
     if (p.type === "Appointment") {
@@ -713,16 +715,10 @@ const Dashboard = () => {
   // Matches doctor names even if the stored/DB name includes middle initials/extra punctuation.
   const normalizeDoctorNameForMatch = (name) => {
     if (!name) return '';
-    return name
-      .replace(/\bdr\.?\b/gi, ' ')
-      .replace(/[.,]/g, ' ')
-      .replace(/[^a-zA-Z0-9\s-]/g, ' ')
-      .split(/\s+/)
-      .map(s => s.trim())
-      .filter(Boolean)
-      .filter(token => token.length > 1) // drop middle initials (single-letter tokens)
-      .join(' ')
-      .toLowerCase();
+    return name.toLowerCase()
+      .replace(/\bdr\.?\s+/gi, '')
+      .replace(/[^a-z0-9]/gi, '')
+      .trim();
   };
 
   // NEW: Filter patients based on selected doctor
@@ -1567,7 +1563,7 @@ const Dashboard = () => {
                   {viewMode === 'general' ? (
                     <>
                       <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                        {currentServing ? `#${String(currentServing).padStart(3, '0')}` : 'No Patient'}
+                        {currentServing ? formatQueueNumber(currentServing, 'walk-in') : 'No Patient'}
                       </p>
                       <p className="text-xs text-gray-500 mb-3 sm:mb-4">
                         {totalServing > 0
@@ -1603,7 +1599,7 @@ const Dashboard = () => {
                         return (
                           <>
                             <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                              {doctorCurrentPatient ? `#${String(doctorCurrentPatient).padStart(3, '0')}` : 'No Patient'}
+                              {doctorCurrentPatient ? formatQueueNumber(doctorCurrentPatient, 'walk-in') : 'No Patient'}
                             </p>
                             <p className="text-xs text-gray-500 mb-3 sm:mb-4">
                               {doctorCurrentPatient ? '1 patient currently being served' : 'No one currently being seen'}
@@ -1779,7 +1775,7 @@ const Dashboard = () => {
                               <div className="flex justify-between items-start mb-3">
                                 <div>
                                   <p className="font-bold text-lg text-gray-900">
-                                    #{String(patient.queueNo).padStart(3, '0')}
+                                    {patient.displayQueueNo}
                                   </p>
                                   <p className="text-sm text-gray-600">{patient.name}</p>
                                 </div>
@@ -1877,7 +1873,7 @@ const Dashboard = () => {
                           <tbody>
                             {filteredQueuePatients.map(patient => (
                               <tr key={`active-dsk-${patient.id || patient.queueNo}`} className={`border-b transition-colors ${patient.status === 'in progress' ? 'bg-blue-50/50 hover:bg-blue-50' : 'hover:bg-gray-50'}`}>
-                                <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                                <td className="p-2 align-middle text-xs font-semibold">{patient.displayQueueNo}</td>
                                 <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                                 <td className="p-2 align-middle text-xs">{patient.age}</td>
                                 <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
@@ -1987,7 +1983,7 @@ const Dashboard = () => {
                               <div className="flex justify-between items-start mb-3">
                                 <div>
                                   <p className="font-bold text-lg text-gray-900">
-                                    #{String(patient.queueNo).padStart(3, '0')}
+                                    {patient.displayQueueNo}
                                   </p>
                                   <p className="text-sm text-gray-600">{patient.name}</p>
                                 </div>
@@ -2086,7 +2082,7 @@ const Dashboard = () => {
                           <tbody>
                             {filteredPriorityPatients.map(patient => (
                               <tr key={`priority-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-yellow-50">
-                                <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                                <td className="p-2 align-middle text-xs font-semibold">{patient.displayQueueNo}</td>
                                 <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                                 <td className="p-2 align-middle text-xs">{patient.age}</td>
                                 <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
@@ -2199,7 +2195,7 @@ const Dashboard = () => {
                             <div className="flex justify-between items-start mb-3">
                               <div>
                                 <p className="font-bold text-lg text-gray-900">
-                                  #{String(patient.queueNo).padStart(3, '0')}
+                                  {patient.displayQueueNo}
                                 </p>
                                 <p className="text-sm text-gray-600">{patient.name}</p>
                               </div>
@@ -2281,7 +2277,7 @@ const Dashboard = () => {
                         <tbody>
                           {filteredDonePatients.map(patient => (
                             <tr key={`done-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-emerald-50">
-                              <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                              <td className="p-2 align-middle text-xs font-semibold">{patient.displayQueueNo}</td>
                               <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                               <td className="p-2 align-middle text-xs">{patient.age}</td>
                               <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>
@@ -2373,7 +2369,7 @@ const Dashboard = () => {
                             <div className="flex justify-between items-start mb-3">
                               <div>
                                 <p className="font-bold text-lg text-gray-900">
-                                  #{String(patient.queueNo).padStart(3, '0')}
+                                  {patient.displayQueueNo}
                                 </p>
                                 <p className="text-sm text-gray-600">{patient.name}</p>
                               </div>
@@ -2455,7 +2451,7 @@ const Dashboard = () => {
                         <tbody>
                           {filteredCancelPatients.map(patient => (
                             <tr key={`cancel-dsk-${patient.queueNo}`} className="border-b transition-colors hover:bg-red-50">
-                              <td className="p-2 align-middle text-xs font-semibold">#{String(patient.queueNo).padStart(3, '0')}</td>
+                              <td className="p-2 align-middle text-xs font-semibold">{patient.displayQueueNo}</td>
                               <td className="p-2 align-middle text-xs font-medium" title={patient.name}>{patient.name}</td>
                               <td className="p-2 align-middle text-xs">{patient.age}</td>
                               <td className="p-2 align-middle text-xs text-gray-600">{patient.phoneNum || 'N/A'}</td>

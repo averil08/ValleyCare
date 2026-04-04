@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, useMemo, useRef } from 'react';
-import { PatientContext } from './PatientContext';
+import { PatientContext, formatQueueNumber } from './PatientContext';
 import { doctors } from './doctorData';
 
 // Matches doctor names even if the DB includes middle initials/extra punctuation.
@@ -195,7 +195,7 @@ const ClinicTVDisplay = () => {
         !p.isInactive &&
         matchesDoctor(p, doctor) &&
         p.status === "in progress" &&
-        (p.type === 'Appointment' || p.inQueue) &&
+        (p.type === 'Appointment' ? p.appointmentStatus === "accepted" : p.inQueue) &&
         (p.status === "in progress" || isToday(p.registeredAt)) &&
         (!p.appointmentDateTime || isToday(p.appointmentDateTime))
       );
@@ -205,7 +205,7 @@ const ClinicTVDisplay = () => {
           !p.isInactive &&
           matchesDoctor(p, doctor) &&
           p.status === "waiting" &&
-          (p.type === 'Appointment' || p.inQueue) &&
+          (p.type === 'Appointment' ? p.appointmentStatus === "accepted" : p.inQueue) &&
           isForToday(p) &&
           (!p.appointmentDateTime || isToday(p.appointmentDateTime))
         )
@@ -215,8 +215,8 @@ const ClinicTVDisplay = () => {
         doctorId: doctor.id,
         doctorName: doctor.name,
         isActive: syncedActiveDoctors && syncedActiveDoctors.includes(doctor.id),
-        currentServing: currentServingPatient ? currentServingPatient.queueNo : null,
-        waitingNumbers: doctorPatients.slice(0, 3).map(p => p.queueNo)
+        currentServing: currentServingPatient ? currentServingPatient.displayQueueNo : null,
+        waitingNumbers: doctorPatients.slice(0, 3).map(p => p.displayQueueNo)
       };
 
       console.log(`📊 ${doctor.name}:`, {
@@ -338,7 +338,7 @@ const ClinicTVDisplay = () => {
                       className="text-green-700 text-6xl font-bold drop-shadow-lg transition-all duration-500 animate-pulse"
                       key={`serving-${doctorInfo.currentServing}`}
                     >
-                      {String(doctorInfo.currentServing).padStart(3, '0')}
+                      {doctorInfo.currentServing}
                     </div>
                   ) : (
                     <div className="text-gray-400 text-5xl font-bold">
@@ -357,7 +357,7 @@ const ClinicTVDisplay = () => {
                       key={`${doctorInfo.doctorId}-${queueNo}-${idx}`}
                       className="text-gray-700 text-4xl font-bold drop-shadow-lg"
                     >
-                      {String(queueNo).padStart(3, '0')}
+                      {queueNo}
                     </div>
                   ))
                 ) : (

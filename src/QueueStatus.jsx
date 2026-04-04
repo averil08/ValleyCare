@@ -151,7 +151,8 @@ const QueueStatus = () => {
     clearActivePatient,
     requeuePatient,
     cancelAppointment,
-    isLoadingFromDB
+    isLoadingFromDB,
+    formatQueueNumber
   } = useContext(PatientContext);
 
   // Validate that activePatient belongs to current logged-in patient
@@ -313,7 +314,7 @@ const QueueStatus = () => {
                     >
                       <div className="flex items-center gap-3">
                         <span className={`text-3xl font-black ${textColor}`}>
-                          {String(patient.queueNo).padStart(3, '0')}
+                          {patient.displayQueueNo}
                         </span>
                         {isMe && (
                           <span className={`text-sm font-semibold ${textColor} bg-white/20 px-2 py-1 rounded`}>
@@ -367,7 +368,7 @@ const QueueStatus = () => {
                       className={`flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-xl sm:rounded-2xl border-2 ${borderColor} ${bgColor} flex flex-col items-center justify-center ${shadow} transition-all duration-200 snap-start`}
                     >
                       <span className={`text-2xl sm:text-3xl md:text-4xl font-black ${textColor}`}>
-                        {String(patient.queueNo).padStart(3, '0')}
+                        {patient.displayQueueNo}
                       </span>
                       {isMe && (
                         <span className={`text-xs sm:text-sm font-semibold mt-0.5 sm:mt-1 ${textColor}`}>
@@ -533,7 +534,7 @@ const QueueStatus = () => {
 
       if (newTicket) {
         setActivePatient(newTicket);
-        setNotificationMessage(`You've been added back to the queue with ticket #${String(newTicket.queueNo).padStart(3, '0')}!`);
+        setNotificationMessage(`You've been added back to the queue with ticket ${newTicket.displayQueueNo}!`);
       } else {
         setNotificationMessage("You've been added back to the queue!");
       }
@@ -1378,7 +1379,7 @@ const QueueStatus = () => {
               {currentPatient.requeued && (
                 <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-xs sm:text-sm text-blue-800">
-                    <strong>Requeued:</strong> Your original ticket #{String(currentPatient.originalQueueNo).padStart(3, '0')} has been replaced with this new ticket.
+                    <strong>Requeued:</strong> Your original ticket {formatQueueNumber(currentPatient.originalQueueNo, currentPatient.type)} has been replaced with this new ticket.
                   </p>
                 </div>
               )}
@@ -1386,7 +1387,7 @@ const QueueStatus = () => {
               {currentPatient.status !== 'cancelled' && (
                 <>
                   <h2 className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-600 mb-2">Your Queue Number</h2>
-                  <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-green-600 mb-4 sm:mb-6">{queueNumber}</div>
+                  <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-green-600 mb-4 sm:mb-6">{currentPatient?.displayQueueNo}</div>
                 </>
               )}
 
@@ -1531,7 +1532,7 @@ const QueueStatus = () => {
             {currentPatient.requeued && (
               <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-xs sm:text-sm text-blue-800">
-                  <strong>Requeued:</strong> Your original ticket #{String(currentPatient.originalQueueNo).padStart(3, '0')} has been replaced with this new ticket.
+                  <strong>Requeued:</strong> Your original ticket {formatQueueNumber(currentPatient.originalQueueNo, currentPatient.type)} has been replaced with this new ticket.
                 </p>
               </div>
             )}
@@ -1539,7 +1540,7 @@ const QueueStatus = () => {
             {currentPatient.status !== 'cancelled' && (
               <>
                 <h2 className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-600 mb-2">Your Queue Number</h2>
-                <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-green-600 mb-4 sm:mb-6">{queueNumber}</div>
+                <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-green-600 mb-4 sm:mb-6">{currentPatient?.displayQueueNo}</div>
               </>
             )}
 

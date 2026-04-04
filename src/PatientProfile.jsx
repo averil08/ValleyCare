@@ -533,7 +533,7 @@ const PatientProfile = () => {
                   {getStatusLabel(visit)}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600">Queue #{String(visit.queueNo).padStart(3, '0')}</p>
+              <p className="text-sm text-gray-600">Queue #{visit.displayQueueNo}</p>
             </div>
             <Badge variant="outline" className={
               visit.type === 'Walk-in' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-purple-50 text-purple-700 border-purple-300'
@@ -1133,7 +1133,7 @@ const PatientProfile = () => {
 
                                 <TableCell className="font-medium">
                                   <Badge variant="outline" className="font-mono">
-                                    #{String(visit.queueNo).padStart(3, '0')}
+                                    #{visit.displayQueueNo}
                                   </Badge>
                                 </TableCell>
 
@@ -1238,7 +1238,7 @@ const PatientProfile = () => {
               Visit #{selectedVisit?.visitNumber} Details
             </DialogTitle>
             <DialogDescription>
-              Queue #{String(selectedVisit?.queueNo).padStart(3, '0')} • {selectedVisit?.type}
+              Queue #{selectedVisit?.displayQueueNo || '---'} • {selectedVisit?.type}
             </DialogDescription>
           </DialogHeader>
 

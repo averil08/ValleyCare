@@ -21,6 +21,26 @@ const isForToday = (p) => {
   return isToday(p.registeredAt);
 };
 
+// ✅ NEW: Powerful UI Formatter for the Prefixing System
+// This turns database integers (1, 1001) into display labels (W01, A01)
+export const formatQueueNumber = (num, type) => {
+  if (num === null || num === undefined) return "---";
+  
+  // 1. System Records (Keep as is)
+  if (num >= 900000) return num;
+
+  // 2. Identify the prefix based on number range OR patient type
+  // This approach is "Smart" so it correctly labels old records too!
+  const isAppointment = num >= 1000 || (type || '').toLowerCase() === 'appointment';
+  const prefix = isAppointment ? 'A' : 'W';
+  
+  // 3. Scale the number back if it's in the Appointment range (1000+)
+  const displayNum = isAppointment && num >= 1000 ? num - 1000 : num;
+  
+  // 4. Return the formatted string (W01, A15, etc.)
+  return `${prefix}${String(displayNum).padStart(2, '0')}`;
+};
+
 // Matches doctor names even if the DB includes middle initials/extra punctuation.
 // Example: "Dr. Rajiv D. Laoagan" should match "Dr. Rajiv Laoagan".
 const normalizeDoctorNameForMatch = (name) => {
@@ -176,6 +196,7 @@ export const PatientProvider = ({ children }) => {
     // ✅ CRITICAL: Use dbId as the primary identifier
     id: dbPatient.id,
     queueNo: dbPatient.queue_no,
+    displayQueueNo: formatQueueNumber(dbPatient.queue_no, dbPatient.patient_type),
     name: dbPatient.name,
     age: dbPatient.age,
     phoneNum: dbPatient.phone_num ? (dbPatient.phone_num.startsWith('09') ? `+63${dbPatient.phone_num.slice(1)}` : dbPatient.phone_num.startsWith('9') && dbPatient.phone_num.length === 10 ? `+63${dbPatient.phone_num}` : dbPatient.phone_num) : "",
@@ -1132,12 +1153,12 @@ export const PatientProvider = ({ children }) => {
 
         // 1. Calculate the next available queue number based on current patients
 
-        // filtering for only positive real queue numbers (ignoring high temp numbers > 900000)
+        // filtering for only appointment range (10,001 - 19,999)
         const realQueueNumbers = patients
           .map(pat => pat.queueNo)
-          .filter(q => q && q > 0 && q < 900000);
+          .filter(q => q && q >= 10001 && q <= 19999);
 
-        const maxQueueNo = realQueueNumbers.length > 0 ? Math.max(...realQueueNumbers) : 0;
+        const maxQueueNo = realQueueNumbers.length > 0 ? Math.max(...realQueueNumbers) : 10000;
         newQueueNo = maxQueueNo + 1;
 
         console.log(`✅ Accepting appointment ${patientId}. Old number invalid/temp. Assigning NEW queue no: ${newQueueNo}`);
@@ -1335,9 +1356,9 @@ export const PatientProvider = ({ children }) => {
 
       console.log(`🔄 Requeueing patient #${queueNo}...`);
 
-      // 1. Get AUTHORITATIVE max queue number from DB first
-      const maxResult = await getMaxQueueNumber();
-      const nextQueueNo = maxResult.success ? (maxResult.maxQueueNo + 1) : (Math.max(...patients.map(p => p.queueNo || 0)) + 1);
+      // 1. Get AUTHORITATIVE max queue number from DB first (passing type for range)
+      const maxResult = await getMaxQueueNumber(cancelledPatient.type);
+      const nextQueueNo = maxResult.maxQueueNo + 1;
 
       console.log(`✅ Assigned new queue number: ${nextQueueNo}`);
 
@@ -1378,6 +1399,79 @@ export const PatientProvider = ({ children }) => {
   };
 
 
+  const finalizeTomorrowQueue = async (targetDate) => {
+    try {
+      // 1. Determine the target date (default tomorrow)
+      const dateToProcess = targetDate || new Date(new Date().setDate(new Date().getDate() + 1));
+      dateToProcess.setHours(0, 0, 0, 0);
+      const dateString = dateToProcess.toDateString();
+
+      console.log(`📅 Finalizing queue for: ${dateString}`);
+
+      // 2. Filter local patient state for "Accepted" appointments on that date
+      const candidates = patients.filter(p =>
+        p.type === 'Appointment' &&
+        p.appointmentStatus === 'accepted' &&
+        p.appointmentDateTime &&
+        new Date(p.appointmentDateTime).toDateString() === dateString &&
+        (!p.queueNo || p.queueNo >= 900000)
+      ).sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime));
+
+      if (candidates.length === 0) {
+        return { success: true, count: 0 };
+      }
+
+      // 3. Get AUTHORITATIVE starting number from DB for that specific day
+      const maxResult = await getMaxQueueNumber('appointment', dateToProcess);
+      let nextNum = (maxResult.maxQueueNo || 10000) + 1;
+
+      console.log(`🚀 Starting batch assignment from #${nextNum}`);
+
+      const updatePromises = candidates.map(async (patient) => {
+        const assignedNo = nextNum++;
+        const displayNo = formatQueueNumber(assignedNo, 'appointment');
+
+        const updated = {
+          ...patient,
+          queueNo: assignedNo,
+          displayQueueNo: displayNo,
+          status: 'waiting',
+          inQueue: true
+        };
+
+        // Sync to DB
+        await syncPatientToDatabase(updated);
+
+        // Send Email — details.queueNo is our formatted string e.g. A01
+        if (patient.patientEmail) {
+          await sendAppointmentEmail(patient, 'accepted', {
+            dateTime: patient.appointmentDateTime,
+            doctor: patient.assignedDoctor?.name || 'Assigned Physician',
+            queueNo: displayNo
+          });
+        }
+
+        return updated;
+      });
+
+      const updatedPatients = await Promise.all(updatePromises);
+
+      // 4. Update Local State
+      setPatients(prev => {
+        const patientMap = new Map(prev.map(p => [p.id, p]));
+        updatedPatients.forEach(upd => patientMap.set(upd.id, upd));
+        return Array.from(patientMap.values()).sort((a, b) => (a.queueNo || 0) - (b.queueNo || 0));
+      });
+
+      return { success: true, count: updatedPatients.length };
+
+    } catch (error) {
+      console.error("❌ Finalize Queue Error:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
+
   const callNextPatient = () => {
     // 1. Mark current patient as done
     if (currentServing) {
@@ -1385,24 +1479,22 @@ export const PatientProvider = ({ children }) => {
     }
 
     // 2. Find next patient
-    // Priority: Priority patient first? Or just Queue Order?
-    // Let's assume Queue Order for general view, but filtered for TODAY.
-
-    const nextPatient = patients.find(p =>
+    // Interleaving Strategy: Find all patients waiting TODAY and pick the one with earliest registeredAt
+    const eligiblePatients = patients.filter(p =>
       p.status === "waiting" &&
       p.inQueue &&
       !p.isInactive &&
-      p.queueNo > (currentServing || 0) && // Must be after current
-      isForToday(p) // MUST be for today
-    );
+      isForToday(p)
+    ).sort((a, b) => new Date(a.registeredAt) - new Date(b.registeredAt));
+
+    const nextPatient = eligiblePatients[0];
 
     if (nextPatient) {
-      console.log(`Debug: General Queue Calling Waiting Patient ${nextPatient.queueNo}`);
+      console.log(`Debug: Calling Next Patient ${nextPatient.displayQueueNo} (Queue #${nextPatient.queueNo})`);
       updatePatientStatus(nextPatient.queueNo, 'in progress');
       setCurrentServing(nextPatient.queueNo);
     } else {
-      console.log("Debug: No valid next patient found for General Queue.");
-      // No more patients in queue for today
+      console.log("Debug: No valid next patient found.");
       setCurrentServing(null);
     }
   };
@@ -1661,7 +1753,9 @@ export const PatientProvider = ({ children }) => {
       isPatientLoggedIn,
       currentPatientEmail,
       modalNotification,
-      clearModalNotification
+      clearModalNotification,
+      formatQueueNumber,
+      finalizeTomorrowQueue
     }}>
       {children}
     </PatientContext.Provider>
