@@ -1563,7 +1563,13 @@ const Dashboard = () => {
                   {viewMode === 'general' ? (
                     <>
                       <p className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
-                        {currentServing ? formatQueueNumber(currentServing, 'walk-in') : 'No Patient'}
+                        {(() => {
+                          if (!currentServing) return 'No Patient';
+                          // Find the patient in status 'in progress' that matches the currentServing number
+                          // and use their pre-formatted label. Falls back to walk-in format if not found.
+                          const servingPatient = (patients || []).find(p => p.queueNo === currentServing && p.status === 'in progress');
+                          return servingPatient ? servingPatient.displayQueueNo : formatQueueNumber(currentServing, 'walk-in');
+                        })()}
                       </p>
                       <p className="text-xs text-gray-500 mb-3 sm:mb-4">
                         {totalServing > 0

@@ -35,7 +35,7 @@ export const formatQueueNumber = (num, type) => {
   const prefix = isAppointment ? 'A' : 'W';
   
   // 3. Scale the number back if it's in the Appointment range (1000+)
-  const displayNum = isAppointment && num >= 1000 ? num - 1000 : num;
+  const displayNum = isAppointment && num >= 1000 ? num % 10000 : num;
   
   // 4. Return the formatted string (W01, A15, etc.)
   return `${prefix}${String(displayNum).padStart(2, '0')}`;
@@ -271,19 +271,33 @@ export const PatientProvider = ({ children }) => {
         );
         setCurrentServing(inProgressPatient ? inProgressPatient.queueNo : null);
 
-        // SELF-HEALING: Mark any "in progress" patients from previous days as "done"
+        // SELF-HEALING: Mark any stale patients from previous days
         transformedPatients.forEach(p => {
-          if (p.status === 'in progress' && !p.isInactive && !isForToday(p)) {
-            console.log(`🧹 Auto-clearing stale "in progress" patient #${p.queueNo} (${p.name}) from ${p.registeredAt}`);
+          if (!isForToday(p) && !p.isInactive) {
+            // Case 1: In Progress -> Mark as Done (They were actually seen but not completed)
+            if (p.status === 'in progress') {
+              console.log(`🧹 Auto-clearing stale "in progress" patient #${p.queueNo} (${p.name}) from ${p.registeredAt}`);
+              p.status = 'done';
+              p.completedAt = new Date().toISOString();
+              if (!p.queueExitTime) p.queueExitTime = new Date().toISOString();
 
-            p.status = 'done';
-            p.completedAt = new Date().toISOString();
-            if (!p.queueExitTime) p.queueExitTime = new Date().toISOString();
+              // Sync to database
+              syncPatientToDatabase(p).catch(err => {
+                console.error('⚠️ Failed to auto-clear stale patient:', err);
+              });
+            } 
+            // Case 2: Waiting -> Mark as Cancelled (They arrived but were never called)
+            else if (p.status === 'waiting') {
+              console.log(`🧹 Auto-cancelling stale "waiting" patient #${p.queueNo} (${p.name}) from ${p.registeredAt}`);
+              p.status = 'cancelled';
+              p.rejectionReason = "Expired Session"; // Record why it was cancelled
+              p.queueExitTime = new Date().toISOString();
 
-            // Sync to database
-            syncPatientToDatabase(p).catch(err => {
-              console.error('⚠️ Failed to auto-clear stale patient:', err);
-            });
+              // Sync to database
+              syncPatientToDatabase(p).catch(err => {
+                console.error('⚠️ Failed to auto-cancel stale patient:', err);
+              });
+            }
           }
         });
 
