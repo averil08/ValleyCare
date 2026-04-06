@@ -1470,6 +1470,7 @@ export const PatientProvider = ({ children }) => {
         p.appointmentStatus === 'accepted' &&
         p.appointmentDateTime &&
         new Date(p.appointmentDateTime).toDateString() === dateString &&
+        (p.status !== 'done' && p.status !== 'cancelled') &&
         (!p.queueNo || (p.queueNo >= 900000 && p.queueNo < 1000000))
       ).sort((a, b) => new Date(a.appointmentDateTime) - new Date(b.appointmentDateTime));
 
@@ -1869,7 +1870,7 @@ export const PatientProvider = ({ children }) => {
         });
       }
     }
-  }, [patients, isLoadingFromDB]); 
+  }, [isLoadingFromDB]); 
 
   // ✅ DYNAMIC QUEUE RE-RESOLVER
   // This ensures that exactly at 12 AM, "#A--" flips to real numbers.
