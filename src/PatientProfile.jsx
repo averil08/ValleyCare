@@ -518,7 +518,7 @@ const PatientProfile = () => {
             <div>
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <h4 className="font-bold text-gray-900">Visit #{visitNumber}</h4>
-                <Badge className={getStatusBadge(visit)}>
+                <Badge className={`${getStatusBadge(visit)} pointer-events-none`}>
                   {getStatusLabel(visit)}
                 </Badge>
               </div>
@@ -543,7 +543,7 @@ const PatientProfile = () => {
           <Button
             size="sm"
             variant="outline"
-            className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
+            className="w-full text-blue-600 border-blue-300"
             onClick={() => handleViewVisitDetails(visit, visitNumber)}
           >
             <Eye className="w-4 h-4 mr-1" />
@@ -1030,7 +1030,7 @@ const PatientProfile = () => {
                       size="sm"
                       variant={visitStatusFilter === 'all' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('all')}
-                      className={visitStatusFilter === 'all' ? 'bg-gray-900 hover:bg-gray-800' : ''}
+                      className={visitStatusFilter === 'all' ? 'bg-gray-900' : ''}
                     >
                       All ({visitStatusCounts.all})
                     </Button>
@@ -1038,7 +1038,7 @@ const PatientProfile = () => {
                       size="sm"
                       variant={visitStatusFilter === 'upcoming' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('upcoming')}
-                      className={visitStatusFilter === 'upcoming' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
+                      className={visitStatusFilter === 'upcoming' ? 'bg-blue-600' : 'border-blue-300 text-blue-700'}
                     >
                       Upcoming ({visitStatusCounts.upcoming || 0})
                     </Button>
@@ -1046,7 +1046,7 @@ const PatientProfile = () => {
                       size="sm"
                       variant={visitStatusFilter === 'in-progress' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('in-progress')}
-                      className={visitStatusFilter === 'in-progress' ? 'bg-blue-600 hover:bg-blue-700' : 'border-blue-300 text-blue-700 hover:bg-blue-50'}
+                      className={visitStatusFilter === 'in-progress' ? 'bg-blue-600' : 'border-blue-300 text-blue-700'}
                     >
                       In Progress ({visitStatusCounts['in-progress'] || 0})
                     </Button>
@@ -1054,7 +1054,7 @@ const PatientProfile = () => {
                       size="sm"
                       variant={visitStatusFilter === 'completed' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('completed')}
-                      className={visitStatusFilter === 'completed' ? 'bg-emerald-600 hover:bg-emerald-700' : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'}
+                      className={visitStatusFilter === 'completed' ? 'bg-emerald-600' : 'border-emerald-300 text-emerald-700'}
                     >
                       Completed ({visitStatusCounts.completed || 0})
                     </Button>
@@ -1062,7 +1062,7 @@ const PatientProfile = () => {
                       size="sm"
                       variant={visitStatusFilter === 'cancelled' ? 'default' : 'outline'}
                       onClick={() => setVisitStatusFilter('cancelled')}
-                      className={visitStatusFilter === 'cancelled' ? 'bg-red-600 hover:bg-red-700' : 'border-red-300 text-red-700 hover:bg-red-50'}
+                      className={visitStatusFilter === 'cancelled' ? 'bg-red-600' : 'border-red-300 text-red-700'}
                     >
                       Cancelled ({visitStatusCounts.cancelled || 0})
                     </Button>
@@ -1147,7 +1147,7 @@ const PatientProfile = () => {
                                 </TableCell>
 
                                 <TableCell className="text-center">
-                                  <Badge className={getStatusBadge(visit)}>
+                                  <Badge className={`${getStatusBadge(visit)} pointer-events-none`}>
                                     {getStatusLabel(visit)}
                                   </Badge>
                                 </TableCell>
@@ -1234,7 +1234,7 @@ const PatientProfile = () => {
             <div className="space-y-4 mt-4">
               {/* Status Badges */}
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className={getStatusBadge(selectedVisit)}>
+                <Badge className={`${getStatusBadge(selectedVisit)} pointer-events-none`}>
                   {getStatusLabel(selectedVisit)}
                 </Badge>
                 <Badge variant="outline" className={
@@ -1389,7 +1389,7 @@ const PatientProfile = () => {
                           </p>
                         </div>
                       </div>
-                      <Badge className={`ml-3 ${getStatusBadge(visit)}`}>
+                      <Badge className={`ml-3 ${getStatusBadge(visit)} pointer-events-none`}>
                         {getStatusLabel(visit)}
                       </Badge>
                     </div>

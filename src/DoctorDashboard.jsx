@@ -2155,7 +2155,7 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                                                     <TableCell className="py-4 text-center">
                                                         {(() => {
                                                             const isFutureAppt = visit.type === 'Appointment' && visit.appointmentDateTime && new Date(new Date(visit.appointmentDateTime).setHours(0, 0, 0, 0)) > new Date(new Date().setHours(0, 0, 0, 0));
-                                                            const getBadge = (text, colors) => <Badge variant="outline" className={`${colors} text-[10px] xl:text-xs font-semibold`}>{text}</Badge>;
+                                                            const getBadge = (text, colors) => <Badge variant="outline" className={`${colors} text-[10px] xl:text-xs font-semibold pointer-events-none`}>{text}</Badge>;
 
                                                             if (visit.appointmentStatus === 'cancelled' || visit.status === 'cancelled') return getBadge('Cancelled', 'bg-red-100 text-red-700 border-red-300 border');
                                                             if (visit.status === 'done' || visit.status === 'completed') return getBadge('Completed', 'bg-emerald-100 text-emerald-700 border-emerald-300');

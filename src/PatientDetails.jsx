@@ -67,7 +67,7 @@ const PatientDetails = () => {
                     <ChevronLeft className="w-5 h-5" />
                     Dashboard
                 </Button>
-                <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-md font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg">
+                <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-md font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg pointer-events-none">
                     {patient.status || 'Waiting'}
                 </Badge>
             </header>

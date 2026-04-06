@@ -140,7 +140,8 @@ const Appointment = () => {
   // Filter appointments (patients with type "Appointment")
   const allAppointments = (patients || [])
     .filter(p => {
-      if (p.type !== "Appointment" || p.status === "done") return false;
+      // ✅ REMOVED: p.status === "done" filter to allow viewing completed records
+      if (p.type !== "Appointment") return false;
       if (!isDoctor) return true;
 
       const myId = Number(storedDoctorId);
@@ -713,7 +714,7 @@ const Appointment = () => {
                       <div className="max-h-[400px] overflow-y-auto">
                         {(patients || [])
                           .filter(p => {
-                            if (p.type !== "Appointment" || p.status === "done") return false;
+                            if (p.type !== "Appointment") return false;
                             const isNew = !p.appointmentStatus || p.appointmentStatus === 'pending';
                             const isCancelled = p.appointmentStatus === 'cancelled';
                             const isFollowUp = p.services?.includes('follow-up-doctor');
@@ -723,7 +724,7 @@ const Appointment = () => {
                           .length > 0 ? (
                           (patients || [])
                             .filter(p => {
-                              if (p.type !== "Appointment" || p.status === "done") return false;
+                              if (p.type !== "Appointment") return false;
                               const isNew = !p.appointmentStatus || p.appointmentStatus === 'pending';
                               const isCancelled = p.appointmentStatus === 'cancelled';
                               const isFollowUp = p.services?.includes('follow-up-doctor');
