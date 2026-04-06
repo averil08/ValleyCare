@@ -35,17 +35,13 @@ function PatientSettings() {
     loadProfile();
   }, []);
 
-  //================================
-  //🔴 REPLACE FROM HERE
-  //==============================
   const loadProfile = async () => {
     try {
       const currentEmail = localStorage.getItem('currentPatientEmail');
 
       if (currentEmail) {
-        // First try to get fresh metadata from Supabase Auth
         const metadata = await getProfileMetadata();
-        
+
         if (metadata && metadata.email.toLowerCase() === currentEmail.toLowerCase()) {
           console.log('📋 Loading profile from Auth metadata:', metadata);
           const nameParts = (metadata.fullName || '').trim().split(/\s+/);
@@ -68,7 +64,7 @@ function PatientSettings() {
               return p;
             })()
           }));
-          
+
           // Sync localStorage
           const fullNameCombined = (metadata.fullName || '').trim();
           localStorage.setItem(`userProfile_${currentEmail}`, JSON.stringify({
@@ -83,7 +79,6 @@ function PatientSettings() {
           return;
         }
 
-        // Fallback to localStorage
         const userProfileStr = localStorage.getItem(`userProfile_${currentEmail}`);
         if (userProfileStr) {
           const profile = JSON.parse(userProfileStr);
@@ -109,9 +104,6 @@ function PatientSettings() {
       console.error('Error loading profile:', error);
     }
   };
-  //=========================================
-  //🔴 REPLACE TO HERE
-  //=========================================
 
   const validateField = (id, value, data = formData) => {
     let error = '';
@@ -185,7 +177,6 @@ function PatientSettings() {
         setErrors(prevErrors => ({ ...prevErrors, [id]: validateField(id, value, newData) }));
       }
 
-      // Auto-validate related password fields if they are touched
       if (['currentPassword', 'newPassword', 'confirmPassword'].includes(id)) {
         if (touched.currentPassword) {
           setErrors(prevErrors => ({ ...prevErrors, currentPassword: validateField('currentPassword', newData.currentPassword, newData) }));
@@ -206,7 +197,6 @@ function PatientSettings() {
 
     try {
       const currentEmail = localStorage.getItem('currentPatientEmail');
-      // Form level validation before submit
       const newErrors = {};
       newErrors.firstName = validateField('firstName', formData.firstName);
       newErrors.surname = validateField('surname', formData.surname);
@@ -231,11 +221,7 @@ function PatientSettings() {
         return;
       }
 
-      //==========================================
-      // 🔴 REPLACE FROM HERE Password validation 
-      //==========================================
       if (formData.newPassword || formData.confirmPassword) {
-        // We checked these errors above
         if (newErrors.currentPassword || newErrors.newPassword || newErrors.confirmPassword) {
           setIsSaving(false);
           return;
@@ -255,13 +241,7 @@ function PatientSettings() {
           return;
         }
       }
-      //=========================
-      //🔴 REPLACE TO HERE
-      //==========================
 
-      //===================================
-      //🔴 REPLACE FROM HERE updatedProfile
-      //===================================
       if (!currentEmail) {
         setMessage({ text: 'Session expired. Please login again.', type: 'error' });
         setIsSaving(false);
@@ -284,7 +264,6 @@ function PatientSettings() {
         return;
       }
 
-      // 2. Update localStorage
       const updatedProfile = {
         email: currentEmail,
         fullName: fullNameCombined,
@@ -307,16 +286,13 @@ function PatientSettings() {
           age: formData.age,
           phoneNum: formattedPhone,
           patientEmail: currentEmail,
-          status: 'waiting' // Keep existing status if possible, but here we just ensure basic sync
+          status: 'waiting'
         });
       }
 
       console.log('✅ Profile saved and synced for:', currentEmail);
       setMessage({ text: 'Profile updated successfully!', type: 'success' });
       setHasChanges(false);
-      //===================================
-      //🔴 REPLACE TO HERE
-      //===================================
 
       // Clear password fields
       setFormData(prev => ({
@@ -338,11 +314,9 @@ function PatientSettings() {
         confirmPassword: ''
       }));
 
-      // ADDED 1/31/26
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('from') === 'patient-sidebar') {
         setTimeout(() => {
-          // Add a flag to indicate returning from settings
           navigate('/checkin?from=patient-sidebar&type=appointment&restored=true');
         }, 1500);
       }

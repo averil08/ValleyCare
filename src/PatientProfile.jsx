@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Calendar, Phone, Stethoscope, FileText, Clock, MessageSquare, ArrowLeft, Edit2, Save, X, AlertCircle, Activity, ChevronDown, ChevronUp, History, Eye, Filter } from 'lucide-react';
+import { Search, User, Calendar, Phone, Stethoscope, FileText, Clock, MessageSquare, ArrowLeft, Activity, ChevronDown, ChevronUp, History, Eye, Filter } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Table,
@@ -16,7 +16,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-//THIS IS THE LISTS OF PATIENTS WHO VISITED THE CLINIC 
 const PatientProfile = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
@@ -36,11 +35,9 @@ const PatientProfile = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
 
-  // ✨ NEW: State for visit details modal
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [isVisitDetailModalOpen, setIsVisitDetailModalOpen] = useState(false);
 
-  // ✨ NEW: State for visit history filter
   const [visitStatusFilter, setVisitStatusFilter] = useState('all');
 
   const serviceLabels = {
@@ -64,7 +61,6 @@ const PatientProfile = () => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // Normalize name for exact matching (case-insensitive, trim whitespace)
   const normalizeName = (name) => {
     if (!name) return '';
     return name.toLowerCase().trim();
@@ -241,9 +237,6 @@ const PatientProfile = () => {
     });
   };
 
-
-
-  // Group patients by unique patient with SIMPLIFIED matching logic
   const uniquePatients = useMemo(() => {
     if (!patients || !Array.isArray(patients)) return [];
     const patientMap = new Map();
@@ -261,7 +254,6 @@ const PatientProfile = () => {
       if (visit.type === 'Appointment' && visit.appointmentStatus === 'pending') return;
 
       // Primary identification: Use email if available to group all records from the same account.
-      // Fall back to normalized name for walk-ins or records without email.
       const normalizedName = normalizeName(visit.name);
       const email = visit.patientEmail ? visit.patientEmail.toLowerCase().trim() : '';
       const key = email || normalizedName;
@@ -272,7 +264,7 @@ const PatientProfile = () => {
       if (!patientMap.has(key)) {
         // Create new patient profile
         patientMap.set(key, {
-          name: visit.name, // Use the actual name with proper casing from first visit
+          name: visit.name,
           phoneNum: visit.phoneNum,
           age: visit.age,
           visits: []
@@ -330,8 +322,8 @@ const PatientProfile = () => {
       const mostRecentActiveVisit = sortedVisits.find(v => ['upcoming', 'accepted', 'waiting', 'in-progress', 'completed'].includes(getVisitStatusCategory(v)));
 
       // Definitions for display purposes:
-      // If there's a future upcoming appointment, show it (takes priority so "Upcoming" badge appears in the patient list).
-      // Otherwise, fall back to the most recent completed visit, then the most recent visit overall.
+      // Fallback: if there's future upcoming appointment: Upcoming
+      // if none: most recent completed visit, then the most recent visit overall.
       const lastVisit = upcomingAppointment || mostRecentDone || sortedVisits[0];
 
       // Find the first (oldest) completed or cancelled visit
@@ -349,11 +341,10 @@ const PatientProfile = () => {
         lastVisit: lastVisit,
         mostRecentActiveVisit: mostRecentActiveVisit,
         firstVisit: firstVisit,
-        // True only when a genuine future accepted appointment was found
         isUpcoming: upcomingAppointment !== null
       };
     }).sort((a, b) => {
-      // Sort patients by their representative visit date (prioritizing done visits as defined above)
+      // Sort patients by visit date 
       const dateA = new Date(a.lastVisit?.appointmentDateTime || a.lastVisit?.registeredAt);
       const dateB = new Date(b.lastVisit?.appointmentDateTime || b.lastVisit?.registeredAt);
       return dateB - dateA;
@@ -365,8 +356,6 @@ const PatientProfile = () => {
     const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (patient.phoneNum && patient.phoneNum.includes(searchTerm));
 
-    // Check if the patient's representative "Last Visit" (prioritized as per requirements) 
-    // falls within the selected date range
     const dateToCheck = patient.lastVisit?.appointmentDateTime || patient.lastVisit?.registeredAt;
     const matchesDate = isWithinDateRange(dateToCheck);
 
@@ -400,13 +389,13 @@ const PatientProfile = () => {
     setDiagnosisInput("");
   };
 
-  // ✨ NEW: Handle view visit details
+  // Handle view visit details
   const handleViewVisitDetails = (visit, visitNumber) => {
     setSelectedVisit({ ...visit, visitNumber });
     setIsVisitDetailModalOpen(true);
   };
 
-  // ✨ NEW: Filter visits based on status
+  // Filter visits based on status
   const filteredVisits = useMemo(() => {
     if (!selectedPatient) return [];
     if (visitStatusFilter === 'all') return selectedPatient.visits;
@@ -414,7 +403,7 @@ const PatientProfile = () => {
     return selectedPatient.visits.filter(visit => getVisitStatusCategory(visit) === visitStatusFilter);
   }, [selectedPatient, visitStatusFilter]);
 
-  // ✨ NEW: Calculate visit status counts
+  // Calculate visit status counts
   const visitStatusCounts = useMemo(() => {
     if (!selectedPatient) return {};
 
@@ -511,7 +500,7 @@ const PatientProfile = () => {
     </Card>
   );
 
-  // ✨ NEW: Render visit card for mobile in history section
+  //Render visit card for mobile in history section
   const renderVisitCardMobile = (visit, idx) => {
     const visitNumber = selectedPatient.visits.length - idx;
 
@@ -594,7 +583,7 @@ const PatientProfile = () => {
                   />
                 </div>
 
-                {/* Date Filter Controls - Ported from Appointment.jsx */}
+                {/* Date Filter Controls */}
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-2 mr-2">
                     <Calendar className="w-5 h-5 text-gray-500" />
@@ -797,7 +786,7 @@ const PatientProfile = () => {
                 setSelectedPatient(null);
                 setIsVisitHistoryExpanded(false);
                 setIsPastVisitsModalOpen(false);
-                setVisitStatusFilter('all'); // Reset filter
+                setVisitStatusFilter('all');
               }}
               variant="outline"
               className="mb-3"
@@ -1004,7 +993,7 @@ const PatientProfile = () => {
             </CardContent>
           </Card>
 
-          {/* ✨ NEW: VISIT HISTORY DETAILS - TABULAR LAYOUT */}
+          {/* VISIT HISTORY DETAILS - TABULAR LAYOUT */}
           <Card>
             <CardHeader>
               <button
@@ -1030,7 +1019,7 @@ const PatientProfile = () => {
 
             {isVisitHistoryExpanded && (
               <CardContent className="pt-0">
-                {/* ✨ NEW: Filter Buttons */}
+                {/* Filter Buttons */}
                 <div className="p-4 border-b bg-gray-50 mb-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Filter className="w-4 h-4 text-gray-600" />
@@ -1096,7 +1085,6 @@ const PatientProfile = () => {
                     {/* Mobile Card View */}
                     <div className="block lg:hidden space-y-3 px-4">
                       {filteredVisits.map((visit, idx) => {
-                        // Calculate the correct visit number based on the original array
                         const originalIdx = selectedPatient.visits.indexOf(visit);
                         const visitNumber = selectedPatient.visits.length - originalIdx;
                         return renderVisitCardMobile(visit, originalIdx);
@@ -1229,7 +1217,7 @@ const PatientProfile = () => {
         </div>
       </div>
 
-      {/* ✨ NEW: Visit Details Modal */}
+      {/* Visit Details Modal */}
       <Dialog open={isVisitDetailModalOpen} onOpenChange={setIsVisitDetailModalOpen}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
