@@ -7,7 +7,6 @@ import { registerUser } from "./lib/supabaseClient";
 import Logo from "./assets/logo-valley.png";
 import { useNavigate } from "react-router-dom";
 
-
 function Signup() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -59,7 +58,7 @@ function Signup() {
     if (["firstName", "middleName", "lastName"].includes(id)) {
       value = value.replace(/[^a-zA-Z\s]/g, "");
     }
-    
+
     if (id === "phoneNumber") {
       value = value.replace(/\D/g, "");
       value = value.slice(0, 10);

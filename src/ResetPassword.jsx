@@ -24,7 +24,6 @@ function ResetPassword() {
                 setUserRole(session.user.user_metadata?.role?.toLowerCase());
                 setVerifying(false);
             } else {
-                // Wait a bit and check again, or rely on onAuthStateChange
                 const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
                     if (session) {
                         setUserRole(session.user.user_metadata?.role?.toLowerCase());
@@ -32,7 +31,6 @@ function ResetPassword() {
                     }
                 });
 
-                // Timeout after 5 seconds if no session found
                 const timeout = setTimeout(() => {
                     if (verifying) {
                         setError("Invalid or expired reset link. Please request a new one.");
@@ -89,11 +87,10 @@ function ResetPassword() {
             const result = await resetPassword(password);
             if (result.success) {
                 setSuccess(true);
-                // Determine redirect path based on user role from result or state
                 const user = result.data?.user;
                 const role = (user?.user_metadata?.role || userRole || 'staff').toLowerCase();
                 const redirectPath = role === 'patient' ? "/login?type=patient" : "/login";
-                
+
                 showMessage("Success", "Your password has been reset successfully.", true, redirectPath);
             } else {
                 setError(result.error);

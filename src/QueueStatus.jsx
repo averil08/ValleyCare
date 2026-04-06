@@ -9,69 +9,67 @@ import { useNavigate } from "react-router-dom";
 import { PatientContext } from "./PatientContext";
 import { Volume2, VolumeX } from "lucide-react";
 
-// Notification Sound Logic (Web Audio API)
+// Web Audio API
 const playChime = () => {
-    try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        const playNote = (freq, startTime, duration, volume = 0.5) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            osc.type = 'triangle'; // Triangle waves cut through noise better than sine
-            osc.frequency.setValueAtTime(freq, startTime);
-            
-            gain.gain.setValueAtTime(0, startTime);
-            gain.gain.linearRampToValueAtTime(volume, startTime + 0.02); // Sharper attack
-            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.start(startTime);
-            osc.stop(startTime + duration);
-        };
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const now = audioCtx.currentTime;
-        // Stronger triple-tone "attention" chime (C5, E5, G5)
-        playNote(523.25, now, 0.8);        // C5
-        playNote(659.25, now + 0.15, 0.8);   // E5
-        playNote(783.99, now + 0.3, 1.2);    // G5 (sustained)
-    } catch (err) {
-        console.error("Audio error:", err);
-    }
+    const playNote = (freq, startTime, duration, volume = 0.5) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = audioCtx.currentTime;
+    playNote(523.25, now, 0.8);
+    playNote(659.25, now + 0.15, 0.8);
+    playNote(783.99, now + 0.3, 1.2);
+  } catch (err) {
+    console.error("Audio error:", err);
+  }
 };
 
 const playCancelChime = () => {
-    try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        const playNote = (freq, startTime, duration, volume = 0.4) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            osc.type = 'triangle'; 
-            osc.frequency.setValueAtTime(freq, startTime);
-            
-            gain.gain.setValueAtTime(0, startTime);
-            gain.gain.linearRampToValueAtTime(volume, startTime + 0.05);
-            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.start(startTime);
-            osc.stop(startTime + duration);
-        };
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const now = audioCtx.currentTime;
-        // Descending "warning" chime (G4, E4, C4)
-        playNote(392.00, now, 0.6);      // G4
-        playNote(329.63, now + 0.2, 0.6); // E4
-        playNote(261.63, now + 0.4, 0.8); // C4
-    } catch (err) {
-        console.error("Audio error:", err);
-    }
+    const playNote = (freq, startTime, duration, volume = 0.4) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = audioCtx.currentTime;
+    playNote(392.00, now, 0.6);
+    playNote(329.63, now + 0.2, 0.6);
+    playNote(261.63, now + 0.4, 0.8);
+  } catch (err) {
+    console.error("Audio error:", err);
+  }
 };
 
 const QueueStatus = () => {
@@ -79,7 +77,6 @@ const QueueStatus = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
 
-  // Helper function to determine initial view mode
   const getInitialViewMode = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
@@ -87,12 +84,10 @@ const QueueStatus = () => {
     const isFromHomepage = urlParams.get('from') === 'homepage';
     const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
 
-    // If it's a logged-in account (via sidebar, homepage, or general login status), use clinic view
     if (isFromPatientSidebar || isFromHomepage || (isPatientLoggedIn && isPatientView)) return 'clinic';
     return isPatientView ? 'patient' : 'clinic';
   };
 
-  // Helper function to check if patient accessed directly
   const getInitialPatientAccess = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
@@ -115,13 +110,10 @@ const QueueStatus = () => {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
-  // Get current logged-in patient's email
   const currentPatientEmail = localStorage.getItem('currentPatientEmail');
   const isPatientLoggedIn = localStorage.getItem('isPatientLoggedIn') === 'true';
 
-  // Set initial view mode based on access type
   useEffect(() => {
-    // If it's a logged-in account style access, force clinic view
     if (isFromPatientSidebar || isFromHomepage || (isPatientLoggedIn && isPatientAccess)) {
       if (viewMode !== 'clinic') {
         setViewMode('clinic');
@@ -133,7 +125,6 @@ const QueueStatus = () => {
     }
   }, [isPatientAccess, isFromPatientSidebar, isFromHomepage, isPatientLoggedIn, viewMode]);
 
-  // Force patient account users to stay in clinic view
   useEffect(() => {
     if ((isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) && viewMode === 'patient') {
       setViewMode('clinic');
@@ -155,7 +146,6 @@ const QueueStatus = () => {
     formatQueueNumber
   } = useContext(PatientContext);
 
-  // Validate that activePatient belongs to current logged-in patient
   const isMyAppointment = React.useMemo(() => {
     if (!activePatient || !isPatientLoggedIn || !currentPatientEmail) {
       return true;
@@ -167,47 +157,37 @@ const QueueStatus = () => {
       return normalizedActiveEmail === normalizedCurrentEmail;
     }
 
-    // Default to false for logged-in users if active patient has no email (Guest protection)
     return false;
   }, [activePatient, isPatientLoggedIn, currentPatientEmail]);
 
-  // ALWAYS get the latest patient data from the patients array
   const currentPatient = React.useMemo(() => {
     if (!patients || patients.length === 0) return activePatient || null;
 
-    // 1. Try to find by activePatient.id (from context)
-    // ✅ PRIORITIZE: If the patient object in context is fresh (Pending status), trust it over any old data
     if (activePatient?.id) {
       const found = patients.find(p => String(p.id) === String(activePatient.id));
       if (found) {
-        // If found but doesn't have the "Pending" metadata the current memory object has,
-        // merge them to ensure UI doesn't flicker between Pending and Stale
         return { ...activePatient, ...found };
       }
       return activePatient;
     }
 
-    // 2. Fallback to localStorage ID 
     const persistedId = localStorage.getItem('activePatientId');
     if (persistedId) {
       const found = patients.find(p => String(p.id) === String(persistedId));
       if (found) return found;
     }
 
-    // 3. Ghost Protection Fallback: 
-    // If the above failed, find the MOST RECENT non-cancelled appointment for this account.
     if (isPatientLoggedIn && currentPatientEmail) {
-       const userRecords = patients.filter(p => 
-         p.patientEmail?.toLowerCase() === currentPatientEmail.toLowerCase() &&
-         p.status !== 'cancelled' && 
-         p.status !== 'done'
-       );
-       if (userRecords.length > 0) {
-         // Sort by registeredAt desc to get the latest active submission
-         const latestActive = userRecords.sort((a,b) => new Date(b.registeredAt) - new Date(a.registeredAt))[0];
-         console.log("👻 [fallback] Recovered active session for logged-in user:", latestActive.displayQueueNo);
-         return latestActive;
-       }
+      const userRecords = patients.filter(p =>
+        p.patientEmail?.toLowerCase() === currentPatientEmail.toLowerCase() &&
+        p.status !== 'cancelled' &&
+        p.status !== 'done'
+      );
+      if (userRecords.length > 0) {
+        const latestActive = userRecords.sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt))[0];
+        console.log("👻 [fallback] Recovered active session for logged-in user:", latestActive.displayQueueNo);
+        return latestActive;
+      }
     }
 
     return activePatient || null;
@@ -221,7 +201,6 @@ const QueueStatus = () => {
   });
   const lastStatusRef = React.useRef(null);
 
-  // Sync sound preference to localStorage
   useEffect(() => {
     localStorage.setItem('queue-sound-enabled', isSoundEnabled);
   }, [isSoundEnabled]);
@@ -230,18 +209,13 @@ const QueueStatus = () => {
   const service = currentPatient?.type || "Walk-in";
   const symptoms = currentPatient?.symptoms || [];
 
-  // Get all patients assigned to the same doctor
   const doctorPatients = currentPatient?.assignedDoctor
     ? patients.filter(p => {
       if (!p.assignedDoctor || p.isInactive || (p.type !== 'Appointment' && !p.inQueue)) return false;
-
-      // Exclude done/completed/cancelled patients (and specific requested removals)
       if (p.status === 'done' || p.status === 'completed' || p.status === 'cancelled' || p.queueNo === 19 || p.queueNo === '019') return false;
 
-      // Check if appointment is accepted (or not an appointment)
       if (p.type === "Appointment" && p.appointmentStatus !== "accepted") return false;
 
-      // NEW: Only show appointment patients for today
       if (p.type === "Appointment") {
         if (!p.appointmentDateTime) return false;
         const appDate = new Date(p.appointmentDateTime);
@@ -249,7 +223,6 @@ const QueueStatus = () => {
         if (appDate.toDateString() !== today.toDateString()) return false;
       }
 
-      // Compare by ID if both have IDs, otherwise compare by name
       const sameDoctor = p.assignedDoctor.id && currentPatient.assignedDoctor.id
         ? p.assignedDoctor.id === currentPatient.assignedDoctor.id
         : p.assignedDoctor.name === currentPatient.assignedDoctor.name;
@@ -290,13 +263,13 @@ const QueueStatus = () => {
         </h3>
 
         <div className="space-y-4 sm:space-y-6 md:space-y-8">
-          {/* Patients in line - Improved mobile scrolling */}
+          {/* Patients in line  */}
           <div className="bg-gray-50 rounded-lg sm:rounded-xl p-2.5 sm:p-3 md:p-4 lg:p-6">
             <p className="text-xs sm:text-sm md:text-base font-medium text-gray-600 mb-2 sm:mb-3 md:mb-4 px-1">
               Patients in line:
             </p>
             <div className="relative">
-              {/* Mobile: Vertical stack for better visibility */}
+              {/* Mobile*/}
               <div className="flex sm:hidden flex-col gap-2.5 max-h-[400px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                 {doctorPatients.map((patient, index) => {
                   const isMe = patient.id === currentPatientId;
@@ -403,7 +376,7 @@ const QueueStatus = () => {
             </div>
           </div>
 
-          {/* Legend - Improved mobile layout */}
+          {/* Legend */}
           <div className="px-1">
             <p className="text-xs sm:text-sm font-semibold text-gray-500 mb-2 sm:mb-3 md:mb-4">
               Legend:
@@ -428,7 +401,7 @@ const QueueStatus = () => {
             </div>
           </div>
 
-          {/* Stats - Improved mobile layout */}
+          {/* Stats */}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:gap-6 lg:gap-8 pt-4 sm:pt-6 md:pt-8 border-t border-gray-200">
             <div className="text-center bg-gray-50 rounded-sm p-3 sm:p-4">
               <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-black text-gray-800 mb-1 sm:mb-2">
@@ -463,7 +436,7 @@ const QueueStatus = () => {
   const calculatedAvg = avgWaitTime - manualWaitTimeAdjustment;
   const estimatedWait = (calculatedAvg * (peopleAhead + 1)) + manualWaitTimeAdjustment;
 
-  const isAppointmentPending = currentPatient?.status !== 'cancelled' && 
+  const isAppointmentPending = currentPatient?.status !== 'cancelled' &&
     (currentPatient?.type === 'Appointment' && currentPatient?.appointmentStatus === 'pending');
 
   const isAppointmentRejected = currentPatient?.type === 'Appointment' &&
@@ -473,18 +446,15 @@ const QueueStatus = () => {
   useEffect(() => {
     if (!currentPatient) return
 
-    // 🚫 RESET: If the patient ID has changed since the last run, clear all existing "Sticky" notifications
-    // from previous sessions (like the "You didn't show up" alert).
     if (lastStatusRef.current === null || lastStatusRef.currentId !== currentPatient.id) {
-       setShowNotification(false);
-       setNotificationType("success");
-       setNotificationMessage("");
-       lastStatusRef.currentId = currentPatient.id;
+      setShowNotification(false);
+      setNotificationType("success");
+      setNotificationMessage("");
+      lastStatusRef.currentId = currentPatient.id;
     }
 
     // ✅ GHOST GUARD: If the patient is an appointment and is in the process of 
     // waiting for approval or sync (Pending/Waiting), suppress any "Cancelled" alerts
-    // that might come from an older record still in the browser's list search.
     if (isAppointmentPending || (currentPatient.status === 'waiting' && !currentPatient.queueNo)) {
       if (notificationType !== 'success') setShowNotification(false);
       lastStatusRef.current = 'pending';
@@ -505,13 +475,13 @@ const QueueStatus = () => {
       setNotificationMessage("Your queue has been cancelled. You didn't show up.");
       setNotificationType("cancelled");
       setShowNotification(true);
-      
+
       // Play cancellation sound if status just changed to cancelled
       if (lastStatusRef.current !== "cancelled" && isSoundEnabled) {
-          console.log("🔔 Playing personalized cancellation sound");
-          playCancelChime();
+        console.log("🔔 Playing personalized cancellation sound");
+        playCancelChime();
       }
-      
+
       lastStatusRef.current = "cancelled";
       return;
     }
@@ -520,17 +490,17 @@ const QueueStatus = () => {
       setNotificationMessage("It's your turn now! Please proceed to the counter.");
       setNotificationType("success");
       setShowNotification(true);
-      
+
       // Play sound if status just changed to in progress
       if (lastStatusRef.current !== "in progress" && isSoundEnabled) {
-          console.log("🔔 Playing personalized call notification sound");
-          playChime();
+        console.log("🔔 Playing personalized call notification sound");
+        playChime();
       }
-      
+
       lastStatusRef.current = "in progress";
       return;
     }
-    
+
     // Update ref for other statuses too
     lastStatusRef.current = currentPatient.status;
 
@@ -549,11 +519,10 @@ const QueueStatus = () => {
     }
   }, [currentPatient, currentServing, queueNumber, notificationType, isAppointmentPending]);
 
-  // New state for requeue
   const [isRequeuing, setIsRequeuing] = useState(false);
 
   const handleRequeue = async () => {
-    if (isRequeuing) return; // Prevent double clicks
+    if (isRequeuing) return;
     setIsRequeuing(true);
 
     try {
@@ -593,7 +562,6 @@ const QueueStatus = () => {
       await cancelAppointment(currentPatient.id);
       clearActivePatient();
 
-      // Fix: Redirect to appointment form if it's a patient, otherwise to appointment page
       if (isFromPatientSidebar || isFromHomepage || isPatientLoggedIn) {
         navigate(`/checkin?view=patient&from=${isFromHomepage ? 'homepage' : 'patient-sidebar'}&type=appointment&skipCheck=true`);
       } else if (isPatientAccess) {
@@ -630,7 +598,6 @@ const QueueStatus = () => {
   const PushNotification = () => {
     if (!showNotification || !currentPatient) return null;
 
-    // Suppress notification if the appointment was cancelled by the patient
     if (currentPatient.appointmentStatus === "cancelled") return null;
 
     const isCancelled = notificationType === "cancelled";
@@ -777,8 +744,6 @@ const QueueStatus = () => {
   }
 
   if (!currentPatient) {
-    // If we're still loading OR if we have a persisted session but haven't 'matched' yet,
-    // show the loading spinner instead of "Not Found" to prevent flickering.
     const persistedId = localStorage.getItem('activePatientId');
     if (isLoadingFromDB || (persistedId && patients.length > 0)) {
       return (
@@ -869,7 +834,7 @@ const QueueStatus = () => {
                   {currentPatient.type === 'Appointment' ? 'Appointment Submitted' : 'Registration Submitted'}
                 </h2>
                 <p className="text-gray-600 mb-4 sm:mb-6 text-xs sm:text-sm md:text-base px-2">
-                  {currentPatient.type === 'Appointment' 
+                  {currentPatient.type === 'Appointment'
                     ? "Your appointment request is pending approval from our secretary."
                     : "Your walk-in registration was successful. You are now in the queue."}
                 </p>
@@ -922,7 +887,7 @@ const QueueStatus = () => {
                       <p className="font-medium text-blue-900 mb-1">What happens next?</p>
                       <p className="text-[10px] xs:text-xs sm:text-sm text-blue-800">
                         {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar))
-                          ? "Your appointment request is being reviewed. You can access your appointment status in the \"Book Appointment\" section." 
+                          ? "Your appointment request is being reviewed. You can access your appointment status in the \"Book Appointment\" section."
                           : "Our secretary will review your appointment request. Once approved, you'll see your queue number and estimated wait time. Please check back later or wait for a notification."}
                       </p>
                     </div>
@@ -958,11 +923,11 @@ const QueueStatus = () => {
                     className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
                     size="lg"
                     onClick={() => {
-                        if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
-                            navigate('/homepage');
-                        } else {
-                            handleDoneClick();
-                        }
+                      if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
+                        navigate('/homepage');
+                      } else {
+                        handleDoneClick();
+                      }
                     }}
                   >
                     {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) ? "Back to Homepage" : "Done"}
@@ -1239,11 +1204,11 @@ const QueueStatus = () => {
                     className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
                     size="lg"
                     onClick={() => {
-                        if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
-                            navigate('/homepage');
-                        } else {
-                            handleDoneClick();
-                        }
+                      if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
+                        navigate('/homepage');
+                      } else {
+                        handleDoneClick();
+                      }
                     }}
                   >
                     {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) ? "Back to Homepage" : "Done"}
@@ -1488,15 +1453,14 @@ const QueueStatus = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {/* Sound Toggle */}
-                  <button 
+                  <button
                     onClick={() => setIsSoundEnabled(!isSoundEnabled)}
-                    className={`flex-shrink-0 p-2 rounded-full transition-all ${
-                      isSoundEnabled 
-                      ? 'bg-amber-200 text-amber-700' 
+                    className={`flex-shrink-0 p-2 rounded-full transition-all ${isSoundEnabled
+                      ? 'bg-amber-200 text-amber-700'
                       : 'bg-gray-200 text-gray-500'
-                    }`}
+                      }`}
                     title={isSoundEnabled ? "Disable Sound" : "Enable Sound"}
                   >
                     {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
@@ -1521,11 +1485,11 @@ const QueueStatus = () => {
                   className="w-full text-xs sm:text-sm md:text-base lg:text-lg py-2.5 sm:py-3"
                   size="lg"
                   onClick={() => {
-                      if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
-                          navigate('/homepage');
-                      } else {
-                          handleDoneClick();
-                      }
+                    if (isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) {
+                      navigate('/homepage');
+                    } else {
+                      handleDoneClick();
+                    }
                   }}
                 >
                   {(isFromHomepage || (isPatientLoggedIn && !isFromPatientSidebar)) ? "Back to Homepage" : "Done"}
@@ -1641,15 +1605,14 @@ const QueueStatus = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 {/* Sound Toggle */}
-                <button 
+                <button
                   onClick={() => setIsSoundEnabled(!isSoundEnabled)}
-                  className={`flex-shrink-0 p-2 rounded-full transition-all ${
-                    isSoundEnabled 
-                    ? 'bg-amber-200 text-amber-700' 
+                  className={`flex-shrink-0 p-2 rounded-full transition-all ${isSoundEnabled
+                    ? 'bg-amber-200 text-amber-700'
                     : 'bg-gray-200 text-gray-500'
-                  }`}
+                    }`}
                   title={isSoundEnabled ? "Disable Sound" : "Enable Sound"}
                 >
                   {isSoundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
