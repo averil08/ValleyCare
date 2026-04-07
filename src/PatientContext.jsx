@@ -20,30 +20,27 @@ const isForToday = (p) => {
   }
   return isToday(p.registeredAt);
 };
-// ✅ NEW: Powerful UI Formatter for the Prefixing System
-// This turns database integers (1, 1001) into display labels (W01, A01)
+// Turn database integers (1, 1001) into display labels (W001, A001)
 export const formatQueueNumber = (num, type, appointmentStatus, appointmentDateTime) => {
   if (type === 'Appointment') {
-    // ✅ Only accepted appointments qualify for a real numeric ticket
     if (appointmentStatus === 'accepted') {
-      const isApptToday = isToday(appointmentDateTime);
+      // ✅ DETERMINISTIC FIX:
+      // Valid numbers are either < 900,000 (Legacy) OR > 1,000,000 (Branded Today).
+      // ONLY the range 900,000 - 999,999 is reserved for "Future Placeholder" (#A---).
+      const isPlaceholder = num >= 900000 && num < 1000000;
       
-      if (num && isApptToday) {
-        // num is a database integer or local sequence; extract the last 4 digits
+      if (num && !isPlaceholder) {
         const displayNum = num % 10000;
-        return `#A${String(displayNum).padStart(2, '0')}`;
+        return `#A${String(displayNum).padStart(3, '0')}`;
       }
-      // If accepted but for a future date, or if number hasn't arrived yet
-      return `#A--`;
+      return `#A---`;
     }
-    
-    // ✅ All other statuses (pending, rejected, cancelled) always stay as placeholders
-    return `#A--`;
+    return `#A---`;
   }
   
-  // Walk-ins use #W prefix (calculated by extracting the daily sequence from the database integer)
+  // Walk-ins use #W prefix
   const displayNum = num % 10000;
-  return `#W${String(displayNum).padStart(2, '0')}`;
+  return `#W${String(displayNum).padStart(3, '0')}`;
 };
 
 // Matches doctor names even if the DB includes middle initials/extra punctuation.
@@ -1507,10 +1504,10 @@ export const PatientProvider = ({ children }) => {
 
           // Send Email
           if (patient.patientEmail) {
-            await sendAppointmentEmail(patient, 'accepted', {
+            await sendAppointmentEmail(patient, 'queue-assigned', {
               dateTime: patient.appointmentDateTime,
               doctor: patient.assignedDoctor?.name || 'Assigned Physician',
-              queueNo: displayNo
+              queueNo: assignedNo // Pass the raw integer to avoid #ANaN
             });
           }
           

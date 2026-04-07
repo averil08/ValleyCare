@@ -8,6 +8,7 @@ export const sendAppointmentEmail = async (patient, status, details) => {
   // Data formatting for status and timestamps of appointment
   let statusLabel = 'UPDATED';
   if (status === 'accepted') statusLabel = 'CONFIRMED';
+  if (status === 'queue-assigned') statusLabel = 'QUEUE NUMBER ASSIGNED';
   if (status === 'rejected') statusLabel = 'DECLINED';
   if (status === 'cancelled') statusLabel = 'CANCELLED';
   if (status === 'follow-up-requested') statusLabel = 'FOLLOW-UP REQUESTED';
@@ -31,21 +32,20 @@ export const sendAppointmentEmail = async (patient, status, details) => {
       <p>Hello <strong>${patient.name}</strong>,</p>
       <p>${status === 'follow-up-requested' 
         ? `Your doctor has requested a <strong>follow-up consultation</strong> for you. Please wait for a confirmation email once the clinic secretary has finalized the schedule.`
-        : `Your appointment request has been <strong>${statusLabel}</strong>.`
+        : status === 'queue-assigned'
+          ? `Your <strong>final queue number</strong> for today's appointment has been assigned. Please see your details below.`
+          : `Your appointment request has been <strong>${statusLabel}</strong>.`
       }</p>
       <div style="background: #f8fafc; padding: 15px; border-radius: 8px;">
         <p><strong>📅 Date:</strong> ${appointmentDate}</p>
         <p><strong>⏰ Time:</strong> ${appointmentTime}</p>
         <p><strong>👨‍⚕️ Doctor:</strong> ${details.doctor || 'Assigned Physician'}</p>
-        ${status === 'accepted' 
+        ${(status === 'accepted' || status === 'queue-assigned') 
           ? `<p><strong>🎫 Queue No:</strong> ${
               (() => {
-                const apptDate = new Date(details.dateTime || patient.appointmentDateTime);
-                const today = new Date();
-                const isToday = apptDate.toDateString() === today.toDateString();
-                if (!isToday) return '#A--';
                 const num = details.queueNo || patient.queueNo;
-                return `#A${String(num % 10000).padStart(2, '0')}`;
+                if (!num || (num >= 900000 && num < 1000000)) return '#A--';
+                return `#A${String(num % 10000).padStart(3, '0')}`;
               })()
             }</p>` 
           : ''}
@@ -71,14 +71,11 @@ export const sendAppointmentEmail = async (patient, status, details) => {
     Date: ${appointmentDate}
     Time: ${appointmentTime}
     Doctor: ${details.doctor || 'Assigned Physician'}
-    ${status === 'accepted' ? `Queue No: ${
+    ${(status === 'accepted' || status === 'queue-assigned') ? `Queue No: ${
       (() => {
-        const apptDate = new Date(details.dateTime || patient.appointmentDateTime);
-        const today = new Date();
-        const isToday = apptDate.toDateString() === today.toDateString();
-        if (!isToday) return '#A--';
         const num = details.queueNo || patient.queueNo;
-        return `#A${String(num % 10000).padStart(2, '0')}`;
+        if (!num || (num >= 900000 && num < 1000000)) return '#A--';
+        return `#A${String(num % 10000).padStart(3, '0')}`;
       })()
     }` : ''}
     ${status === 'rejected' ? `Reason: ${details.reason || 'Not specified'}` : ''}
@@ -136,12 +133,9 @@ export const sendReminderEmail = async (patient, details) => {
         <p><strong>👨‍⚕️ Doctor:</strong> ${details.doctor || patient.assignedDoctor?.name || 'Assigned Physician'}</p>
         <p><strong>🎫 Queue No:</strong> ${
           (() => {
-            const apptDate = new Date(details.dateTime || patient.appointmentDateTime);
-            const today = new Date();
-            const isToday = apptDate.toDateString() === today.toDateString();
-            if (!isToday) return '#A--';
             const num = details.queueNo || patient.queueNo;
-            return `#A${String(num % 10000).padStart(2, '0')}`;
+            if (!num || (num >= 900000 && num < 1000000)) return '#A--';
+            return `#A${String(num % 10000).padStart(3, '0')}`;
           })()
         }</p>
       </div>
@@ -157,12 +151,9 @@ export const sendReminderEmail = async (patient, details) => {
     Doctor: ${details.doctor || patient.assignedDoctor?.name || 'Assigned Physician'}
     Queue No: ${
       (() => {
-        const apptDate = new Date(details.dateTime || patient.appointmentDateTime);
-        const today = new Date();
-        const isToday = apptDate.toDateString() === today.toDateString();
-        if (!isToday) return '#A--';
         const num = details.queueNo || patient.queueNo;
-        return `#A${String(num % 10000).padStart(2, '0')}`;
+        if (!num || (num >= 900000 && num < 1000000)) return '#A--';
+        return `#A${String(num % 10000).padStart(3, '0')}`;
       })()
     }
   `;
