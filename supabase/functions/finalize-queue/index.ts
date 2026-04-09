@@ -145,10 +145,10 @@ serve(async (req) => {
       // Trigger Email via existing send-email function
       try {
         const appointmentDate = new Date(patient.appointment_datetime).toLocaleDateString("en-US", {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+          timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
         const appointmentTime = new Date(patient.appointment_datetime).toLocaleTimeString("en-US", {
-          hour: '2-digit', minute: '2-digit'
+          timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit'
         });
 
         const { data: emailData, error: emailErrObj } = await supabase.functions.invoke('send-email', {
@@ -191,10 +191,10 @@ serve(async (req) => {
       // Format email
       try {
         const appointmentDate = new Date(patient.appointment_datetime).toLocaleDateString("en-US", {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+          timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         });
         const appointmentTime = new Date(patient.appointment_datetime).toLocaleTimeString("en-US", {
-          hour: '2-digit', minute: '2-digit'
+          timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit'
         });
         
         const displayNo = (() => {
