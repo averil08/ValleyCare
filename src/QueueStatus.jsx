@@ -356,7 +356,7 @@ const QueueStatus = () => {
                       key={patient.id}
                       className={`flex-shrink-0 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-xl sm:rounded-2xl border-2 ${borderColor} ${bgColor} flex flex-col items-center justify-center ${shadow} transition-all duration-200 snap-start`}
                     >
-                      <span className={`text-2xl sm:text-3xl md:text-4xl font-black ${textColor}`}>
+                      <span className={`text-2xl sm:text-3xl md:text-3xl font-black ${textColor}`}>
                         {patient.displayQueueNo}
                       </span>
                       {isMe && (
