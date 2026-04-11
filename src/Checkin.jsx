@@ -18,10 +18,7 @@ import {
   registerAppointmentPatient
 } from "./lib/supabaseClient";
 
-//OUTDATED FILE
-//THIS IS THE REGISTRATION FORMS: WALK-IN & APPOINTMENT (PATIENT UI AND CLINIC UI)
 function Checkin() {
-  //============= CONSTANTS & CONTEXT ==============
   const navigate = useNavigate();
   const {
     patients,
@@ -31,10 +28,9 @@ function Checkin() {
     clearActivePatient,
     getAvailableSlots,
     isLoadingFromDB,
-    activeDoctors // NEW: Destructure activeDoctors
+    activeDoctors
   } = useContext(PatientContext);
 
-  //=========== HELPER FUNCTIONS (URL PARAMS) ===========
   const getInitialViewMode = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const isPatientView = urlParams.get('view') === 'patient';
@@ -68,7 +64,6 @@ function Checkin() {
     return null;
   };
 
-  //ADDED to preserve data when users navigate to complete their profile
   const saveFormDataToTemp = () => {
     const currentEmail = localStorage.getItem('currentPatientEmail');
     if (currentEmail && (isFromPatientSidebar || isFromHomepage)) {
@@ -91,12 +86,11 @@ function Checkin() {
 
   const loadFormDataFromTemp = () => {
     const currentEmail = localStorage.getItem('currentPatientEmail');
-    if (currentEmail) { // Removed strict check for isFromPatientSidebar
+    if (currentEmail) {
       const tempDataStr = localStorage.getItem(`tempFormData_${currentEmail}`);
       if (tempDataStr) {
         const tempData = JSON.parse(tempDataStr);
 
-        // Only restore if data is less than 1 hour old
         const oneHour = 60 * 60 * 1000;
         if (Date.now() - tempData.timestamp < oneHour) {
           console.log('📥 Restoring form data from temp storage:', tempData);
@@ -119,10 +113,9 @@ function Checkin() {
             setExpandedCategory(tempData.expandedCategory);
           }
 
-          // Only restore doctor/mode if not already selected via URL OR from a fresh entry point like sidebar
           const urlParams = new URLSearchParams(window.location.search);
           const hasUrlDoctor = urlParams.get('doctorId') !== null;
-          
+
           if (tempData.selectedDoctor && !hasUrlDoctor && !isFromPatientSidebar && !isFromHomepage) {
             setSelectedDoctor(tempData.selectedDoctor);
           }
@@ -132,7 +125,6 @@ function Checkin() {
 
           return true;
         } else {
-          // Data is too old, remove it
           localStorage.removeItem(`tempFormData_${currentEmail}`);
           console.log('🗑️ Temp form data expired, removed');
         }
@@ -141,7 +133,6 @@ function Checkin() {
     return false;
   };
 
-  //==================== STATE DECLARATIONS ====================
   const [viewMode, setViewMode] = useState(getInitialViewMode());
   const [isPatientAccess, setIsPatientAccess] = useState(getInitialPatientAccess());
   const [nav, setNav] = useState(false);
@@ -158,7 +149,6 @@ function Checkin() {
   const [bookingMode, setBookingMode] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const doctorIdFromUrl = urlParams.get('doctorId');
-    // Default to service unless a doctor is pre-selected in the URL
     return doctorIdFromUrl ? 'doctor' : 'service';
   });
   const [selectedDoctor, setSelectedDoctor] = useState(() => {
@@ -206,13 +196,10 @@ function Checkin() {
   const [touched, setTouched] = useState({});
   const [errors, setErrors] = useState({});
 
-  // Helper: compose full name from parts
   const getFullName = (data) => {
     const parts = [data.firstName, data.middleName, data.lastName].filter(Boolean);
     return parts.join(" ").trim();
   };
-
-  // Helper: Calculate real-time active queue length for a specific doctor
   const getDoctorQueueLength = (doctorId) => {
     if (!patients) return 0;
     const now = new Date();
@@ -356,7 +343,6 @@ function Checkin() {
   const isDoctorAvailable = (doctor, appointmentDateTime) => {
     if (!appointmentDateTime) return true;
 
-    // ✅ ADDED: Always show "By Appointment Only" doctors
     if (doctor.schedule && doctor.schedule.includes("By Appointment Only")) {
       return true;
     }
@@ -383,14 +369,10 @@ function Checkin() {
     });
   };
 
-  // Check if a given date is a working day for the selected doctor (day-level check, ignoring hours)
-  // Returns false if the doctor has no availability slot that matches this day+week-of-month.
   const isDoctorWorkingDay = (doctor, date) => {
-    if (!doctor) return true; // no doctor selected — don't restrict
-
-    // "By Appointment Only" doctors are available every weekday
+    if (!doctor) return true;
     if (doctor.schedule && doctor.schedule.includes("By Appointment Only")) {
-      return date.getDay() !== 0; // all days except Sunday
+      return date.getDay() !== 0;
     }
 
     const dayOfWeek = date.getDay();
@@ -403,13 +385,10 @@ function Checkin() {
     });
   };
 
-  // Determine if we are starting a NEW booking flow (e.g. from Guest button or Sidebar)
   const isNewBooking = useMemo(() => {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('type') === 'appointment' || urlParams.get('view') === 'patient';
   }, [window.location.search]);
-
-  //==================== EVENT HANDLERS ====================
   const handleNav = () => setNav(!nav);
 
   const handlePriorityChange = (checked) => {
@@ -583,7 +562,6 @@ function Checkin() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // ✅ REVISED: Proactively assign the selected doctor if their queue is ALREADY active.
     let autoAssignedDoctor = null;
     if (bookingMode === 'doctor' && selectedDoctor) {
       if ((activeDoctors || []).includes(selectedDoctor.id)) {
@@ -597,8 +575,6 @@ function Checkin() {
       const isApptToday = selectedPatientType === "Appointment" && isToday(formData.appointmentDateTime);
       const hasServices = formData.services && formData.services.length > 0;
 
-      // ONLY assign immediately if it's a walk-in, a same-day appointment, or has services.
-      // Generic future appointments should stay unassigned (None) until the day of.
       if (isWalkIn || isApptToday || hasServices) {
         autoAssignedDoctor = assignDoctor(formData, patients, activeDoctors || []);
         if (!autoAssignedDoctor) {
@@ -608,7 +584,7 @@ function Checkin() {
         console.log('⏳ Future appointment with blank services — deferring assignment until the day.');
       }
     }
-    const finalDoctor = autoAssignedDoctor; // Never use selectedDoctor as finalDoctor directly
+    const finalDoctor = autoAssignedDoctor;
 
     const composedName = getFullName(formData) || "Guest Patient";
     const dataToSubmit = {
@@ -620,14 +596,11 @@ function Checkin() {
         s === 'Other' ? `Other: ${formData.otherSymptomText}` : s
       ),
       services: bookingMode === 'doctor' ? [] : formData.services,
-      // Fix: Persist preferred doctor to physician column in DB
       physician: bookingMode === 'doctor' ? selectedDoctor?.name : (finalDoctor?.name || null),
       assignedDoctorName: finalDoctor?.name || null
     };
 
     try {
-      // 🚫 CRITICAL: Clear any existing "Ghost" session before starting a new submission.
-      // This prevents previously cancelled records from being restored to your device.
       clearActivePatient();
 
       if (formData.symptoms.length === 0) {
@@ -666,7 +639,6 @@ function Checkin() {
           return;
         }
       } else if (!isPatientLoggedIn) {
-        // Required for Guests
         showMessage("Validation Error", "Email is required.", false);
         setIsSubmitting(false);
         return;
@@ -674,7 +646,6 @@ function Checkin() {
 
       let result;
 
-      // 📥 CALCULATE LOCAL MAX FOR TODAY (Cross-Context Sync)
       const currentLocalMax = Math.max(0, ...patients
         .filter(p => p.type === selectedPatientType && isToday(p.registeredAt || p.appointmentDateTime))
         .map(p => p.queueNo || 0));
@@ -746,13 +717,12 @@ function Checkin() {
           isReturningPatient: formData.isReturningPatient,
           patientEmail: formData.patientEmail || currentPatientEmail || null,
           daysSinceOnset: formData.daysSinceOnSet || null,
-          // Store the doctor choice as preferredDoctor for deferred assignment
+          // Store doctor choice as preferredDoctor 
           preferredDoctor: bookingMode === 'doctor' && selectedDoctor ? {
             id: selectedDoctor.id,
             name: selectedDoctor.name,
             specialization: selectedDoctor.specialization
           } : null,
-          // assignedDoctor is only set if an active-queue match was found right now (service mode)
           assignedDoctor: finalDoctor ? {
             id: finalDoctor.id,
             name: finalDoctor.name,
@@ -795,7 +765,6 @@ function Checkin() {
 
         showMessage("Success", successMsg, true);
 
-        // ✅ STABILIZED: Update localStorage ID immediately to ensure it survives navigation
         if (dbId) {
           localStorage.setItem('activePatientId', dbId);
           console.log('💾 Persisted fresh activePatientId to storage:', dbId);
@@ -830,11 +799,9 @@ function Checkin() {
     }
   };
 
-  // ==================== CUSTOM SLOT CHECKER ====================
   const getCustomAvailableSlots = (dateTimeString) => {
     if (!dateTimeString) return 1;
 
-    // Doctor mode availability check
     if (bookingMode === 'doctor') {
       if (!selectedDoctor) return 0;
       if (!isDoctorAvailable(selectedDoctor, dateTimeString)) return -1;
@@ -865,7 +832,6 @@ function Checkin() {
     return Math.max(0, MAX_SLOTS_PER_TIME - bookedCount);
   };
 
-  //==================== USE EFFECTS ====================
   useEffect(() => {
     if (selectedDoctor && formData.appointmentDateTime && bookingMode === 'doctor') {
       const isStillAvailable = isDoctorAvailable(selectedDoctor, formData.appointmentDateTime);
@@ -883,9 +849,7 @@ function Checkin() {
     }
   }, [formData.appointmentDateTime, bookingMode, selectedDoctor, patients]);
 
-  // ✅ NEW: Clear active patient session ONLY ONCE when entering a new booking flow
   useEffect(() => {
-    // Only clear if NOT logged in (Guests). Logged-in patients should rely on DB state.
     if (isNewBooking && !sessionClearedRef.current && !isPatientLoggedIn) {
       console.log("🧹 New booking detected - clearing guest active patient session.");
       clearActivePatient();
@@ -893,13 +857,10 @@ function Checkin() {
     }
   }, [isNewBooking, clearActivePatient, isPatientLoggedIn]);
 
-  // ✅ NEW: Auto-save form data whenever it changes
   useEffect(() => {
-    // Check if user is logged in (has email) and booking an appointment
     const currentEmail = localStorage.getItem('currentPatientEmail');
 
     if (currentEmail && selectedPatientType === 'Appointment') {
-      // Debounce slightly to avoid excessive writes
       const timeoutId = setTimeout(() => {
         const tempData = {
           symptoms: formData.symptoms,
@@ -934,7 +895,6 @@ function Checkin() {
             console.log('📋 Loading profile data for:', currentEmail);
             console.log('📋 Profile data:', userProfile);
 
-            // Split fullName into parts when loading from profile
             const nameParts = (userProfile.fullName || '').trim().split(/\s+/);
             const loadedFirstName = nameParts[0] || '';
             const loadedLastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
@@ -958,7 +918,6 @@ function Checkin() {
             console.log('✅ Profile loaded and marked');
           } else {
             console.log('⚠️ No profile found for:', currentEmail, '- Attempting fallback to Auth metadata...');
-            // FALLBACK: Load from Supabase Auth metadata
             const { getProfileMetadata } = await import('./lib/supabaseClient');
             const metadata = await getProfileMetadata();
             if (metadata && metadata.email.toLowerCase() === currentEmail.toLowerCase()) {
@@ -999,11 +958,9 @@ function Checkin() {
     }
   }, [selectedPatientType]);
 
-  // ✅ RESTORE DATA: Load temp data on mount or when patient type is selected
   useEffect(() => {
     const currentEmail = localStorage.getItem('currentPatientEmail');
 
-    // Attempt to load data if user is logged in and (is selecting a type OR already selected appointment)
     if (currentEmail && (selectedPatientType || !tempDataLoadedRef.current)) {
       const restored = loadFormDataFromTemp();
       if (restored) {
@@ -1020,21 +977,15 @@ function Checkin() {
     if (!selectedPatientType) {
       tempDataLoadedRef.current = false;
     }
-  }, [selectedPatientType]); // Run when patient type changes
+  }, [selectedPatientType]);
 
-  // ✅ AUTO-DISCOVERY MOVED TO CONTEXT
-  // The logic to find and set the active patient for logged-in users
-  // is now handled centrally in PatientContext.jsx to support all pages.
-
-  // ✅ FORCE CLEAR SESSION ON MOUNT IF CLINIC VIEW
   useEffect(() => {
     if (viewMode === 'clinic') {
       console.log('🏥 Clinic View detected on mount - clearing active patient session.');
       clearActivePatient();
     }
-  }, []); // Run once on mount
+  }, []);
 
-  // ✅ NEW: Handle pre-selected or default doctor (for Guest/Secretary)
   useEffect(() => {
     if (selectedPatientType === 'Appointment') {
       const urlParams = new URLSearchParams(window.location.search);
@@ -1046,10 +997,9 @@ function Checkin() {
           console.log(`🩺 Pre-selecting doctor ID ${doctorIdFromUrl}: ${doctorByUrl.name}`);
           setBookingMode('doctor');
           setSelectedDoctor(doctorByUrl);
-          return; // URL takes priority
+          return;
         }
       }
-      // NEW: For ANYONE switching to Doctor mode, default to Dr. Melissa (ID: 1) if no selection made yet
       if (bookingMode === 'doctor' && !selectedDoctor) {
         const melissa = doctors.find(d => String(d.id) === "1");
         if (melissa) {
@@ -1060,19 +1010,16 @@ function Checkin() {
     }
   }, [selectedPatientType, isPatientLoggedIn, viewMode, isPatientAccess, bookingMode, selectedDoctor]);
 
-  // Reset the ref when patient type is selected (so we can check again if they go back)
   useEffect(() => {
     if (selectedPatientType) {
       appointmentCheckDoneRef.current = false;
     }
   }, [selectedPatientType]);
 
-  // ✅ Navigation redirect - simple and clean
-  // GUARD: Do NOT redirect if we are in 'clinic' view or if user explicitly clicked 'Done' (skipCheck)
   const isSessionFinished = activePatient && (
-    activePatient.status === 'done' || 
-    activePatient.status === 'completed' || 
-    activePatient.status === 'cancelled' || 
+    activePatient.status === 'done' ||
+    activePatient.status === 'completed' ||
+    activePatient.status === 'cancelled' ||
     (activePatient.type === 'Appointment' && activePatient.appointmentStatus === 'rejected')
   );
 
@@ -1112,7 +1059,6 @@ function Checkin() {
               <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
                 <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" disabled><QrCode className="w-5 h-5 mr-2" />Clinic View (Current)</Button>
                 <Button onClick={() => {
-                  // ✅ FORCE CLEAR SESSION: Staff view should always be fresh
                   clearActivePatient();
                   setViewMode('patient');
                   setIsPatientAccess(false);
@@ -1140,7 +1086,6 @@ function Checkin() {
                   if (isPatientAccess) {
                     navigate('/');
                   } else {
-                    // ✅ CLEAR SESSION when going back to Clinic View
                     clearActivePatient();
                     setViewMode('clinic');
                   }
@@ -1185,8 +1130,8 @@ function Checkin() {
                     }
                   }}
                   className={`flex-1 py-2 text-center text-sm font-semibold rounded-md transition-all ${bookingMode === 'service'
-                      ? 'bg-white text-green-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-white text-green-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
                     }`}
                 >
                   Book by Service
@@ -1202,8 +1147,8 @@ function Checkin() {
                     }
                   }}
                   className={`flex-1 py-2 text-center text-sm font-semibold rounded-md transition-all ${bookingMode === 'doctor'
-                      ? 'bg-white text-indigo-700 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
+                    ? 'bg-white text-indigo-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
                     }`}
                 >
                   Book by Doctor
@@ -1212,7 +1157,7 @@ function Checkin() {
             )}
             <form onSubmit={handlePatientSubmit} className="space-y-6">
 
-              {/* ===== BOOK BY DOCTOR: Step-by-step layout ===== */}
+              {/* ===== BOOK BY DOCTOR ===== */}
               {selectedPatientType === "Appointment" && bookingMode === 'doctor' ? (
                 <>
                   {/* STEP 1: Select Doctor */}
@@ -1477,7 +1422,7 @@ function Checkin() {
                   )}
                 </>
               ) : (
-                /* ===== BOOK BY SERVICE / WALK-IN: Step-by-step layout ===== */
+                /* BOOK BY SERVICE / WALK-IN */
                 <>
                   {/* Select Services — ONLY for Book by Service appointments (Step 1) */}
                   {selectedPatientType === "Appointment" && bookingMode === 'service' && (

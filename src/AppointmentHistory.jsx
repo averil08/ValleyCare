@@ -14,32 +14,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-//THIS IS THE APPOINTMENT HISTORY OF PATIENT UI
 const AppointmentHistory = () => {
   const [nav, setNav] = React.useState(false);
   const handleNav = () => setNav(!nav);
 
   const { patients, currentPatientEmail: contextEmail, isLoadingFromDB } = useContext(PatientContext);
 
-  // Use context email with a fallback to localStorage to be extremely resilient
   const currentPatientEmail = contextEmail || localStorage.getItem('currentPatientEmail');
 
   console.log(`[AppointmentHistory] Render - ContextEmail: ${contextEmail}, StorageEmail: ${localStorage.getItem('currentPatientEmail')}, Loading: ${isLoadingFromDB}`);
-
-  // State for toggling history visibility
   const [showHistory, setShowHistory] = React.useState(false);
-
-  // State for viewing appointment details
   const [selectedAppointment, setSelectedAppointment] = React.useState(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = React.useState(false);
-
-  // ✨ NEW: State for past visits modal
   const [showPastVisitsModal, setShowPastVisitsModal] = React.useState(false);
-
-  // ✨ NEW: State for status filter
   const [statusFilter, setStatusFilter] = React.useState('all');
 
-  // Service labels mapping
   const serviceLabels = {
     pedia: "Pediatric", adult: "Adult", senior: "Senior (65+)",
     preventive: "Preventive Exam", "follow-up": "Follow-up",
@@ -61,7 +50,6 @@ const AppointmentHistory = () => {
 
   const getServiceLabel = (serviceId) => serviceLabels[serviceId] || serviceId;
 
-  // ✨ Helper function to get appointment status category
   const getAppointmentStatusCategory = (appointment) => {
     if (!appointment) return 'unknown';
     if (appointment.type === 'Appointment') {
@@ -96,7 +84,6 @@ const AppointmentHistory = () => {
     }
   };
 
-  // Filter appointments by current logged-in patient's email
   const myAppointments = React.useMemo(() => {
     if (!currentPatientEmail) return [];
 
@@ -110,7 +97,6 @@ const AppointmentHistory = () => {
           const normalizedPatientEmail = p.patientEmail.toLowerCase().trim();
           if (normalizedPatientEmail !== normalizedCurrentEmail) return false;
 
-          // ✨ Filter: include all valid status categories
           const category = getAppointmentStatusCategory(p);
           return ['completed', 'in-progress', 'upcoming', 'pending', 'cancelled', 'not-approved'].includes(category);
         }
@@ -120,7 +106,6 @@ const AppointmentHistory = () => {
       .sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
   }, [patients, currentPatientEmail]);
 
-  // Valid status categories for the "Summaries" view
   const validSummaryAppointments = React.useMemo(() => {
     return myAppointments.filter(a =>
       ['upcoming', 'in-progress', 'completed'].includes(getAppointmentStatusCategory(a))
@@ -129,7 +114,6 @@ const AppointmentHistory = () => {
 
 
 
-  // ✨ NEW: Filter appointments based on selected status
   const filteredAppointments = React.useMemo(() => {
     if (statusFilter === 'all') return myAppointments;
 
@@ -178,7 +162,6 @@ const AppointmentHistory = () => {
     } else if (category === 'withdrawn') {
       return <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100">Withdrawn</Badge>;
     } else {
-      // Default to Upcoming for everything else shown in the list
       return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Upcoming</Badge>;
     }
   };
@@ -191,7 +174,6 @@ const AppointmentHistory = () => {
     return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">Walk-in</Badge>;
   };
 
-  // Calculate statistics
   const stats = React.useMemo(() => {
     const visitsOnly = myAppointments.filter(a => getAppointmentStatusCategory(a) !== 'not-approved');
     return {
@@ -202,7 +184,6 @@ const AppointmentHistory = () => {
     };
   }, [myAppointments]);
 
-  // ✨ NEW: Calculate filter counts
   const filterCounts = React.useMemo(() => {
     return {
       all: myAppointments.length,
@@ -216,7 +197,6 @@ const AppointmentHistory = () => {
     };
   }, [myAppointments]);
 
-  // Show loading state while recovering session or data
   if (isLoadingFromDB) {
     return (
       <div className="flex w-full min-h-screen">
@@ -231,7 +211,6 @@ const AppointmentHistory = () => {
     );
   }
 
-  // Show error only if no currentPatientEmail after loading is done
   if (!currentPatientEmail) {
     return (
       <div className="flex w-full min-h-screen">
@@ -255,10 +234,8 @@ const AppointmentHistory = () => {
     );
   }
 
-  // Find the most recent patient entry to display personal info
   const currentPatientInfo = myAppointments.length > 0 ? myAppointments[0] : null;
 
-  // Render appointment card for mobile
   const renderAppointmentCard = (appointment, idx) => {
     const category = getAppointmentStatusCategory(appointment);
     return (
@@ -358,11 +335,9 @@ const AppointmentHistory = () => {
     );
   };
 
-  // ✨ NEW: Modal Component for Past Visits
   const PastVisitsModal = () => {
     if (!showPastVisitsModal) return null;
 
-    // Get all valid summaries except the one displayed on the main card
     const pastVisits = validSummaryAppointments.slice(1);
 
     return (
@@ -523,7 +498,6 @@ const AppointmentHistory = () => {
     );
   };
 
-  // Detail Dialog Component
   const DetailDialog = () => {
     if (!isDetailDialogOpen || !selectedAppointment) return null;
 
@@ -724,7 +698,7 @@ const AppointmentHistory = () => {
 
             const inProgress = validSummaryAppointments.find(a => getAppointmentStatusCategory(a) === 'in-progress');
 
-            // 3. Representative visit (In Progress > Upcoming > Done > Most Recent Overall within valid categories)
+            // 3. (In Progress > Upcoming > Done > Most Recent Overall within valid categories)
             const activeVisit = inProgress || upcoming || mostRecentDone || validSummaryAppointments[0];
 
             if (!activeVisit) return null;
@@ -753,7 +727,7 @@ const AppointmentHistory = () => {
                       </div>
                     </div>
 
-                    {/* ✨ NEW: View Past Visits Button */}
+                    {/* View Past Visits Button */}
                     {validSummaryAppointments.length > 1 && (
                       <Button
                         onClick={() => setShowPastVisitsModal(true)}
@@ -929,7 +903,7 @@ const AppointmentHistory = () => {
             </CardHeader>
             {showHistory && (
               <CardContent className="p-0">
-                {/* ✨ NEW: Filter Buttons */}
+                {/* Filter Buttons */}
                 <div className="p-4 border-b bg-gray-50">
                   <div className="flex items-center gap-2 mb-3">
                     <Filter className="w-4 h-4 text-gray-600" />

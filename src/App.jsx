@@ -42,7 +42,6 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Prevents the "Blank Screen" while checking auth
   if (loading) {
     return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading System...</div>;
   }
@@ -61,7 +60,6 @@ function App() {
             element={session ? <Dashboard /> : <Navigate to="/login" />}
           />
 
-          {/* Add your other routes below */}
           <Route path="/signup" element={<Signup />} />
           <Route path="/checkin" element={<Checkin />} />
           <Route path="/qstatus" element={<QueueStatus />} />

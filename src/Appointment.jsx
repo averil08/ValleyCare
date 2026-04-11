@@ -2,9 +2,7 @@ import React, { useState, useContext } from 'react';
 import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
 import { Calendar, CalendarDays, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
-//automatic added dialog in components/ui (run npx shadcn@latest add dialog to install + make dialog.jsx)
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-//automatic added textarea in components/ui (run npx shadcn@latest add textarea to install + make textarea.jsx)
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +18,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-//THIS IS THE PATIENT PROFILE IN CLINIC UI
 const Appointment = () => {
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
@@ -29,7 +26,7 @@ const Appointment = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
-  // Date Filtering State
+  // Date Filtering 
   const [dateFilter, setDateFilter] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -37,19 +34,19 @@ const Appointment = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
 
-  // Calendar modal navigation state
+  // Calendar modal navigation 
   const today = new Date();
   const [calendarYear, setCalendarYear] = useState(today.getFullYear());
-  const [calendarMonth, setCalendarMonth] = useState(today.getMonth()); // 0-indexed
+  const [calendarMonth, setCalendarMonth] = useState(today.getMonth());
   const [calendarSelectedDay, setCalendarSelectedDay] = useState(null);
   const [calendarFilterDoctor, setCalendarFilterDoctor] = useState('all');
   const [isFinalizing, setIsFinalizing] = useState(false);
 
-  const { 
-    patients, 
-    acceptAppointment, 
-    rejectAppointment, 
-    unreadSecretaryNotificationsCount, 
+  const {
+    patients,
+    acceptAppointment,
+    rejectAppointment,
+    unreadSecretaryNotificationsCount,
     markSecretaryNotificationsAsRead,
     modalNotification,
     clearModalNotification,
@@ -57,8 +54,6 @@ const Appointment = () => {
     formatQueueNumber
   } = useContext(PatientContext);
 
-
-  // Helper to get label for date filter
   const getDateFilterLabel = () => {
     switch (dateFilter) {
       case 'monday': return 'Monday';
@@ -92,12 +87,9 @@ const Appointment = () => {
     }
 
     if (dateFilter === 'thisWeek') {
-      // Start of week = Sunday
       const startOfWeek = new Date(now);
       startOfWeek.setDate(now.getDate() - now.getDay());
       startOfWeek.setHours(0, 0, 0, 0);
-
-      // End of week = Saturday
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       endOfWeek.setHours(23, 59, 59, 999);
@@ -105,7 +97,6 @@ const Appointment = () => {
       return date >= startOfWeek && date <= endOfWeek;
     }
 
-    // Handle Day of Week filters (monday, tuesday, etc.)
     const daysMap = {
       sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6
     };
@@ -114,7 +105,6 @@ const Appointment = () => {
       const targetDayIndex = daysMap[dateFilter];
       const currentDayIndex = now.getDay();
 
-      // Calculate difference to get the date for the target day of THIS week
       const diff = targetDayIndex - currentDayIndex;
       const targetDateStart = new Date(now);
       targetDateStart.setDate(now.getDate() + diff);
@@ -129,18 +119,16 @@ const Appointment = () => {
     return true;
   };
 
-  // NEW: Get user role and doctor ID
+  // Get user role and doctor ID
   const userRole = localStorage.getItem('userRole');
   const storedDoctorId = localStorage.getItem('selectedDoctorId');
   const isDoctor = userRole === 'doctor';
 
-  // NEW: Find current doctor for name matching fallback
+  // Find current doctor for name matching fallback
   const currentDoctor = isDoctor && storedDoctorId ? doctors.find(d => d.id === Number(storedDoctorId)) : null;
 
-  // Filter appointments (patients with type "Appointment")
   const allAppointments = (patients || [])
     .filter(p => {
-      // ✅ REMOVED: p.status === "done" filter to allow viewing completed records
       if (p.type !== "Appointment") return false;
       if (!isDoctor) return true;
 
@@ -148,11 +136,9 @@ const Appointment = () => {
       const myName = currentDoctor?.name?.toLowerCase().trim();
       const patientAssignedName = p.assignedDoctor?.name?.toLowerCase().trim();
 
-      // Match by ID or by trimmed name
       return p.assignedDoctor?.id === myId || (patientAssignedName && patientAssignedName === myName);
     });
 
-  // Get filtered appointments based on criteria
   const getFilteredAppointments = () => {
     let filtered = allAppointments.filter(a => {
       const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
@@ -190,7 +176,7 @@ const Appointment = () => {
 
   const filteredAppointments = getFilteredAppointments();
 
-  // Service labels mapping
+  // Service labels
   const serviceLabels = {
     // General
     pedia: "Pediatric Consultation",
@@ -269,7 +255,6 @@ const Appointment = () => {
     acceptAppointment(appointment.id);
   };
 
-  //replaced the direct reject handler
   const handleRejectClick = (appointment) => {
     setRejectionDialog({
       open: true,
@@ -278,14 +263,12 @@ const Appointment = () => {
     });
   };
 
-  //added rejection dialogue state to manage modal
   const [rejectionDialog, setRejectionDialog] = useState({
     open: false,
     appointment: null,
     reason: ""
   });
 
-  //Added the confirmation handler that saves the reason"
   const handleRejectConfirm = () => {
     if (!rejectionDialog.reason.trim()) {
       alert("Please provide a reason for rejection");
@@ -334,11 +317,9 @@ const Appointment = () => {
     setIsDetailsDialogOpen(true);
   };
 
-  // Render appointment card for mobile
   const renderAppointmentCard = (appointment) => (
     <Card key={appointment.id} className="mb-4">
       <CardContent className="p-4">
-        {/* Header with Queue Number and Status */}
         <div className="flex items-center justify-between mb-3">
           <Badge variant="outline" className="font-mono">
             {appointment.displayQueueNo}
@@ -471,15 +452,13 @@ const Appointment = () => {
     </Card>
   );
 
-  // Render appointment table for desktop
   const renderAppointmentTable = (appointments) => (
     <>
-      {/* Mobile Card View - Show on small to medium screens */}
       <div className="block lg:hidden">
         {appointments.map((appointment) => renderAppointmentCard(appointment))}
       </div>
 
-      {/* Desktop Table View - Improved Responsiveness for Large Screens */}
+      {/* Desktop Table View */}
       <div className="hidden lg:block">
         <Table>
           <TableHeader>
@@ -635,7 +614,7 @@ const Appointment = () => {
     <div className="min-h-screen w-full overflow-x-hidden">
       <Sidebar nav={nav} handleNav={handleNav} />
 
-      <NotificationModal 
+      <NotificationModal
         isOpen={!!modalNotification}
         onClose={clearModalNotification}
         title={modalNotification?.title}
@@ -902,25 +881,9 @@ const Appointment = () => {
                 >
                   Pending Approval
                   <Badge variant="secondary" className="ml-2 bg-white text-gray-700">
-                    {/* Note: This count logic needs to be aware of date filtering if we want it to be accurate to the current view, 
-                         or separate if we want it to show global pending. 
-                         Let's keep it simple for now and show count based on *filtered* list if user clicks it,
-                         but usually these badges show total potential matches. 
-                         For now, let's just use the length of what *would* be shown if clicked, roughly. 
-                         Actually, let's just count from the filtered list for simplicity in this specific block context or 
-                         re-calculate. The original code calculated from 'allAppointments'. 
-                         Let's try to preserve the original behavior of showing TOTAL counts for that status, 
-                         ignoring date filter for the badge itself? Or respecting it?
-                         
-                         User asked for "appointments of today". 
-                         If I say "Pending (5)", does that mean 5 pending today or 5 total?
-                         Usually filters are composable. "Today" + "Pending".
-                         So the badge should probably reflect the "Today" count.
-                     */}
                     {allAppointments.filter(a => {
                       const matchesStatus = !a.appointmentStatus || a.appointmentStatus === 'pending';
                       const dateToCheck = a.appointmentDateTime || a.appointment_datetime;
-                      // To be helpful, let's make the badge count respect the current Date Filter
                       return matchesStatus && isWithinDateRange(dateToCheck);
                     }).length}
                   </Badge>
@@ -1043,7 +1006,6 @@ const Appointment = () => {
               </CardContent>
             </Card>
           ) : activeFilter === 'upcoming' && groupedUpcoming ? (
-            // Grouped view for upcoming appointments
             <div className="space-y-6">
               {groupedUpcoming.today.length > 0 && (
                 <Card>
@@ -1102,7 +1064,6 @@ const Appointment = () => {
               )}
             </div>
           ) : (
-            // Regular table view for other filters
             <Card>
               <CardHeader>
                 <CardTitle>
@@ -1392,11 +1353,9 @@ const Appointment = () => {
 
           {/* Calendar Grid */}
           {(() => {
-            // All accepted appointments
             const acceptedAppts = (patients || []).filter(p => {
               if (p.type !== 'Appointment' || p.appointmentStatus !== 'accepted') return false;
 
-              // Filter by doctor if applicable
               const filterDoctorId = isDoctor ? storedDoctorId : calendarFilterDoctor;
 
               if (filterDoctorId && filterDoctorId !== 'all') {
@@ -1411,7 +1370,6 @@ const Appointment = () => {
               return true;
             });
 
-            // Build a map: dateKey (YYYY-MM-DD) -> [appointments]
             const apptsByDay = {};
             acceptedAppts.forEach(a => {
               const raw = a.appointmentDateTime || a.appointment_datetime;
@@ -1423,8 +1381,7 @@ const Appointment = () => {
               apptsByDay[key].push(a);
             });
 
-            // Calendar math
-            const firstDay = new Date(calendarYear, calendarMonth, 1).getDay(); // 0=Sun
+            const firstDay = new Date(calendarYear, calendarMonth, 1).getDay();
             const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
             const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
             const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -1474,12 +1431,12 @@ const Appointment = () => {
                           ];
                           return (
                             <div
-                                key={appt.id}
-                                className={`text-[10px] sm:text-[11px] leading-tight px-1 py-0.5 rounded border font-semibold truncate ${colors[idx % colors.length]}`}
-                                title={`${appt.name} — ${timeStr} — ${label}`}
-                              >
-                                {appt.name}
-                              </div>
+                              key={appt.id}
+                              className={`text-[10px] sm:text-[11px] leading-tight px-1 py-0.5 rounded border font-semibold truncate ${colors[idx % colors.length]}`}
+                              title={`${appt.name} — ${timeStr} — ${label}`}
+                            >
+                              {appt.name}
+                            </div>
                           );
                         })}
                         {dayAppts.length > 2 && (
@@ -1494,7 +1451,6 @@ const Appointment = () => {
               );
             }
 
-            // Selected day detail
             const selectedAppts = calendarSelectedDay ? (apptsByDay[calendarSelectedDay] || []) : [];
 
             return (

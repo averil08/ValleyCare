@@ -24,7 +24,6 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
-//THIS IS THE ANALYTICS PAGE IN CLINIC UI
 const Analytics = () => {
   const [nav, setNav] = useState(false);
   const navigate = useNavigate();
@@ -34,9 +33,9 @@ const Analytics = () => {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
-  const [trendFilter, setTrendFilter] = useState('perHour'); // 'perHour', 'today', 'thisWeek'
-  const [patientStatsType, setPatientStatsType] = useState('walkin'); // 'walkin', 'appointment', 'noshow'
-  const [topStatsType, setTopStatsType] = useState('symptoms'); // 'symptoms', 'services'
+  const [trendFilter, setTrendFilter] = useState('perHour');
+  const [patientStatsType, setPatientStatsType] = useState('walkin');
+  const [topStatsType, setTopStatsType] = useState('symptoms');
 
   const getDateFilterLabel = () => {
     switch (dateFilter) {
@@ -94,33 +93,23 @@ const Analytics = () => {
     return true;
   };
 
-  // Filter patients based on range and category restrictions
   const filteredPatients = useMemo(() => {
     return (patients || []).filter(p => {
-      // 1. Skip inactive/system records
       if (p.isInactive) return false;
 
-      // 2. Only include accepted appointments (or any walk-in)
       if (p.type === 'Appointment' && p.appointmentStatus !== 'accepted') return false;
 
-      // 3. Status-based exception for "Today" view
-      // If a patient is currently in queue, they are part of today's analytics 
-      // regardless of their original appointment/registration date.
       const isOngoing = p.status === "waiting" || p.status === "in progress";
       if (dateFilter === 'today' && isOngoing && p.inQueue) return true;
 
-      // 4. Determine relevant date for range check
-      // For appointments, we care about the scheduled day, not the registration day
       const dateToUse = (p.type === 'Appointment' && p.appointmentDateTime)
         ? p.appointmentDateTime
         : p.registeredAt;
 
-      // 5. Date Range Check - Strictly respect the selected range
       return isWithinDateRange(dateToUse);
     });
   }, [patients, dateFilter, customStartDate, customEndDate]);
 
-  // Service labels mapping
   const serviceLabels = {
     pedia: "Pediatric", adult: "Adult", senior: "Senior (65+)",
     preventive: "Preventive Exam", "follow-up": "Follow-up",
@@ -135,7 +124,6 @@ const Analytics = () => {
     tsh: "TSH", ft3: "FT3", psa: "PSA"
   };
 
-  // Calculate analytics
   const analytics = useMemo(() => {
     if (!patients) return {
       patientsPerDay: [], patientsPerHour: [], heatmapData: [],
@@ -160,7 +148,6 @@ const Analytics = () => {
 
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-    // --- TREND DATA CALCULATIONS (Local Filters) ---
     // 1. Per Hour (Today)
     const hourDataToday = Array.from({ length: 10 }, (_, i) => ({ hour: i + 8, count: 0 }));
     patients.forEach(p => {
@@ -189,7 +176,6 @@ const Analytics = () => {
     // 2. Today (Daily Trend for This Week)
     const dayNamesSentence = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const startOfThisWeek = new Date(today);
-    // Adjust to this week's Monday
     const day = today.getDay();
     const diff = today.getDate() - day + (day === 0 ? -6 : 1);
     startOfThisWeek.setDate(diff);
@@ -239,8 +225,6 @@ const Analytics = () => {
       thisWeek: weeklyTrend
     };
 
-    // --- END TREND DATA CALCULATIONS ---
-
     // Patients per day of week
     const dayOfWeekData = { Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0 };
 
@@ -260,7 +244,7 @@ const Analytics = () => {
     }));
 
     // Patients per hour (8am-5pm only)
-    const hourData = Array.from({ length: 10 }, (_, i) => ({ hour: i + 8, patients: 0 })); // 8am to 5pm (8-17)
+    const hourData = Array.from({ length: 10 }, (_, i) => ({ hour: i + 8, patients: 0 }));
     filteredPatients.forEach(p => {
       if (p.registeredAt) {
         const hour = new Date(p.registeredAt).getHours();
@@ -287,7 +271,6 @@ const Analytics = () => {
     const totalAppointment = filteredPatients.filter(p => p.type === "Appointment").length;
     const servedWalkIn = filteredPatients.filter(p => p.type === "Walk-in" && p.status === "done").length;
     const servedAppointment = filteredPatients.filter(p => p.type === "Appointment" && p.status === "done").length;
-    // No Show Patients (cancelled)
     const noShowPatients = filteredPatients.filter(p => p.status === "cancelled" && !p.isInactive).length;
 
     // Most prevalent symptoms
@@ -345,7 +328,7 @@ const Analytics = () => {
       }
     });
 
-    // Helper function to convert 24-hour to 12-hour format
+    // convert 24-hour to 12-hour format
     const formatTo12Hour = (hour) => {
       const h = parseInt(hour);
       const period = h >= 12 ? 'PM' : 'AM';
@@ -353,10 +336,10 @@ const Analytics = () => {
       return `${hour12}:00 ${period}`;
     };
 
-    // Peak registration heatmap (hour x day of week) - 8am to 5pm only
+    // Peak registration heatmap (hour x day of week) 
     const heatmapData = [];
-    for (let hour = 8; hour <= 17; hour++) { // 8am to 5pm
-      for (let day = 1; day < 7; day++) { // Mon=1, Sat=6
+    for (let hour = 8; hour <= 17; hour++) {
+      for (let day = 1; day < 7; day++) {
         heatmapData.push({ hour, day, count: 0 });
       }
     }
@@ -378,14 +361,14 @@ const Analytics = () => {
         const date = new Date(p.registeredAt);
         const hour = date.getHours();
         const day = date.getDay();
-        if (day >= 1 && day <= 6 && hour >= 8 && hour <= 17) { // Mon-Sat, 8am-5pm only
+        if (day >= 1 && day <= 6 && hour >= 8 && hour <= 17) {
           const cell = heatmapData.find(h => h.hour === hour && h.day === day);
           if (cell) cell.count++;
         }
       }
     });
 
-    // Patient count trend by weeks (last 8 weeks) - Use raw patients for full trend
+    // Patient count trend by weeks (last 8 weeks) 
     const weeklyData = [];
     for (let i = 7; i >= 0; i--) {
       const weekStart = new Date(today);
@@ -407,43 +390,28 @@ const Analytics = () => {
       });
     }
 
-    // Step 2: Calculate average service time per service
-    // This goes BEFORE the return statement in the analytics useMemo
-
-    // Object to store service time data
     const serviceTimeData = {};
 
-    // Loop through ALL patients (not filtered) to get historical average
-    // Only analyze patients with service and valid timestamps
     patients.forEach(p => {
-      // STRICT CHECK: Must be done, have timestamps, and HAVE SERVICES
       if (p.status === "done" && p.calledAt && p.completedAt &&
         p.services && p.services.length > 0) {
 
-        // Convert timestamp strings to Date objects
         const calledTime = new Date(p.calledAt);
         const completedTime = new Date(p.completedAt);
 
-        // Calculate the difference in minutes
         const serviceTimeMinutes = Math.round((completedTime - calledTime) / 60000);
 
-        // Only count reasonable times (1-240 minutes = 4 hours max)
         if (serviceTimeMinutes > 0 && serviceTimeMinutes <= 240) {
 
-          // Each patient can have multiple services, so loop through them
           p.services.forEach(serviceId => {
-            // Get the friendly service name
             const label = serviceLabels[serviceId] || serviceId;
 
-            // If this service doesn't exist in our data yet, create it
             if (!serviceTimeData[label]) {
               serviceTimeData[label] = {
-                totalTime: 0,  // Sum of all service times
-                count: 0       // Number of times this service was done
+                totalTime: 0,
+                count: 0
               };
             }
-
-            // Add this patient's time to the total
             serviceTimeData[label].totalTime += serviceTimeMinutes;
             serviceTimeData[label].count += 1;
           });
@@ -454,28 +422,24 @@ const Analytics = () => {
     // Calculate the average for each service and sort by slowest first
     const avgServiceTime = Object.entries(serviceTimeData)
       .map(([service, data]) => ({
-        service: service,// Service name
-        avgTime: Math.round(data.totalTime / data.count), // Average time
-        count: data.count// How many times done
+        service: service,
+        avgTime: Math.round(data.totalTime / data.count),
+        count: data.count
       }))
       .sort((a, b) => b.avgTime - a.avgTime)// Sort slowest first
-      .slice(0, 5);// Keep top only
+      .slice(0, 5);
 
     // Calculate average queue time (waiting time before being called)
     const queueTimeData = [];
 
     filteredPatients.forEach(p => {
-      // Only look at patients who have been called (have both registeredAt and calledAt)
       if (p.registeredAt && p.calledAt) {
 
-        // Convert timestamp strings to Date objects
         const registeredTime = new Date(p.registeredAt);
         const calledTime = new Date(p.calledAt);
 
-        // Calculate the difference in minutes
         const queueTimeMinutes = Math.round((calledTime - registeredTime) / 60000);
 
-        // Only count reasonable times (1-240 minutes = 4 hours max)
         if (queueTimeMinutes > 0 && queueTimeMinutes <= 240) {
           queueTimeData.push(queueTimeMinutes);
         }
@@ -487,7 +451,7 @@ const Analytics = () => {
       ? Math.round(queueTimeData.reduce((sum, time) => sum + time, 0) / queueTimeData.length)
       : 0;
 
-    // --- QUEUE TIME PREDICTION LOGIC ---
+    // QUEUE TIME PREDICTION LOGIC 
     const waitTimesByHour = {};
     const waitTimesByService = {};
 
@@ -527,7 +491,6 @@ const Analytics = () => {
       return Math.round(baseWait + congestionFactor);
     };
 
-    // Example Prediction for 10 AM and 'follow-up' (standardized consultation)
     const exampleHour = 10;
     const exampleServiceKey = 'follow-up';
     const exampleServiceLabel = serviceLabels[exampleServiceKey] || "Consultation";
@@ -547,7 +510,7 @@ const Analytics = () => {
         p.symptoms.forEach(symptom => {
           p.services.forEach(service => {
             const serviceLabel = serviceLabels[service] || service;
-            const key = `${symptom}|${serviceLabel}`; // Create unique key
+            const key = `${symptom}|${serviceLabel}`;
 
             if (!symptomServiceMap[key]) {
               symptomServiceMap[key] = {
@@ -563,37 +526,32 @@ const Analytics = () => {
       }
     });
 
-    // Convert to array and sort
     const topCorrelations = Object.values(symptomServiceMap)
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
-    // --- PATIENT VOLUME PREDICTION ---
+    // PATIENT VOLUME PREDICTION 
     const tomorrow = new Date(now);
     tomorrow.setDate(now.getDate() + 1);
-    // Skip Sunday (0), predict for Monday instead
     if (tomorrow.getDay() === 0) {
       tomorrow.setDate(tomorrow.getDate() + 1);
     }
-    const tomorrowDayIdx = tomorrow.getDay(); // 0-6
+    const tomorrowDayIdx = tomorrow.getDay();
     const tomorrowDayName = dayNames[tomorrowDayIdx];
 
-    // Filter all historical patients who registered on this same weekday
     const historicalSameDayPatients = patients.filter(p => {
       if (!p.registeredAt) return false;
       return new Date(p.registeredAt).getDay() === tomorrowDayIdx;
     });
 
-    // Count unique dates for this weekday to calculate average
     const uniqueDates = new Set(historicalSameDayPatients.map(p =>
       new Date(p.registeredAt).toISOString().split('T')[0]
     )).size || 1;
 
     const avgForTomorrow = historicalSameDayPatients.length / uniqueDates;
     const minPred = Math.max(0, Math.floor(avgForTomorrow * 0.9));
-    const maxPred = Math.ceil(avgForTomorrow * 1.1) + (tomorrowDayIdx === 0 || tomorrowDayIdx === 6 ? 0 : 5); // Add buffer for weekdays
+    const maxPred = Math.ceil(avgForTomorrow * 1.1) + (tomorrowDayIdx === 0 || tomorrowDayIdx === 6 ? 0 : 5);
 
-    // Peak hour for this specific weekday
     const weekdayHourCounts = {};
     historicalSameDayPatients.forEach(p => {
       const h = new Date(p.registeredAt).getHours();
@@ -638,12 +596,10 @@ const Analytics = () => {
       weeklyTrend,
       trendData: trendDataMap[trendFilter]
     };
-  }, [filteredPatients, avgWaitTime, trendFilter, patients]); // Added 'patients' to dependency array
+  }, [filteredPatients, avgWaitTime, trendFilter, patients]);
 
-  // Colors for charts
   const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
-  // Heatmap component (simplified grid visualization) - 8am to 5pm
   const HeatmapChart = ({ data }) => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const maxCount = Math.max(...data.map(d => d.count));
@@ -694,12 +650,10 @@ const Analytics = () => {
     );
   };
 
-  // Download Analytics Report Function
-  // Helper function to get the week period (Monday to current day)
   const getWeekPeriod = (date) => {
     const current = new Date(date);
     const day = current.getDay();
-    const diff = current.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
+    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(current.setDate(diff));
 
     const formatDate = (d) => {
@@ -725,7 +679,6 @@ const Analytics = () => {
       minute: '2-digit'
     });
 
-    // NEW: Format Analysis Period precisely
     let analysisPeriod = getDateFilterLabel();
     const formatSmallDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -742,14 +695,12 @@ const Analytics = () => {
       analysisPeriod = formatSmallDate(now);
     }
 
-    // Add logo - centered above clinic name
     const logoWidth = 30;
     const logoHeight = 30;
     const logoX = 105 - (logoWidth / 2);
     const logoY = 10;
     doc.addImage(logoImage, 'JPEG', logoX, logoY, logoWidth, logoHeight);
 
-    // Clinic Name - positioned below logo
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
@@ -793,7 +744,6 @@ const Analytics = () => {
     });
     yPosition = doc.lastAutoTable.finalY + 10;
 
-    // AI Predictions Section
     doc.setFont(undefined, 'bold');
     doc.setFontSize(12);
     doc.text('Intelligent Predictions', 14, yPosition);
@@ -824,12 +774,12 @@ const Analytics = () => {
         startY: yPosition,
         head: [['Rank', 'Service', 'Avg Time (mins)', 'Patient Count']],
         body: analytics.avgServiceTime.map((item, idx) => [
-          idx + 1,                    // Rank number
-          item.service,               // Service name
-          item.avgTime,               // Average time in minutes
-          item.count                  // How many times completed
+          idx + 1,
+          item.service,
+          item.avgTime,
+          item.count
         ]),
-        headStyles: { fillColor: [245, 158, 11] },  // Orange header
+        headStyles: { fillColor: [245, 158, 11] },
         styles: { fontSize: 9 },
         margin: { left: 14 }
       });
@@ -841,7 +791,6 @@ const Analytics = () => {
       yPosition += 10;
     }
 
-    // Patient Count Trend (Dynamic based on filter)
     if (yPosition > 250) {
       doc.addPage();
       yPosition = 20;
@@ -850,20 +799,20 @@ const Analytics = () => {
     let trendTitle = 'Patient Count Trend';
     let trendHead = [['Time', 'Patient Count']];
     let trendBody = [];
-    let trendColor = [139, 92, 246]; // Default purple
+    let trendColor = [139, 92, 246];
 
     if (dateFilter === 'today') {
       trendTitle = 'Hourly Patient Trend (Today)';
       trendBody = analytics.hourlyTrend.map(d => [d.label, d.count]);
-      trendColor = [59, 130, 246]; // Blue
+      trendColor = [59, 130, 246];
     } else if (dateFilter === 'thisWeek' || dateFilter === 'lastWeek') {
       trendTitle = `Daily Patient Trend (${getDateFilterLabel()})`;
       trendBody = analytics.dailyTrend.map(d => [d.label, d.count]);
-      trendColor = [16, 185, 129]; // Green
+      trendColor = [16, 185, 129];
     } else {
       trendTitle = 'Weekly Patient Trend (Last 8 Weeks)';
       trendBody = analytics.weeklyTrend.map(d => [d.label, d.count]);
-      trendColor = [139, 92, 246]; // Purple
+      trendColor = [139, 92, 246];
     }
 
     doc.setFont(undefined, 'bold');
@@ -983,39 +932,6 @@ const Analytics = () => {
       doc.addPage();
       yPosition = 20;
     }
-
-    // Peak Registration Hours
-    {/*doc.setFont(undefined, 'bold');
-  doc.setFontSize(12);
-  doc.text('Peak Hours', 14, yPosition);
-  yPosition += 6;
-
-  if (analytics.peakHours.length > 0) {
-    autoTable(doc, {
-      startY: yPosition,
-      head: [['Time Slot', 'Patient Count']],
-      body: analytics.peakHours.map(peak => [
-        peak.time,
-        peak.count
-      ]),
-      headStyles: { fillColor: [245, 158, 11] },
-      styles: { fontSize: 9 },
-      margin: { left: 14 }
-    });
-    yPosition = doc.lastAutoTable.finalY + 10;
-  } else {
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-    doc.text('No peak hour data available', 14, yPosition);
-    yPosition += 10;
-  }
-
-  // Check if we need a new page
-  if (yPosition > 250) {
-    doc.addPage();
-    yPosition = 20;
-}*/}
-
     // Symptom-to-Service Correlation
     if (yPosition > 220) {
       doc.addPage();

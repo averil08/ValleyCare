@@ -3,7 +3,6 @@ import { PatientContext, formatQueueNumber } from './PatientContext';
 import { doctors } from './doctorData';
 
 // Matches doctor names even if the DB includes middle initials/extra punctuation.
-// Example: "Dr. Rajiv D. Laoagan" should match "Dr. Rajiv Laoagan".
 const normalizeDoctorNameForMatch = (name) => {
   if (!name) return '';
   return name
@@ -13,42 +12,41 @@ const normalizeDoctorNameForMatch = (name) => {
     .split(/\s+/)
     .map(s => s.trim())
     .filter(Boolean)
-    .filter(token => token.length > 1) // drop middle initials (single-letter tokens)
+    .filter(token => token.length > 1) // drop middle initials 
     .join(' ')
     .toLowerCase();
 };
 
 // Notification Sound Logic (Web Audio API)
 const playChime = () => {
-    try {
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        const playNote = (freq, startTime, duration, volume = 0.5) => {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            
-            osc.type = 'triangle'; // Triangle waves cut through noise better than sine
-            osc.frequency.setValueAtTime(freq, startTime);
-            
-            gain.gain.setValueAtTime(0, startTime);
-            gain.gain.linearRampToValueAtTime(volume, startTime + 0.02); // Sharper attack
-            gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.start(startTime);
-            osc.stop(startTime + duration);
-        };
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const now = audioCtx.currentTime;
-        // Stronger triple-tone "attention" chime (C5, E5, G5)
-        playNote(523.25, now, 0.8);        // C5
-        playNote(659.25, now + 0.15, 0.8);   // E5
-        playNote(783.99, now + 0.3, 1.2);    // G5 (sustained)
-    } catch (err) {
-        console.error("Audio error:", err);
-    }
+    const playNote = (freq, startTime, duration, volume = 0.5) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, startTime);
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(volume, startTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+
+    const now = audioCtx.currentTime;
+    playNote(523.25, now, 0.8);
+    playNote(659.25, now + 0.15, 0.8);
+    playNote(783.99, now + 0.3, 1.2);
+  } catch (err) {
+    console.error("Audio error:", err);
+  }
 };
 
 const ClinicTVDisplay = () => {
@@ -58,17 +56,15 @@ const ClinicTVDisplay = () => {
   const [syncedActiveDoctors, setSyncedActiveDoctors] = useState(activeDoctors || []);
   const [isSoundEnabled, setIsSoundEnabled] = useState(() => {
     const saved = localStorage.getItem('clinicTV_soundEnabled');
-    return saved === 'true'; // Restore from storage
+    return saved === 'true';
   });
   const lastCalledNumbersRef = useRef({});
   const isFirstLoadRef = useRef(true);
 
-  // ✅ Save sound preference to localStorage
   useEffect(() => {
     localStorage.setItem('clinicTV_soundEnabled', isSoundEnabled);
   }, [isSoundEnabled]);
 
-  // Update time every second
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -76,7 +72,6 @@ const ClinicTVDisplay = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // ✅ CRITICAL: Listen for localStorage changes from Dashboard
   useEffect(() => {
     const handleStorageChange = (e) => {
       // Sync Patients
@@ -107,7 +102,6 @@ const ClinicTVDisplay = () => {
     // Listen for storage events (from other tabs)
     window.addEventListener('storage', handleStorageChange);
 
-    // Also check localStorage on mount in case data exists
     const storedPatients = localStorage.getItem('patients-sync');
     if (storedPatients) {
       try {
@@ -134,14 +128,12 @@ const ClinicTVDisplay = () => {
     };
   }, []);
 
-  // Also sync with context patients (for initial load)
   useEffect(() => {
     if (patients && patients.length > 0) {
       setSyncedPatients(patients);
     }
   }, [patients]);
 
-  // Sync initial activeDoctors from context
   useEffect(() => {
     if (activeDoctors) {
       setSyncedActiveDoctors(activeDoctors);
@@ -166,12 +158,10 @@ const ClinicTVDisplay = () => {
     });
   };
 
-  // ✅ Use syncedPatients instead of patients
   const doctorsInfo = useMemo(() => {
     const currentData = syncedPatients || [];
     console.log('🔄 Recalculating doctor info with', currentData.length, 'patients');
 
-    // ✅ ADD THIS HELPER FUNCTION
     const isToday = (dateString) => {
       if (!dateString) return false;
       const date = new Date(dateString);
@@ -183,7 +173,6 @@ const ClinicTVDisplay = () => {
       return date >= startOfToday && date <= endOfToday;
     };
 
-    // Appointment patients should be keyed off appointmentDateTime, not registeredAt.
     const isForToday = (p) => {
       if (!p) return false;
       if (p.type === 'Appointment' && p.appointmentDateTime) return isToday(p.appointmentDateTime);
@@ -251,10 +240,8 @@ const ClinicTVDisplay = () => {
     doctorsInfo.forEach(doc => {
       if (doc.isActive && doc.currentServing) {
         currentCalled[doc.doctorId] = doc.currentServing;
-        
-        // If this doctor has a different serving number than before
+
         if (lastCalledNumbersRef.current[doc.doctorId] !== doc.currentServing) {
-          // Don't play on the very first load of the page
           if (!isFirstLoadRef.current) {
             console.log(`🔔 Playing chime for Doctor ${doc.doctorName}, Patient #${doc.currentServing}`);
             shouldPlaySound = true;
@@ -263,22 +250,19 @@ const ClinicTVDisplay = () => {
       }
     });
 
-    // Update the ref for next comparison
     lastCalledNumbersRef.current = currentCalled;
-    
+
     if (shouldPlaySound && isSoundEnabled) {
       playChime();
     }
-    
-    // After first pass, we are no longer on first load
+
     if (doctorsInfo.length > 0) {
-        isFirstLoadRef.current = false;
+      isFirstLoadRef.current = false;
     }
   }, [doctorsInfo, isSoundEnabled]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-100 via-white to-red-100 p-4">
-      {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-3 mb-4 rounded-lg shadow-lg flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="text-2xl font-bold">DE VALLEY</div>
@@ -288,28 +272,26 @@ const ClinicTVDisplay = () => {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {/* Sound Toggle */}
-          <button 
+          <button
             onClick={() => setIsSoundEnabled(!isSoundEnabled)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
-                isSoundEnabled 
-                ? 'bg-white text-green-700 shadow-inner' 
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isSoundEnabled
+                ? 'bg-white text-green-700 shadow-inner'
                 : 'bg-green-800 text-green-300 hover:bg-green-700'
-            }`}
+              }`}
           >
             {isSoundEnabled ? (
-                <>
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    SOUND ON
-                </>
+              <>
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                SOUND ON
+              </>
             ) : (
-                <>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                    SOUND OFF
-                </>
+              <>
+                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                SOUND OFF
+              </>
             )}
           </button>
-          
+
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
             <span className="text-sm font-semibold">LIVE</span>
