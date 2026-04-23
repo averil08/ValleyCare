@@ -1741,9 +1741,9 @@ const PatientCard = ({ patient, selectedPatient, onClick, onFollowUp }) => {
             className={`group cursor-pointer relative p-4 sm:p-5 rounded-2xl transition-all duration-300 border shadow-sm hover:shadow-lg hover:-translate-y-0.5 ${isSelected ? 'bg-emerald-600 border-emerald-600 shadow-emerald-200' : 'bg-white border-slate-100 hover:border-emerald-200'}`}
         >
             <div className="flex items-center gap-3 sm:gap-4">
-                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl flex flex-col items-center justify-center font-bold relative transition-all shrink-0 ${isSelected ? 'bg-white/20 text-white' : (patient.isPriority ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-700')}`}>
+                <div className={`w-fit min-w-[3.5rem] sm:min-w-[4rem] px-2 h-14 sm:h-16 rounded-xl flex flex-col items-center justify-center font-bold relative transition-all shrink-0 ${isSelected ? 'bg-white/20 text-white' : (patient.isPriority ? 'bg-amber-100 text-amber-700' : 'bg-emerald-50 text-emerald-700')}`}>
                     <span className="text-[11px] opacity-60 leading-none mb-1">Queue</span>
-                    <span className="text-base sm:text-lg font-black leading-none">{patient.displayQueueNo}</span>
+                    <span className="text-base sm:text-lg font-black leading-none px-1">{patient.displayQueueNo}</span>
                     {patient.status === 'in progress' && (
                         <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 ${isSelected ? 'bg-white border-emerald-600 animate-ping' : 'bg-emerald-500 border-white animate-pulse'}`} />
                     )}
@@ -1889,10 +1889,10 @@ const PatientDetail = ({ patient, setSelectedPatient, patients, workspaceRef, ha
                         <div className="h-1.5 w-full bg-gradient-to-r from-emerald-400 to-emerald-600" />
                         <CardContent className="p-6 sm:p-8">
                             <div className="flex flex-col sm:flex-row gap-6 sm:gap-8 items-start">
-                                <div className="hidden sm:flex flex-col items-center justify-center w-40 h-32 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 relative overflow-hidden group">
+                                <div className="hidden sm:flex flex-col items-center justify-center w-fit min-w-[1.125rem] px-6 h-32 rounded-xl bg-emerald-50 text-emerald-700 shrink-0 relative overflow-hidden group">
                                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-transparent opacity-50" />
                                     <span className="text-xs font-bold uppercase tracking-widest text-emerald-600/60 relative z-10 mb-0.5">Queue</span>
-                                    <span className="text-4xl sm:text-5xl font-bold relative z-10 leading-none tracking-tighter">{patient.displayQueueNo}</span>
+                                    <span className="text-4xl sm:text-5xl font-bold relative z-10 leading-none tracking-tighter px-2">{patient.displayQueueNo}</span>
                                 </div>
                                 <div className="flex-1 min-w-0 space-y-5">
                                     <div>
