@@ -575,13 +575,13 @@ function Checkin() {
       const isApptToday = selectedPatientType === "Appointment" && isToday(formData.appointmentDateTime);
       const hasServices = formData.services && formData.services.length > 0;
 
-      if (isWalkIn || isApptToday || hasServices) {
+      if (isWalkIn || isApptToday) {
         autoAssignedDoctor = assignDoctor(formData, patients, activeDoctors || []);
         if (!autoAssignedDoctor) {
           console.log('⏳ No active doctor match at registration time — will be assigned when a queue starts.');
         }
       } else {
-        console.log('⏳ Future appointment with blank services — deferring assignment until the day.');
+        console.log('⏳ Future appointment — deferring assignment until the day.');
       }
     }
     const finalDoctor = autoAssignedDoctor;

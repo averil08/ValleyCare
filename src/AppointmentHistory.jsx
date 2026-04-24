@@ -58,14 +58,14 @@ const AppointmentHistory = () => {
       } else if (appointment.appointmentStatus === 'rejected') {
         return 'not-approved';
       } else if (appointment.appointmentStatus === 'cancelled' || appointment.appointmentStatus === 'withdrawn') {
-        return 'withdrawn';
+        return 'cancelled';
       } else if (appointment.appointmentStatus === 'accepted') {
         if (appointment.status === 'done') {
           return 'completed';
         } else if (appointment.status === 'in progress') {
           return 'in-progress';
         } else if (appointment.status === 'cancelled') {
-          return 'cancelled';
+          return 'queue-cancelled';
         } else {
           return 'upcoming';
         }
@@ -78,7 +78,7 @@ const AppointmentHistory = () => {
     } else if (appointment.status === 'in progress') {
       return 'in-progress';
     } else if (appointment.status === 'cancelled') {
-      return 'cancelled';
+      return 'queue-cancelled';
     } else {
       return 'upcoming';
     }
@@ -159,8 +159,6 @@ const AppointmentHistory = () => {
       return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">Not Accepted</Badge>;
     } else if (category === 'cancelled') {
       return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Cancelled</Badge>;
-    } else if (category === 'withdrawn') {
-      return <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100">Withdrawn</Badge>;
     } else {
       return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Upcoming</Badge>;
     }
@@ -175,7 +173,10 @@ const AppointmentHistory = () => {
   };
 
   const stats = React.useMemo(() => {
-    const visitsOnly = myAppointments.filter(a => getAppointmentStatusCategory(a) !== 'not-approved');
+    const visitsOnly = myAppointments.filter(a => {
+      const category = getAppointmentStatusCategory(a);
+      return category !== 'not-approved' && category !== 'cancelled';
+    });
     return {
       total: visitsOnly.length,
       completed: visitsOnly.filter(a => getAppointmentStatusCategory(a) === 'completed').length,
@@ -193,7 +194,6 @@ const AppointmentHistory = () => {
       pending: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'pending').length,
       'not-approved': myAppointments.filter(a => getAppointmentStatusCategory(a) === 'not-approved').length,
       cancelled: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'cancelled').length,
-      withdrawn: myAppointments.filter(a => getAppointmentStatusCategory(a) === 'withdrawn').length,
     };
   }, [myAppointments]);
 
