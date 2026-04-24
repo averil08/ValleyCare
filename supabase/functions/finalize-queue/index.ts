@@ -21,22 +21,22 @@ serve(async (req) => {
     // Determine date of today and tomorrow (YYYY-MM-DD in Manila time)
     const manilaTimeOpts = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' };
     const manilaTodayStr = new Intl.DateTimeFormat('en-CA', manilaTimeOpts).format(new Date()); // Returns "YYYY-MM-DD"
-    
+
     const manilaTomorrow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
     manilaTomorrow.setDate(manilaTomorrow.getDate() + 1);
     const manilaTomorrowStr = new Intl.DateTimeFormat('en-CA', manilaTimeOpts).format(manilaTomorrow);
-    
+
     console.log(`🚀 [CRON] Server Time (UTC): ${new Date().toISOString()}`);
     console.log(`🚀 [CRON] Target Manila Date (Today): ${manilaTodayStr}`);
     console.log(`🚀 [CRON] Target Manila Date (Tomorrow): ${manilaTomorrowStr}`);
 
     //Calculate daily date base
-    const manilaNow = new Date(manilaTodayStr); 
+    const manilaNow = new Date(manilaTodayStr);
     const utcNow = Date.UTC(manilaNow.getFullYear(), manilaNow.getMonth(), manilaNow.getDate());
     const start = Date.UTC(2024, 0, 1);
     const dayOffset = Math.floor((utcNow - start) / (1000 * 60 * 60 * 24));
     const dailyBase = dayOffset * 20000;
-    
+
     const rangeStart = dailyBase + 10001;
     const rangeEnd = dailyBase + 19999;
 
@@ -56,15 +56,15 @@ serve(async (req) => {
     //Filter today's date
     const todayAppointments = (candidates || []).filter(p => {
       if (!p.appointment_datetime) return false;
-      
+
       // Convert the patient's appointment date to Manila YYYY-MM-DD
-      const patientDateStr = new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'Asia/Manila', 
-        year: 'numeric', month: '2-digit', day: '2-digit' 
+      const patientDateStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric', month: '2-digit', day: '2-digit'
       }).format(new Date(p.appointment_datetime));
 
       const isToday = patientDateStr === manilaTodayStr;
-      
+
       // Filter for unassigned queue number
       const isUnassigned = !p.queue_no || (p.queue_no >= 900000 && p.queue_no < 1000000);
 
@@ -78,15 +78,15 @@ serve(async (req) => {
     // Filter for tomorrow's appointments
     const tomorrowAppointments = (candidates || []).filter(p => {
       if (!p.appointment_datetime) return false;
-      
+
       // Convert the patient's appointment date to Manila YYYY-MM-DD
-      const patientDateStr = new Intl.DateTimeFormat('en-CA', { 
-        timeZone: 'Asia/Manila', 
-        year: 'numeric', month: '2-digit', day: '2-digit' 
+      const patientDateStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric', month: '2-digit', day: '2-digit'
       }).format(new Date(p.appointment_datetime));
 
       const isTomorrow = patientDateStr === manilaTomorrowStr;
-      
+
       // Check if reminder was already sent
       const notReminded = p.rejection_reason !== 'REMINDER_SENT';
 
@@ -148,7 +148,12 @@ serve(async (req) => {
           timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit'
         });
 
+        const authHeader = req.headers.get('Authorization') || `Bearer ${supabaseServiceKey}`;
+
         const { data: emailData, error: emailErrObj } = await supabase.functions.invoke('send-email', {
+          headers: {
+            Authorization: authHeader
+          },
           body: {
             to: patient.patient_email,
             subject: "Your Official Queue Number for Today - Valley Care Clinic",
@@ -193,14 +198,19 @@ serve(async (req) => {
         const appointmentTime = new Date(patient.appointment_datetime).toLocaleTimeString("en-US", {
           timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit'
         });
-        
+
         const displayNo = (() => {
-            const num = patient.queue_no;
-            if (!num || (num >= 900000 && num < 1000000)) return '#A--';
-            return `#A${String(num % 10000).padStart(3, '0')}`;
+          const num = patient.queue_no;
+          if (!num || (num >= 900000 && num < 1000000)) return '#A--';
+          return `#A${String(num % 10000).padStart(3, '0')}`;
         })();
 
+        const authHeader = req.headers.get('Authorization') || `Bearer ${supabaseServiceKey}`;
+
         const { data: emailData, error: emailErrObj } = await supabase.functions.invoke('send-email', {
+          headers: {
+            Authorization: authHeader
+          },
           body: {
             to: patient.patient_email,
             subject: "Reminder: Appointment Tomorrow - Valley Care Clinic",
@@ -225,7 +235,7 @@ serve(async (req) => {
           console.error(`⚠️ Reminder Email API rejected the request for ${patient.name}:`, emailErrObj);
         } else {
           console.log(`✉️ Reminder Email successfully triggered for ${patient.name}`);
-          
+
           // Mark as reminded ONLY upon success
           const { error: updateError } = await supabase
             .from('patients')
@@ -245,9 +255,9 @@ serve(async (req) => {
       reminderCount++;
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      message: `Successfully finalized ${processedCount} appointments and sent ${reminderCount} reminders.` 
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Successfully finalized ${processedCount} appointments and sent ${reminderCount} reminders.`
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
