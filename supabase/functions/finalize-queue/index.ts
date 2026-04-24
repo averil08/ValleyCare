@@ -148,7 +148,12 @@ serve(async (req) => {
           timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit'
         });
 
+        const authHeader = req.headers.get('Authorization') || `Bearer ${supabaseServiceKey}`;
+
         const { data: emailData, error: emailErrObj } = await supabase.functions.invoke('send-email', {
+          headers: {
+            Authorization: authHeader
+          },
           body: {
             to: patient.patient_email,
             subject: "Your Official Queue Number for Today - Valley Care Clinic",
@@ -200,7 +205,12 @@ serve(async (req) => {
             return `#A${String(num % 10000).padStart(3, '0')}`;
         })();
 
+        const authHeader = req.headers.get('Authorization') || `Bearer ${supabaseServiceKey}`;
+
         const { data: emailData, error: emailErrObj } = await supabase.functions.invoke('send-email', {
+          headers: {
+            Authorization: authHeader
+          },
           body: {
             to: patient.patient_email,
             subject: "Reminder: Appointment Tomorrow - Valley Care Clinic",
