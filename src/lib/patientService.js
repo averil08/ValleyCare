@@ -74,14 +74,12 @@ export const getMaxQueueNumber = async (type = 'walk-in', date = null) => {
 
     const isAppointment = (type?.toLowerCase() === 'appointment');
     
-    // Day-Offset Calculation (matches supabaseClient.js UTC lockdown)
     const now = targetDate;
     const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
     const start = Date.UTC(2024, 0, 1);
     const dayOffset = Math.floor((utcNow - start) / (1000 * 60 * 60 * 24));
     const dailyBase = dayOffset * 20000;
 
-    // Fixed Ranges: Walk-in (1-9999), Appointment (10001-19999)
     const rangeStart = isAppointment ? (dailyBase + 10001) : (dailyBase + 1);
     const rangeEnd = isAppointment ? (dailyBase + 19999) : (dailyBase + 9999);
     
@@ -89,8 +87,7 @@ export const getMaxQueueNumber = async (type = 'walk-in', date = null) => {
 
     console.log(`🔍 Looking for max queue in range ${rangeStart} to ${rangeEnd} for ${type}`);
 
-    // Fetch the absolute maximum queue number in the day's block, ignoring all other filters.
-    // This guarantees the next number is truly globally sequential (e.g. W01, W02, W03)
+    // Fetch the maximum queue number for today
     const { data, error } = await supabase
       .from('patients')
       .select('queue_no')
@@ -104,7 +101,7 @@ export const getMaxQueueNumber = async (type = 'walk-in', date = null) => {
       return { success: false, error: error.message, maxQueueNo: rangeStart - 1 };
     }
 
-    // Return the max number found, or the range base if none found
+    // Return max number found
     const maxVal = data?.[0]?.queue_no || (rangeStart - 1);
     return { success: true, maxQueueNo: maxVal };
   } catch (error) {
