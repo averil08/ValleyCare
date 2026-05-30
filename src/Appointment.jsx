@@ -1,6 +1,7 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect, useMemo } from 'react';
 import { doctors } from './doctorData';
 import Sidebar from "@/components/Sidebar";
+import Pagination from '@/components/Pagination';
 import { Calendar, CalendarDays, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,10 @@ const Appointment = () => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Date Filtering 
   const [dateFilter, setDateFilter] = useState('all');
@@ -175,6 +180,19 @@ const Appointment = () => {
 
 
   const filteredAppointments = getFilteredAppointments();
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeFilter, dateFilter, customStartDate, customEndDate]);
+
+  // Paginated appointments
+  const paginatedAppointments = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredAppointments.slice(start, start + itemsPerPage);
+  }, [filteredAppointments, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
 
   // Service labels
   const serviceLabels = {
@@ -1078,7 +1096,18 @@ const Appointment = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                {renderAppointmentTable(filteredAppointments)}
+                {renderAppointmentTable(paginatedAppointments)}
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={setCurrentPage}
+                  totalItems={filteredAppointments.length}
+                  itemsPerPage={itemsPerPage}
+                  onItemsPerPageChange={(val) => {
+                    setItemsPerPage(val);
+                    setCurrentPage(1);
+                  }}
+                />
               </CardContent>
             </Card>
           )}

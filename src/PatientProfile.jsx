@@ -1,6 +1,7 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo, useEffect } from 'react';
 import { PatientContext } from "./PatientContext";
 import Sidebar from "@/components/Sidebar";
+import Pagination from '@/components/Pagination';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,12 @@ const PatientProfile = () => {
   const [isVisitDetailModalOpen, setIsVisitDetailModalOpen] = useState(false);
 
   const [visitStatusFilter, setVisitStatusFilter] = useState('all');
+
+  // Pagination State
+  const [patientCurrentPage, setPatientCurrentPage] = useState(1);
+  const [patientItemsPerPage, setPatientItemsPerPage] = useState(10);
+  const [visitCurrentPage, setVisitCurrentPage] = useState(1);
+  const [visitItemsPerPage, setVisitItemsPerPage] = useState(5);
 
   const serviceLabels = {
     pedia: "Pediatric", adult: "Adult", senior: "Senior (65+)",
@@ -362,6 +369,19 @@ const PatientProfile = () => {
     return matchesSearch && matchesDate;
   });
 
+  // Reset patient page when filters change
+  useEffect(() => {
+    setPatientCurrentPage(1);
+  }, [searchTerm, dateFilter, customStartDate, customEndDate]);
+
+  // Paginate patients
+  const paginatedPatients = useMemo(() => {
+    const start = (patientCurrentPage - 1) * patientItemsPerPage;
+    return filteredPatients.slice(start, start + patientItemsPerPage);
+  }, [filteredPatients, patientCurrentPage, patientItemsPerPage]);
+
+  const patientTotalPages = Math.ceil(filteredPatients.length / patientItemsPerPage);
+
 
 
   const saveDiagnosis = (queueNo, diagnosis) => {
@@ -402,6 +422,19 @@ const PatientProfile = () => {
 
     return selectedPatient.visits.filter(visit => getVisitStatusCategory(visit) === visitStatusFilter);
   }, [selectedPatient, visitStatusFilter]);
+
+  // Reset visit page when selected patient or status filter changes
+  useEffect(() => {
+    setVisitCurrentPage(1);
+  }, [selectedPatient, visitStatusFilter]);
+
+  // Paginate visits
+  const paginatedVisits = useMemo(() => {
+    const start = (visitCurrentPage - 1) * visitItemsPerPage;
+    return filteredVisits.slice(start, start + visitItemsPerPage);
+  }, [filteredVisits, visitCurrentPage, visitItemsPerPage]);
+
+  const visitTotalPages = Math.ceil(filteredVisits.length / visitItemsPerPage);
 
   // Calculate visit status counts
   const visitStatusCounts = useMemo(() => {
@@ -669,7 +702,7 @@ const PatientProfile = () => {
                   <>
                     {/* Mobile Card View */}
                     <div className="block lg:hidden p-4">
-                      {filteredPatients.map((patient, idx) => renderPatientCard(patient, idx))}
+                      {paginatedPatients.map((patient, idx) => renderPatientCard(patient, idx))}
                     </div>
 
                     {/* Desktop Table View */}
@@ -687,7 +720,7 @@ const PatientProfile = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredPatients.map((patient, idx) => (
+                          {paginatedPatients.map((patient, idx) => (
                             <TableRow
                               key={idx}
                               className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -763,6 +796,19 @@ const PatientProfile = () => {
                         </TableBody>
                       </Table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    <Pagination
+                      currentPage={patientCurrentPage}
+                      totalPages={patientTotalPages}
+                      onPageChange={setPatientCurrentPage}
+                      totalItems={filteredPatients.length}
+                      itemsPerPage={patientItemsPerPage}
+                      onItemsPerPageChange={(val) => {
+                        setPatientItemsPerPage(val);
+                        setPatientCurrentPage(1);
+                      }}
+                    />
                   </>
                 )}
               </CardContent>
@@ -1084,7 +1130,7 @@ const PatientProfile = () => {
                   <>
                     {/* Mobile Card View */}
                     <div className="block lg:hidden space-y-3 px-4">
-                      {filteredVisits.map((visit, idx) => {
+                      {paginatedVisits.map((visit, idx) => {
                         const originalIdx = selectedPatient.visits.indexOf(visit);
                         const visitNumber = selectedPatient.visits.length - originalIdx;
                         return renderVisitCardMobile(visit, originalIdx);
@@ -1105,7 +1151,7 @@ const PatientProfile = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredVisits.map((visit, idx) => {
+                          {paginatedVisits.map((visit, idx) => {
                             const originalIdx = selectedPatient.visits.indexOf(visit);
                             const visitNumber = selectedPatient.visits.length - originalIdx;
                             return (
@@ -1168,6 +1214,20 @@ const PatientProfile = () => {
                         </TableBody>
                       </Table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    <Pagination
+                      currentPage={visitCurrentPage}
+                      totalPages={visitTotalPages}
+                      onPageChange={setVisitCurrentPage}
+                      totalItems={filteredVisits.length}
+                      itemsPerPage={visitItemsPerPage}
+                      onItemsPerPageChange={(val) => {
+                        setVisitItemsPerPage(val);
+                        setVisitCurrentPage(1);
+                      }}
+                      itemsPerPageOptions={[5, 10, 20]}
+                    />
                   </>
                 )}
               </CardContent>
