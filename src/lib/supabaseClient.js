@@ -615,3 +615,85 @@ export const createDoctorProfile = async ({
 
   return { success: true };
 };
+
+// ─── REGISTER CLINIC STAFF ───────────────────────────────────────────────────
+// Registers a new clinic staff (doctor or secretary): creates Supabase auth user,
+// clinic_staff record, and doctors table entry (if role is doctor).
+export const registerClinicStaff = async ({
+  firstName,
+  lastName,
+  email,
+  password,
+  phone,
+  role, // 'doctor' or 'secretary'
+  specialization = "",
+  services = [],
+  consultationFee = 0,
+  accessPassword = "",
+}) => {
+  const fullName = role === "doctor" ? `Dr. ${firstName} ${lastName}` : `${firstName} ${lastName}`;
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Create auth user
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        phone_number: `+63${phone}`,
+        role: role,
+      },
+    },
+  });
+
+  if (authError) {
+    return { success: false, error: authError.message };
+  }
+
+  // 2. Insert into clinic_staff
+  const { error: staffError } = await supabase.from('clinic_staff').insert([
+    {
+      id: authData.user.id,
+      email: cleanEmail,
+      staff_role: role,
+      full_name: fullName,
+      phone_number: `+63${phone}`,
+    },
+  ]);
+
+  if (staffError) {
+    return { success: false, error: staffError.message };
+  }
+
+  // 3. If doctor, insert into doctors table
+  if (role === 'doctor') {
+    const richSpecializations = {
+      specialization: specialization,
+      services: services && services.length > 0 ? services : [specialization.toLowerCase()],
+      consultationPrice: Number(consultationFee || 0),
+      password: accessPassword || "doctor123",
+      phone: `+63${phone}`,
+      email: cleanEmail,
+      schedule: "By Appointment Only",
+      availability: [
+        { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+      ]
+    };
+
+    const { error: doctorError } = await supabase.from('doctors').insert([
+      {
+        name: fullName,
+        specializations: richSpecializations,
+        is_active: true,
+      },
+    ]);
+
+    if (doctorError) {
+      return { success: false, error: doctorError.message };
+    }
+  }
+
+  return { success: true, user: authData.user };
+};
+

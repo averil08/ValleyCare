@@ -579,7 +579,7 @@ function Checkin() {
       const hasServices = formData.services && formData.services.length > 0;
 
       if (isWalkIn || isApptToday) {
-        autoAssignedDoctor = assignDoctor(formData, patients, activeDoctors || []);
+        autoAssignedDoctor = assignDoctor(formData, patients, activeDoctors || [], allDoctors);
         if (!autoAssignedDoctor) {
           console.log('⏳ No active doctor match at registration time — will be assigned when a queue starts.');
         }

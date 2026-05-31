@@ -330,10 +330,84 @@ export const PatientProvider = ({ children }) => {
     }
   };
 
+  const loadDoctorsFromDatabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('doctors')
+        .select('*')
+        .eq('is_active', true);
+      
+      if (error) throw error;
+      
+      if (data) {
+        const dbDoctors = data.map(dbDoc => {
+          let richData = {};
+          if (dbDoc.specializations && typeof dbDoc.specializations === 'object' && !Array.isArray(dbDoc.specializations)) {
+            richData = dbDoc.specializations;
+          }
+          
+          return {
+            id: dbDoc.id,
+            name: dbDoc.name,
+            consultationPrice: richData.consultationPrice !== undefined ? richData.consultationPrice : 1000,
+            specialization: richData.specialization || (Array.isArray(richData.services) && richData.services.length > 0 ? richData.services[0] : "General Practice"),
+            specializations: richData.services || (Array.isArray(dbDoc.specializations) ? dbDoc.specializations : []),
+            doctorServices: richData.services || (Array.isArray(dbDoc.specializations) ? dbDoc.specializations : []),
+            schedule: richData.schedule || "By Appointment Only",
+            availability: richData.availability || [
+              { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+            ],
+            phone: richData.phone || "",
+            email: richData.email || "",
+            password: richData.password || "doctor123"
+          };
+        });
+
+        setAllDoctors(prev => {
+          const merged = [...prev];
+          dbDoctors.forEach(dbDoc => {
+            const idx = merged.findIndex(d => d.id === dbDoc.id || d.name.toLowerCase().trim() === dbDoc.name.toLowerCase().trim());
+            if (idx !== -1) {
+              merged[idx] = { ...merged[idx], ...dbDoc };
+            } else {
+              merged.push(dbDoc);
+            }
+          });
+          return merged;
+        });
+      }
+    } catch (err) {
+      console.error("Error loading doctors from database:", err);
+    }
+  };
+
   useEffect(() => {
     localStorage.removeItem('activeDoctors');
     loadPatientsFromDatabase();
+    loadDoctorsFromDatabase();
   }, [isPatientLoggedIn]);
+
+  useEffect(() => {
+    console.log("🔌 Setting up Supabase Doctors Realtime subscription...");
+    const doctorsChannel = supabase
+      .channel('public:doctors')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'doctors' },
+        (payload) => {
+          console.log('⚡ Doctors Realtime event received:', payload.eventType);
+          loadDoctorsFromDatabase();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Doctors Subscription status:', status);
+      });
+
+    return () => {
+      console.log("🔌 Cleaning up Supabase Doctors subscription...");
+      supabase.removeChannel(doctorsChannel);
+    };
+  }, []);
 
   useEffect(() => {
     patientsRef.current = patients;
@@ -925,7 +999,7 @@ export const PatientProvider = ({ children }) => {
             ...item.patient,
             assignedDoctor: item.doctor
           }))];
-          doctor = assignDoctor(patient, virtualPatients, activeDoctors);
+          doctor = assignDoctor(patient, virtualPatients, activeDoctors, allDoctors);
         }
 
         if (doctor) {
@@ -1036,6 +1110,15 @@ export const PatientProvider = ({ children }) => {
     if (newStatus === "in progress" && patient.status === "waiting") {
       updates.calledAt = new Date().toISOString();
       updates.queueExitTime = new Date().toISOString();
+
+      // Auto-assign doctor if not assigned yet
+      if (!patient.assignedDoctor || !patient.assignedDoctor.id) {
+        const assignedDoctorObj = assignDoctor(patient, patients, activeDoctors, allDoctors);
+        if (assignedDoctorObj) {
+          updates.assignedDoctor = assignedDoctorObj;
+          updates.assigned_doctor_name = assignedDoctorObj.name;
+        }
+      }
     }
 
     if (newStatus === "done" && patient.status === "in progress") {
@@ -1102,7 +1185,7 @@ export const PatientProvider = ({ children }) => {
 
       // Auto-assign if not assigned and it's for today
       if (!assignedDoctor && isForToday(patient)) {
-        assignedDoctor = assignDoctor(patient, patients, activeDoctors);
+        assignedDoctor = assignDoctor(patient, patients, activeDoctors, allDoctors);
       }
 
       // 3. Prepare updates

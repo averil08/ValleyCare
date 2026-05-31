@@ -4,7 +4,7 @@ import {
     Users, Search, Calendar, Clock, User, ChevronRight, ChevronDown,
     MoreHorizontal, History, CheckCircle2, Filter,
     Bell, CalendarDays, Menu, X, Phone, Stethoscope,
-    ArrowLeft, DoorOpen, Activity, XCircle, Eye, EyeOff, ChevronLeft, RotateCcw, MessageSquare
+    ArrowLeft, DoorOpen, Activity, XCircle, Eye, EyeOff, ChevronLeft, RotateCcw, MessageSquare, Settings
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import { PatientContext } from "./PatientContext";
-import { supabase, registerAppointmentPatient } from "./lib/supabaseClient";
+import { supabase, registerAppointmentPatient, updateUserPassword } from "./lib/supabaseClient";
 import { sendAppointmentEmail } from './lib/emailService';
 import { useNavigate } from 'react-router-dom';
 import logoValley from '@/assets/logo-valley.png';
@@ -141,13 +141,19 @@ const DoctorDashboard = () => {
     ];
 
     const [showProfileSettings, setShowProfileSettings] = useState(false);
-    const [showPassword, setShowPassword] = useState(false);
+    const [showPassword, setShowPassword] = useState(false); // Dashboard Access Password
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
     const [profileForm, setProfileForm] = useState({
         firstName: "",
         lastName: "",
         phone: "",
         email: "",
-        password: "",
+        password: "", // Dashboard Access Password
+        specialization: "",
+        currentLoginPassword: "",
+        newLoginPassword: "",
+        confirmLoginPassword: "",
         services: [],
         consultationFee: "",
         scheduleType: "By Appointment Only",
@@ -198,6 +204,10 @@ const DoctorDashboard = () => {
             phone,
             email: currentDoctor.email || "",
             password: currentDoctor.password || "doctor123",
+            specialization: currentDoctor.specialization || "",
+            currentLoginPassword: "",
+            newLoginPassword: "",
+            confirmLoginPassword: "",
             services: currentDoctor.doctorServices || [],
             consultationFee: currentDoctor.consultationPrice != null ? String(currentDoctor.consultationPrice) : "",
             scheduleType: isApptOnly ? "By Appointment Only" : "Regular Schedule",
@@ -206,6 +216,8 @@ const DoctorDashboard = () => {
             endHour: formatHourToString(endH)
         });
         setShowPassword(false);
+        setShowCurrentPassword(false);
+        setShowNewPassword(false);
         setShowProfileSettings(true);
     };
 
@@ -220,20 +232,32 @@ const DoctorDashboard = () => {
             value = value.replace(/\D/g, "").slice(0, 10);
         }
 
-        const normalizedFieldId = fieldId === "firstname" ? "firstName" : fieldId === "lastname" ? "lastName" : fieldId;
+        const normalizedFieldId = 
+            fieldId === "firstname" ? "firstName" : 
+            fieldId === "lastname" ? "lastName" : 
+            fieldId === "currentloginpassword" ? "currentLoginPassword" :
+            fieldId === "newloginpassword" ? "newLoginPassword" :
+            fieldId === "confirmloginpassword" ? "confirmLoginPassword" :
+            fieldId;
         const nextForm = { ...profileForm, [normalizedFieldId]: value };
         setProfileForm(nextForm);
 
         setProfileErrors(prev => ({
             ...prev,
-            [normalizedFieldId]: validateField(normalizedFieldId, value)
+            [normalizedFieldId]: validateField(normalizedFieldId, value, nextForm)
         }));
     };
 
     const handleProfileBlur = (e) => {
         const { id, value } = e.target;
         const fieldId = id.replace(/^prof/, '').toLowerCase();
-        const normalizedFieldId = fieldId === "firstname" ? "firstName" : fieldId === "lastname" ? "lastName" : fieldId;
+        const normalizedFieldId = 
+            fieldId === "firstname" ? "firstName" : 
+            fieldId === "lastname" ? "lastName" : 
+            fieldId === "currentloginpassword" ? "currentLoginPassword" :
+            fieldId === "newloginpassword" ? "newLoginPassword" :
+            fieldId === "confirmloginpassword" ? "confirmLoginPassword" :
+            fieldId;
         
         setProfileErrors(prev => ({
             ...prev,
@@ -241,7 +265,7 @@ const DoctorDashboard = () => {
         }));
     };
 
-    const validateField = (id, value) => {
+    const validateField = (id, value, data = profileForm) => {
         let error = "";
         if (id === "services") {
             if (!value || (Array.isArray(value) && value.length === 0)) {
@@ -257,8 +281,34 @@ const DoctorDashboard = () => {
             }
             return error;
         }
+        if (id === "specialization") {
+            if (!value) {
+                error = "Specialization is required.";
+            }
+            return error;
+        }
+        if (id === "currentLoginPassword") {
+            if ((data.newLoginPassword || data.confirmLoginPassword) && !value) {
+                error = "Current password is required to change password.";
+            }
+            return error;
+        }
+        if (id === "newLoginPassword") {
+            if (value && value.length < 6) {
+                error = "New password must be at least 6 characters.";
+            }
+            return error;
+        }
+        if (id === "confirmLoginPassword") {
+            if (value && data.newLoginPassword && value !== data.newLoginPassword) {
+                error = "Passwords do not match.";
+            }
+            return error;
+        }
         if (!value) {
-            error = "This field is required.";
+            if (id !== "currentLoginPassword" && id !== "newLoginPassword" && id !== "confirmLoginPassword") {
+                error = "This field is required.";
+            }
         } else if (["firstName", "lastName"].includes(id)) {
             if (!/^[a-zA-Z\s]*$/.test(value)) {
                 error = "This field must contain only alphabetic characters.";
@@ -340,6 +390,10 @@ const DoctorDashboard = () => {
             phone: validateField("phone", profileForm.phone),
             email: validateField("email", profileForm.email),
             password: validateField("password", profileForm.password),
+            specialization: validateField("specialization", profileForm.specialization),
+            currentLoginPassword: validateField("currentLoginPassword", profileForm.currentLoginPassword),
+            newLoginPassword: validateField("newLoginPassword", profileForm.newLoginPassword),
+            confirmLoginPassword: validateField("confirmLoginPassword", profileForm.confirmLoginPassword),
             services: validateField("services", profileForm.services),
             consultationFee: validateField("consultationFee", profileForm.consultationFee),
             schedule: profileForm.scheduleType === "Regular Schedule" && profileForm.selectedDays.length === 0 
@@ -357,6 +411,21 @@ const DoctorDashboard = () => {
         setIsSavingProfile(true);
 
         try {
+            // Update Auth Password if requested
+            if (profileForm.newLoginPassword || profileForm.confirmLoginPassword) {
+                const passwordResult = await updateUserPassword(
+                    currentDoctor.email,
+                    profileForm.currentLoginPassword,
+                    profileForm.newLoginPassword
+                );
+
+                if (!passwordResult.success) {
+                    setProfileErrorMsg(passwordResult.error);
+                    setIsSavingProfile(false);
+                    return;
+                }
+            }
+
             const isApptOnly = profileForm.scheduleType === "By Appointment Only";
             const scheduleText = isApptOnly 
                 ? "By Appointment Only" 
@@ -376,6 +445,7 @@ const DoctorDashboard = () => {
                 phone: `+63${profileForm.phone}`,
                 email: profileForm.email,
                 password: profileForm.password,
+                specialization: profileForm.specialization,
                 doctorServices: profileForm.services,
                 consultationPrice: Number(profileForm.consultationFee),
                 schedule: scheduleText,
@@ -391,9 +461,28 @@ const DoctorDashboard = () => {
                     email: updatedDoctor.email
                 }).eq('email', currentDoctor.email);
 
-                await supabase.from('doctors').update({
-                    name: updatedDoctor.name
-                }).eq('name', currentDoctor.name);
+                const richSpecializations = {
+                    specialization: updatedDoctor.specialization,
+                    services: updatedDoctor.doctorServices,
+                    consultationPrice: Number(updatedDoctor.consultationPrice),
+                    password: updatedDoctor.password,
+                    phone: updatedDoctor.phone,
+                    email: updatedDoctor.email,
+                    schedule: updatedDoctor.schedule,
+                    availability: updatedDoctor.availability
+                };
+
+                if (currentDoctor.id) {
+                    await supabase.from('doctors').update({
+                        name: updatedDoctor.name,
+                        specializations: richSpecializations
+                    }).eq('id', currentDoctor.id);
+                } else {
+                    await supabase.from('doctors').update({
+                        name: updatedDoctor.name,
+                        specializations: richSpecializations
+                    }).eq('name', currentDoctor.name);
+                }
             }
 
             setProfileSuccessMsg("Profile settings updated successfully!");
@@ -1091,17 +1180,13 @@ const DoctorDashboard = () => {
                             </div>
                             <div className="flex items-start justify-between mb-3 gap-2">
                                 {/* Doctor identity */}
-                                <div 
-                                    onClick={handleOpenProfileSettings}
-                                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-slate-50 p-1.5 -m-1.5 rounded-xl transition-all duration-200 group"
-                                    title="Edit Profile Settings"
-                                >
-                                    <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0 group-hover:scale-105 transition-transform duration-200">
+                                <div className="flex items-center gap-3 flex-1 min-w-0 p-2 rounded-xl border border-transparent">
+                                    <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
                                         {getInitials(currentDoctor.name)}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-bold text-slate-800 leading-tight break-words group-hover:text-emerald-700 transition-colors">{currentDoctor.name}</p>
-                                        <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wider truncate">{currentDoctor.specialization || "Physician"}</p>
+                                        <p className="text-sm font-bold text-slate-800 leading-tight break-words">{currentDoctor.name}</p>
+                                        <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wider truncate mt-0.5">{currentDoctor.specialization || "Physician"}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
@@ -1220,17 +1305,13 @@ const DoctorDashboard = () => {
                             <img src={logoValley} alt="Valley Logo" className="h-16 w-auto object-contain" />
                         </div>
                         <div className="flex items-start justify-between mb-4 gap-2">
-                            <div 
-                                onClick={handleOpenProfileSettings}
-                                className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-slate-50 p-1.5 -m-1.5 rounded-xl transition-all duration-200 group"
-                                title="Edit Profile Settings"
-                            >
-                                <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0 group-hover:scale-105 transition-transform duration-200">
+                            <div className="flex items-center gap-3 flex-1 min-w-0 p-2 rounded-xl border border-transparent">
+                                <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
                                     {getInitials(currentDoctor.name)}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-bold text-slate-800 leading-tight break-words group-hover:text-emerald-700 transition-colors">{currentDoctor.name}</p>
-                                    <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider truncate">{currentDoctor.specialization || "Physician"}</p>
+                                    <p className="text-sm font-bold text-slate-800 leading-tight break-words">{currentDoctor.name}</p>
+                                    <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider truncate mt-0.5">{currentDoctor.specialization || "Physician"}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
@@ -1332,46 +1413,57 @@ const DoctorDashboard = () => {
                                 })}
                             </div>
 
-                            {activeTab !== 'queue' && (
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                        onClick={() => {
-                                            setShowApptCalendarModal(true);
-                                            setApptCalSelectedDay(null);
-                                        }}
-                                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all duration-200 focus:outline-none"
-                                        title="Accepted Appointments Calendar"
-                                    >
-                                        <CalendarDays className="w-5 h-5" />
-                                    </button>
-                                    <div className="relative" ref={desktopDropdownRef}>
-                                        <Button
-                                            onClick={() => setIsFilterOpen(!isFilterOpen)}
-                                            variant="outline"
-                                            className="h-10 min-w-[160px] rounded-md border-gray-200 font-medium text-sm flex items-center justify-between gap-3 bg-white hover:bg-gray-50 transition-all"
+                            <div className="flex items-center gap-2 shrink-0">
+                                {activeTab !== 'queue' && (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setShowApptCalendarModal(true);
+                                                setApptCalSelectedDay(null);
+                                            }}
+                                            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all duration-200 focus:outline-none"
+                                            title="Accepted Appointments Calendar"
                                         >
-                                            <div className="flex items-center text-black">
-                                                <span className="text-left font-medium">
-                                                    {apptDateFilter === 'custom' && apptCustomRange.start
-                                                        ? `${apptCustomRange.start} – ${apptCustomRange.end}`
-                                                        : getApptDateFilterLabel(apptDateFilter)}
-                                                </span>
-                                            </div>
-                                            <span className="ml-2 text-black text-[10px]">▼</span>
-                                        </Button>
-                                        {isFilterOpen && (
-                                            <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 shadow-lg rounded-md py-1 z-50">
-                                                {apptDateFilters.map(f => (
-                                                    <button key={f} onClick={() => { setApptDateFilter(f); setIsFilterOpen(false); }}
-                                                        className={`w-full text-left px-4 py-2 text-sm transition-all ${apptDateFilter === f ? 'text-green-600 bg-green-50 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
-                                                        {getApptDateFilterLabel(f)}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                                            <CalendarDays className="w-5 h-5" />
+                                        </button>
+                                        <div className="relative" ref={desktopDropdownRef}>
+                                            <Button
+                                                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                                                variant="outline"
+                                                className="h-10 min-w-[160px] rounded-md border-gray-200 font-medium text-sm flex items-center justify-between gap-3 bg-white hover:bg-gray-50 transition-all"
+                                            >
+                                                <div className="flex items-center text-black">
+                                                    <span className="text-left font-medium">
+                                                        {apptDateFilter === 'custom' && apptCustomRange.start
+                                                            ? `${apptCustomRange.start} – ${apptCustomRange.end}`
+                                                            : getApptDateFilterLabel(apptDateFilter)}
+                                                    </span>
+                                                </div>
+                                                <span className="ml-2 text-black text-[10px]">▼</span>
+                                            </Button>
+                                            {isFilterOpen && (
+                                                <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 shadow-lg rounded-md py-1 z-50">
+                                                    {apptDateFilters.map(f => (
+                                                        <button key={f} onClick={() => { setApptDateFilter(f); setIsFilterOpen(false); }}
+                                                            className={`w-full text-left px-4 py-2 text-sm transition-all ${apptDateFilter === f ? 'text-green-600 bg-green-50 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                            {getApptDateFilterLabel(f)}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+
+                                <Button
+                                    onClick={handleOpenProfileSettings}
+                                    className="h-10 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all active:scale-95 shrink-0"
+                                    title="Edit Profile Settings"
+                                >
+                                    <Settings className="w-4 h-4" />
+                                    <span>Profile Settings</span>
+                                </Button>
+                            </div>
                         </div>
 
                         {activeTab === 'appointments' && apptDateFilter === 'custom' && (
@@ -1517,6 +1609,28 @@ const DoctorDashboard = () => {
                                 </div>
 
                                 <div className="space-y-1.5">
+                                    <Label htmlFor="profSpecialization" className="text-xs font-semibold text-slate-700">Specialization *</Label>
+                                    <select
+                                        id="profSpecialization"
+                                        value={profileForm.specialization}
+                                        onChange={handleProfileFormChange}
+                                        onBlur={handleProfileBlur}
+                                        className={`flex h-10 w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${profileErrors.specialization ? "border-red-500" : "border-slate-200"}`}
+                                        required
+                                    >
+                                        <option value="" disabled>Select Specialization</option>
+                                        <option value="Pediatrics">Pediatrics</option>
+                                        <option value="Internal Medicine">Internal Medicine</option>
+                                        <option value="Nephrology">Nephrology</option>
+                                        <option value="OB-GYN">OB-GYN</option>
+                                        <option value="Orthopedic Surgery">Orthopedic Surgery</option>
+                                        <option value="General Surgery">General Surgery</option>
+                                        <option value="ENT">ENT</option>
+                                    </select>
+                                    {profileErrors.specialization && <p className="text-[10px] text-red-500">{profileErrors.specialization}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
                                     <Label htmlFor="profPassword" className="text-xs font-semibold text-slate-700">Access Password *</Label>
                                     <div className="relative">
                                         <Input 
@@ -1541,8 +1655,75 @@ const DoctorDashboard = () => {
                                     {profileErrors.password && <p className="text-[10px] text-red-500">{profileErrors.password}</p>}
                                 </div>
 
-                            {/* Services & Fee Group */}
+                                {/* Change Login Password (Optional) Section */}
+                                <div className="space-y-3 pt-3 border-t border-slate-100">
+                                    <h5 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Change Login Password (Optional)</h5>
+                                    
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="profCurrentLoginPassword" className="text-xs font-semibold text-slate-700">Current Login Password</Label>
+                                        <div className="relative">
+                                            <Input 
+                                                id="profCurrentLoginPassword"
+                                                type={showCurrentPassword ? "text" : "password"}
+                                                value={profileForm.currentLoginPassword}
+                                                onChange={handleProfileFormChange}
+                                                onBlur={handleProfileBlur}
+                                                className={`pr-10 h-10 ${profileErrors.currentLoginPassword ? "border-red-500 focus-visible:ring-red-500" : "border-slate-200 focus-visible:ring-emerald-500"}`}
+                                                placeholder="Enter current login password"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCurrentPassword(v => !v)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                tabIndex={-1}
+                                            >
+                                                {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        {profileErrors.currentLoginPassword && <p className="text-[10px] text-red-500">{profileErrors.currentLoginPassword}</p>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="profNewLoginPassword" className="text-xs font-semibold text-slate-700">New Login Password</Label>
+                                        <div className="relative">
+                                            <Input 
+                                                id="profNewLoginPassword"
+                                                type={showNewPassword ? "text" : "password"}
+                                                value={profileForm.newLoginPassword}
+                                                onChange={handleProfileFormChange}
+                                                onBlur={handleProfileBlur}
+                                                className={`pr-10 h-10 ${profileErrors.newLoginPassword ? "border-red-500 focus-visible:ring-red-500" : "border-slate-200 focus-visible:ring-emerald-500"}`}
+                                                placeholder="Min. 6 characters"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewPassword(v => !v)}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                                tabIndex={-1}
+                                            >
+                                                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        {profileErrors.newLoginPassword && <p className="text-[10px] text-red-500">{profileErrors.newLoginPassword}</p>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="profConfirmLoginPassword" className="text-xs font-semibold text-slate-700">Confirm New Login Password</Label>
+                                        <Input 
+                                            id="profConfirmLoginPassword"
+                                            type="password"
+                                            value={profileForm.confirmLoginPassword}
+                                            onChange={handleProfileFormChange}
+                                            onBlur={handleProfileBlur}
+                                            className={`h-10 ${profileErrors.confirmLoginPassword ? "border-red-500 focus-visible:ring-red-500" : "border-slate-200 focus-visible:ring-emerald-500"}`}
+                                            placeholder="Confirm new login password"
+                                        />
+                                        {profileErrors.confirmLoginPassword && <p className="text-[10px] text-red-500">{profileErrors.confirmLoginPassword}</p>}
+                                    </div>
+                                </div>
                             </div>
+
+                            {/* Services & Fee Group */}
                             <div className="space-y-4 pt-2">
                                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b pb-2">Services & Consultation Fee</h4>
 

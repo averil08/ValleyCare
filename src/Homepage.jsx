@@ -61,8 +61,23 @@ const Homepage = () => {
     let result = allDoctors;
 
     if (selectedSpecialization !== 'all') {
-      const categoryDoctorIds = specializationCategories[selectedSpecialization].doctorIds;
-      result = result.filter(doctor => categoryDoctorIds.includes(doctor.id));
+      result = result.filter(doc => {
+        const staticIds = specializationCategories[selectedSpecialization]?.doctorIds || [];
+        if (staticIds.includes(doc.id)) return true;
+
+        const specMap = {
+          'Pediatrics': 'pediatrics',
+          'Internal Medicine': 'internalMedicine',
+          'Nephrology': 'nephrology',
+          'OB-GYN': 'obgyn',
+          'Orthopedics & Urology': 'orthopedicsUrology',
+          'Orthopedic Surgery': 'orthopedicsUrology',
+          'General Surgery': 'generalSurgery',
+          'ENT': 'ent'
+        };
+        const docSpecKey = specMap[doc.specialization];
+        return docSpecKey === selectedSpecialization;
+      });
     }
 
     if (searchQuery.trim() !== '') {

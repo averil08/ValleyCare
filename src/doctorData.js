@@ -260,7 +260,7 @@ export const doctors = [
 ];
 
 
-export const assignDoctor = (patientData, patients, activeDoctors = []) => {
+export const assignDoctor = (patientData, patients, activeDoctors = [], customDoctorsList = null) => {
   const isArrayInput = Array.isArray(patientData);
   const serviceIds = isArrayInput ? patientData : (patientData?.services || []);
   const symptoms = isArrayInput ? [] : (patientData?.symptoms || []);
@@ -268,7 +268,28 @@ export const assignDoctor = (patientData, patients, activeDoctors = []) => {
 
   console.log('🔍 assignDoctor called with:', { serviceIds, symptoms, age, activeDoctorsCount: activeDoctors.length });
 
-  const activeDoctorsList = doctors.filter(d => activeDoctors.includes(d.id));
+  let doctorsSource = customDoctorsList;
+  if (!doctorsSource) {
+    doctorsSource = doctors;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const local = JSON.parse(localStorage.getItem("abante_local_doctors") || "[]");
+        if (Array.isArray(local) && local.length > 0) {
+          const merged = doctors.map(d => {
+            const localOverride = local.find(ld => ld.id === d.id);
+            return localOverride || d;
+          });
+          const staticIds = doctors.map(d => d.id);
+          const newLocal = local.filter(ld => !staticIds.includes(ld.id));
+          doctorsSource = [...merged, ...newLocal];
+        }
+      } catch (e) {
+        console.error("Error reading abante_local_doctors in assignDoctor fallback", e);
+      }
+    }
+  }
+
+  const activeDoctorsList = doctorsSource.filter(d => activeDoctors.includes(d.id));
 
   if (activeDoctorsList.length === 0) {
     console.log('⚠️ No active doctors available for automatic assignment');

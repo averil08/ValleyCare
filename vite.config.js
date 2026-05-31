@@ -9,5 +9,5 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'), // <- this line
     },
   },
-   base: '/', // <- add this line
+  base: '/', // <- add this line
 });
