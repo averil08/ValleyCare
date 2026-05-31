@@ -168,9 +168,35 @@ export const PatientProvider = ({ children }) => {
     const handleStorageChange = (e) => {
       if (e.key === 'currentPatientEmail') setCurrentPatientEmail(e.newValue);
       if (e.key === 'isPatientLoggedIn') setIsPatientLoggedIn(e.newValue === 'true');
+      if (e.key === 'abante_local_doctors') {
+        const local = JSON.parse(e.newValue || "[]");
+        const merged = doctors.map(d => {
+          const localOverride = local.find(ld => ld.id === d.id);
+          return localOverride || d;
+        });
+        const staticIds = doctors.map(d => d.id);
+        const newLocal = local.filter(ld => !staticIds.includes(ld.id));
+        setAllDoctors([...merged, ...newLocal]);
+      }
     };
+    
+    const handleLocalDoctorsUpdate = () => {
+      const local = JSON.parse(localStorage.getItem("abante_local_doctors") || "[]");
+      const merged = doctors.map(d => {
+        const localOverride = local.find(ld => ld.id === d.id);
+        return localOverride || d;
+      });
+      const staticIds = doctors.map(d => d.id);
+      const newLocal = local.filter(ld => !staticIds.includes(ld.id));
+      setAllDoctors([...merged, ...newLocal]);
+    };
+
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('storage-doctors-updated', handleLocalDoctorsUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage-doctors-updated', handleLocalDoctorsUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -202,7 +228,7 @@ export const PatientProvider = ({ children }) => {
       ? (() => {
         const assignedName = dbPatient.assigned_doctor_name;
         const normalizedAssigned = normalizeDoctorNameForMatch(assignedName);
-        const matchedDoctor = doctors.find(d => normalizeDoctorNameForMatch(d.name) === normalizedAssigned);
+        const matchedDoctor = allDoctors.find(d => normalizeDoctorNameForMatch(d.name) === normalizedAssigned);
         return matchedDoctor || { name: assignedName };
       })()
       : null,
@@ -210,7 +236,7 @@ export const PatientProvider = ({ children }) => {
       ? (() => {
         const physicianName = dbPatient.physician;
         const normalizedPhysician = normalizeDoctorNameForMatch(physicianName);
-        const matchedDoctor = doctors.find(d => normalizeDoctorNameForMatch(d.name) === normalizedPhysician);
+        const matchedDoctor = allDoctors.find(d => normalizeDoctorNameForMatch(d.name) === normalizedPhysician);
         return matchedDoctor || { name: physicianName };
       })()
       : null,
@@ -743,6 +769,40 @@ export const PatientProvider = ({ children }) => {
     });
   };
 
+  const [allDoctors, setAllDoctors] = useState(() => {
+    const local = JSON.parse(localStorage.getItem("abante_local_doctors") || "[]");
+    const merged = doctors.map(d => {
+      const localOverride = local.find(ld => ld.id === d.id);
+      return localOverride || d;
+    });
+    const staticIds = doctors.map(d => d.id);
+    const newLocal = local.filter(ld => !staticIds.includes(ld.id));
+    return [...merged, ...newLocal];
+  });
+
+  const updateDoctorProfile = (updatedDoctor) => {
+    const local = JSON.parse(localStorage.getItem("abante_local_doctors") || "[]");
+    const existingIndex = local.findIndex(ld => ld.id === updatedDoctor.id);
+    let newLocal;
+    if (existingIndex !== -1) {
+      newLocal = [...local];
+      newLocal[existingIndex] = updatedDoctor;
+    } else {
+      newLocal = [...local, updatedDoctor];
+    }
+    localStorage.setItem("abante_local_doctors", JSON.stringify(newLocal));
+
+    const merged = doctors.map(d => {
+      const localOverride = newLocal.find(ld => ld.id === d.id);
+      return localOverride || d;
+    });
+    const staticIds = doctors.map(d => d.id);
+    const newLocalOnly = newLocal.filter(ld => !staticIds.includes(ld.id));
+    setAllDoctors([...merged, ...newLocalOnly]);
+
+    window.dispatchEvent(new Event('storage-doctors-updated'));
+  };
+
   const [activeDoctors, setActiveDoctors] = useState(() => {
     const saved = localStorage.getItem('active-doctors-sync');
     if (saved) {
@@ -843,7 +903,7 @@ export const PatientProvider = ({ children }) => {
 
         let doctor = null;
         if (patient.preferredDoctor) {
-          const matchedDoctor = doctors.find(d =>
+          const matchedDoctor = allDoctors.find(d =>
             (patient.preferredDoctor.id && d.id === Number(patient.preferredDoctor.id)) ||
             (d.name.toLowerCase().trim() === (patient.preferredDoctor.name || "").toLowerCase().trim())
           );
@@ -1635,6 +1695,8 @@ export const PatientProvider = ({ children }) => {
 
   return (
     <PatientContext.Provider value={{
+      allDoctors,
+      updateDoctorProfile,
       patients: resolvedPatients,
       setPatients,
       addPatient,

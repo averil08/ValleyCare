@@ -4,7 +4,7 @@ import {
     Users, Search, Calendar, Clock, User, ChevronRight, ChevronDown,
     MoreHorizontal, History, CheckCircle2, Filter,
     Bell, CalendarDays, Menu, X, Phone, Stethoscope,
-    ArrowLeft, DoorOpen, Activity, XCircle, Eye, ChevronLeft, RotateCcw, MessageSquare
+    ArrowLeft, DoorOpen, Activity, XCircle, Eye, EyeOff, ChevronLeft, RotateCcw, MessageSquare
 } from 'lucide-react';
 
 import { Button } from "@/components/ui/button";
@@ -82,9 +82,22 @@ function formatDateShort(dateTimeString) {
 
 const DoctorDashboard = () => {
     const navigate = useNavigate();
+    const { 
+        allDoctors, 
+        updateDoctorProfile, 
+        patients, 
+        addPatient, 
+        lastDoctorNotificationCheck, 
+        markDoctorNotificationsAsRead, 
+        rejectAppointment, 
+        acceptAppointment, 
+        getAvailableSlots, 
+        requeuePatient 
+    } = useContext(PatientContext);
+
     const storedDoctorId = localStorage.getItem('selectedDoctorId');
     const doctorId = storedDoctorId ? Number(storedDoctorId) : null;
-    const currentDoctor = doctors.find(d => d.id === doctorId) || { name: "Dr. Ricardo Jose", id: null };
+    const currentDoctor = allDoctors.find(d => d.id === doctorId) || { name: "Dr. Ricardo Jose", id: null };
     const isAppointmentOnlyDoctor = currentDoctor?.schedule === 'By Appointment Only';
 
     const [selectedPatient, setSelectedPatient] = useState(null);
@@ -112,11 +125,290 @@ const DoctorDashboard = () => {
     const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
     const [followUpSuccess, setFollowUpSuccess] = useState(false);
 
-    const { patients, addPatient, lastDoctorNotificationCheck, markDoctorNotificationsAsRead, rejectAppointment, acceptAppointment, getAvailableSlots, requeuePatient } = useContext(PatientContext);
     const dropdownRef = useRef(null);
     const desktopDropdownRef = useRef(null);
     const workspaceRef = useRef(null);
     const [showNotifications, setShowNotifications] = useState(false);
+
+    // PROFILE SETTINGS STATES & HANDLERS
+    const DOCTOR_SERVICES_OPTIONS = [
+        { value: "general consultation", label: "General Consultation" },
+        { value: "hematology", label: "Hematology" },
+        { value: "immunology & serology", label: "Immunology & Serology" },
+        { value: "clinical chemistry", label: "Clinical Chemistry" },
+        { value: "clinical microscopy & parasitology", label: "Clinical Microscopy & Parasitology" },
+        { value: "surgery", label: "Surgery" },
+    ];
+
+    const [showProfileSettings, setShowProfileSettings] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [profileForm, setProfileForm] = useState({
+        firstName: "",
+        lastName: "",
+        phone: "",
+        email: "",
+        password: "",
+        services: [],
+        consultationFee: "",
+        scheduleType: "By Appointment Only",
+        selectedDays: [1, 2, 3, 4, 5],
+        startHour: "08:00",
+        endHour: "17:00"
+    });
+    const [profileErrors, setProfileErrors] = useState({});
+    const [profileSuccessMsg, setProfileSuccessMsg] = useState("");
+    const [profileErrorMsg, setProfileErrorMsg] = useState("");
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    const formatHourToString = (h) => {
+        const hh = Math.floor(h).toString().padStart(2, '0');
+        const mm = (h % 1 === 0.5) ? '30' : '00';
+        return `${hh}:${mm}`;
+    };
+
+    const parseStringToHour = (str) => {
+        if (!str) return 8;
+        const [hh, mm] = str.split(':').map(Number);
+        return hh + (mm === 30 ? 0.5 : 0);
+    };
+
+    const handleOpenProfileSettings = () => {
+        setProfileErrorMsg("");
+        setProfileSuccessMsg("");
+        setProfileErrors({});
+        
+        const nameWithoutDr = (currentDoctor.name || "").replace(/^Dr\.\s+/i, '');
+        const nameParts = nameWithoutDr.trim().split(/\s+/);
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        const phone = (currentDoctor.phone || "").replace(/^\+63/, '');
+
+        const isApptOnly = currentDoctor.schedule === 'By Appointment Only';
+        const availability = currentDoctor.availability || [];
+        const days = availability.length > 0 
+            ? Array.from(new Set(availability.flatMap(slot => slot.days))) 
+            : [1, 2, 3, 4, 5];
+        
+        const startH = availability.length > 0 ? Math.min(...availability.map(slot => slot.startHour)) : 8;
+        const endH = availability.length > 0 ? Math.max(...availability.map(slot => slot.endHour)) : 17;
+
+        setProfileForm({
+            firstName,
+            lastName,
+            phone,
+            email: currentDoctor.email || "",
+            password: currentDoctor.password || "doctor123",
+            services: currentDoctor.doctorServices || [],
+            consultationFee: currentDoctor.consultationPrice != null ? String(currentDoctor.consultationPrice) : "",
+            scheduleType: isApptOnly ? "By Appointment Only" : "Regular Schedule",
+            selectedDays: days,
+            startHour: formatHourToString(startH),
+            endHour: formatHourToString(endH)
+        });
+        setShowPassword(false);
+        setShowProfileSettings(true);
+    };
+
+    const handleProfileFormChange = (e) => {
+        let { id, value } = e.target;
+        const fieldId = id.replace(/^prof/, '').toLowerCase();
+        
+        if (fieldId === "firstname" || fieldId === "lastname") {
+            value = value.replace(/[^a-zA-Z\s]/g, "");
+        }
+        if (fieldId === "phone") {
+            value = value.replace(/\D/g, "").slice(0, 10);
+        }
+
+        const normalizedFieldId = fieldId === "firstname" ? "firstName" : fieldId === "lastname" ? "lastName" : fieldId;
+        const nextForm = { ...profileForm, [normalizedFieldId]: value };
+        setProfileForm(nextForm);
+
+        setProfileErrors(prev => ({
+            ...prev,
+            [normalizedFieldId]: validateField(normalizedFieldId, value)
+        }));
+    };
+
+    const handleProfileBlur = (e) => {
+        const { id, value } = e.target;
+        const fieldId = id.replace(/^prof/, '').toLowerCase();
+        const normalizedFieldId = fieldId === "firstname" ? "firstName" : fieldId === "lastname" ? "lastName" : fieldId;
+        
+        setProfileErrors(prev => ({
+            ...prev,
+            [normalizedFieldId]: validateField(normalizedFieldId, value)
+        }));
+    };
+
+    const validateField = (id, value) => {
+        let error = "";
+        if (id === "services") {
+            if (!value || (Array.isArray(value) && value.length === 0)) {
+                error = "Please select at least one service.";
+            }
+            return error;
+        }
+        if (id === "consultationFee") {
+            if (!value && value !== 0) {
+                error = "This field is required.";
+            } else if (isNaN(Number(value)) || Number(value) < 0) {
+                error = "Please enter a valid fee amount.";
+            }
+            return error;
+        }
+        if (!value) {
+            error = "This field is required.";
+        } else if (["firstName", "lastName"].includes(id)) {
+            if (!/^[a-zA-Z\s]*$/.test(value)) {
+                error = "This field must contain only alphabetic characters.";
+            }
+        } else if (id === "phone") {
+            if (!/^9\d{9}$/.test(value)) {
+                error = "Phone number must be exactly 10 digits starting with 9.";
+            }
+        } else if (id === "email") {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                error = "Invalid email format.";
+            }
+        } else if (id === "password") {
+            if (value.length < 6) {
+                error = "Password must be at least 6 characters.";
+            }
+        }
+        return error;
+    };
+
+    const formatScheduleText = (days, startStr, endStr) => {
+        const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        if (days.length === 0) return "No duty days scheduled";
+        
+        const sortedDays = [...days].sort((a, b) => a - b);
+        
+        let isConsecutive = true;
+        for (let i = 1; i < sortedDays.length; i++) {
+            if (sortedDays[i] !== sortedDays[i - 1] + 1) {
+                isConsecutive = false;
+                break;
+            }
+        }
+        
+        let daysPart = "";
+        if (sortedDays.length === 6 && sortedDays[0] === 1 && sortedDays[5] === 6) {
+            daysPart = "Mon-Sat";
+        } else if (sortedDays.length === 5 && sortedDays[0] === 1 && sortedDays[4] === 5) {
+            daysPart = "Mon-Fri";
+        } else if (isConsecutive && sortedDays.length > 1) {
+            daysPart = `${dayNames[sortedDays[0]]}-${dayNames[sortedDays[sortedDays.length - 1]]}`;
+        } else {
+            daysPart = sortedDays.map(d => dayNames[d]).join(', ');
+        }
+        
+        const format12Hour = (timeStr) => {
+            const [h, m] = timeStr.split(':').map(Number);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            let hour12 = h % 12;
+            if (hour12 === 0) hour12 = 12;
+            const minStr = m === 30 ? ':30' : '';
+            return `${hour12}${minStr}${ampm}`;
+        };
+        
+        return `${daysPart}: ${format12Hour(startStr)}-${format12Hour(endStr)}`;
+    };
+
+    const generateTimeOptions = () => {
+        const options = [];
+        for (let h = 8; h <= 17; h++) {
+            const label = h >= 12 ? `${h === 12 ? 12 : h - 12}:00 PM` : `${h}:00 AM`;
+            options.push(<option key={`${h}:00`} value={`${h.toString().padStart(2, '0')}:00`}>{label}</option>);
+            if (h < 17) {
+                const label30 = h >= 12 ? `${h === 12 ? 12 : h - 12}:30 PM` : `${h}:30 AM`;
+                options.push(<option key={`${h}:30`} value={`${h.toString().padStart(2, '0')}:30`}>{label30}</option>);
+            }
+        }
+        return options;
+    };
+
+    const handleProfileSave = async (e) => {
+        e.preventDefault();
+        setProfileErrorMsg("");
+        setProfileSuccessMsg("");
+
+        const validationErrors = {
+            firstName: validateField("firstName", profileForm.firstName),
+            lastName: validateField("lastName", profileForm.lastName),
+            phone: validateField("phone", profileForm.phone),
+            email: validateField("email", profileForm.email),
+            password: validateField("password", profileForm.password),
+            services: validateField("services", profileForm.services),
+            consultationFee: validateField("consultationFee", profileForm.consultationFee),
+            schedule: profileForm.scheduleType === "Regular Schedule" && profileForm.selectedDays.length === 0 
+                ? "Please select at least one duty day." 
+                : ""
+        };
+
+        const hasErrors = Object.values(validationErrors).some(err => err !== "");
+        if (hasErrors) {
+            setProfileErrors(validationErrors);
+            setProfileErrorMsg("Please correct all errors in the form before saving.");
+            return;
+        }
+
+        setIsSavingProfile(true);
+
+        try {
+            const isApptOnly = profileForm.scheduleType === "By Appointment Only";
+            const scheduleText = isApptOnly 
+                ? "By Appointment Only" 
+                : formatScheduleText(profileForm.selectedDays, profileForm.startHour, profileForm.endHour);
+
+            const availability = isApptOnly 
+                ? [{ days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }]
+                : [{
+                    days: profileForm.selectedDays,
+                    startHour: parseStringToHour(profileForm.startHour),
+                    endHour: parseStringToHour(profileForm.endHour)
+                  }];
+
+            const updatedDoctor = {
+                ...currentDoctor,
+                name: `Dr. ${profileForm.firstName} ${profileForm.lastName}`,
+                phone: `+63${profileForm.phone}`,
+                email: profileForm.email,
+                password: profileForm.password,
+                doctorServices: profileForm.services,
+                consultationPrice: Number(profileForm.consultationFee),
+                schedule: scheduleText,
+                availability: availability
+            };
+
+            updateDoctorProfile(updatedDoctor);
+
+            if (supabase && currentDoctor.email) {
+                await supabase.from('clinic_staff').update({
+                    full_name: updatedDoctor.name,
+                    phone_number: updatedDoctor.phone,
+                    email: updatedDoctor.email
+                }).eq('email', currentDoctor.email);
+
+                await supabase.from('doctors').update({
+                    name: updatedDoctor.name
+                }).eq('name', currentDoctor.name);
+            }
+
+            setProfileSuccessMsg("Profile settings updated successfully!");
+            setTimeout(() => {
+                setShowProfileSettings(false);
+                setProfileSuccessMsg("");
+            }, 1500);
+
+        } catch (err) {
+            console.error("Error saving profile settings:", err);
+            setProfileErrorMsg("Failed to save profile settings: " + (err.message || err));
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
 
     const todayDate = new Date();
     const [showApptCalendarModal, setShowApptCalendarModal] = useState(false);
@@ -799,12 +1091,16 @@ const DoctorDashboard = () => {
                             </div>
                             <div className="flex items-start justify-between mb-3 gap-2">
                                 {/* Doctor identity */}
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
+                                <div 
+                                    onClick={handleOpenProfileSettings}
+                                    className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-slate-50 p-1.5 -m-1.5 rounded-xl transition-all duration-200 group"
+                                    title="Edit Profile Settings"
+                                >
+                                    <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0 group-hover:scale-105 transition-transform duration-200">
                                         {getInitials(currentDoctor.name)}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-bold text-slate-800 leading-tight break-words">{currentDoctor.name}</p>
+                                        <p className="text-sm font-bold text-slate-800 leading-tight break-words group-hover:text-emerald-700 transition-colors">{currentDoctor.name}</p>
                                         <p className="text-[11px] font-medium text-emerald-600 uppercase tracking-wider truncate">{currentDoctor.specialization || "Physician"}</p>
                                     </div>
                                 </div>
@@ -924,12 +1220,16 @@ const DoctorDashboard = () => {
                             <img src={logoValley} alt="Valley Logo" className="h-16 w-auto object-contain" />
                         </div>
                         <div className="flex items-start justify-between mb-4 gap-2">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0">
+                            <div 
+                                onClick={handleOpenProfileSettings}
+                                className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:bg-slate-50 p-1.5 -m-1.5 rounded-xl transition-all duration-200 group"
+                                title="Edit Profile Settings"
+                            >
+                                <div className="w-11 h-11 rounded-2xl bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shrink-0 group-hover:scale-105 transition-transform duration-200">
                                     {getInitials(currentDoctor.name)}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-bold text-slate-800 leading-tight break-words">{currentDoctor.name}</p>
+                                    <p className="text-sm font-bold text-slate-800 leading-tight break-words group-hover:text-emerald-700 transition-colors">{currentDoctor.name}</p>
                                     <p className="text-[10px] font-medium text-emerald-600 uppercase tracking-wider truncate">{currentDoctor.specialization || "Physician"}</p>
                                 </div>
                             </div>
@@ -1122,6 +1422,309 @@ const DoctorDashboard = () => {
                     )}
                 </main>
             </div>
+
+            {/* PROFILE SETTINGS SLIDING PANEL */}
+            {showProfileSettings && (
+                <>
+                    {/* Backdrop */}
+                    <div 
+                        className="fixed inset-0 bg-black/40 z-[90] transition-opacity duration-300 animate-in fade-in"
+                        onClick={() => setShowProfileSettings(false)}
+                    />
+                    
+                    {/* Panel Container */}
+                    <div className="fixed top-0 right-0 h-full w-full sm:w-[480px] bg-white shadow-2xl z-[100] transform transition-transform duration-300 ease-in-out translate-x-0 animate-in slide-in-from-right flex flex-col font-sans">
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-emerald-50/35">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-800">Profile Settings</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">View and update your personal information</p>
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={() => setShowProfileSettings(false)}
+                                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Scrollable Form */}
+                        <form onSubmit={handleProfileSave} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                            {/* Personal Information Group */}
+                            <div className="space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b pb-2">Personal Information</h4>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="profFirstName" className="text-xs font-semibold text-slate-700">First Name *</Label>
+                                        <Input 
+                                            id="profFirstName"
+                                            value={profileForm.firstName}
+                                            onChange={handleProfileFormChange}
+                                            onBlur={handleProfileBlur}
+                                            className={profileErrors.firstName ? "border-red-500 focus-visible:ring-red-500 h-10" : "border-slate-200 focus-visible:ring-emerald-500 h-10"}
+                                            required
+                                        />
+                                        {profileErrors.firstName && <p className="text-[10px] text-red-500">{profileErrors.firstName}</p>}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="profLastName" className="text-xs font-semibold text-slate-700">Last Name *</Label>
+                                        <Input 
+                                            id="profLastName"
+                                            value={profileForm.lastName}
+                                            onChange={handleProfileFormChange}
+                                            onBlur={handleProfileBlur}
+                                            className={profileErrors.lastName ? "border-red-500 focus-visible:ring-red-500 h-10" : "border-slate-200 focus-visible:ring-emerald-500 h-10"}
+                                            required
+                                        />
+                                        {profileErrors.lastName && <p className="text-[10px] text-red-500">{profileErrors.lastName}</p>}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="profPhone" className="text-xs font-semibold text-slate-700">Phone Number *</Label>
+                                    <div className="flex">
+                                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-sm font-semibold select-none">
+                                            +63
+                                        </span>
+                                        <Input 
+                                            id="profPhone"
+                                            value={profileForm.phone}
+                                            onChange={handleProfileFormChange}
+                                            onBlur={handleProfileBlur}
+                                            className={`rounded-l-none h-10 ${profileErrors.phone ? "border-red-500 focus-visible:ring-red-500" : "border-slate-200 focus-visible:ring-emerald-500"}`}
+                                            placeholder="9123456789"
+                                            required
+                                            maxLength={10}
+                                        />
+                                    </div>
+                                    {profileErrors.phone && <p className="text-[10px] text-red-500">{profileErrors.phone}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="profEmail" className="text-xs font-semibold text-slate-700">Email Address *</Label>
+                                    <Input 
+                                        id="profEmail"
+                                        type="email"
+                                        value={profileForm.email}
+                                        onChange={handleProfileFormChange}
+                                        onBlur={handleProfileBlur}
+                                        className={profileErrors.email ? "border-red-500 focus-visible:ring-red-500 h-10" : "border-slate-200 focus-visible:ring-emerald-500 h-10"}
+                                        required
+                                    />
+                                    {profileErrors.email && <p className="text-[10px] text-red-500">{profileErrors.email}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="profPassword" className="text-xs font-semibold text-slate-700">Access Password *</Label>
+                                    <div className="relative">
+                                        <Input 
+                                            id="profPassword"
+                                            type={showPassword ? "text" : "password"}
+                                            value={profileForm.password}
+                                            onChange={handleProfileFormChange}
+                                            onBlur={handleProfileBlur}
+                                            className={`pr-10 h-10 ${profileErrors.password ? "border-red-500 focus-visible:ring-red-500" : "border-slate-200 focus-visible:ring-emerald-500"}`}
+                                            placeholder="Min. 6 characters"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(v => !v)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                            tabIndex={-1}
+                                        >
+                                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                    {profileErrors.password && <p className="text-[10px] text-red-500">{profileErrors.password}</p>}
+                                </div>
+
+                            {/* Services & Fee Group */}
+                            </div>
+                            <div className="space-y-4 pt-2">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b pb-2">Services & Consultation Fee</h4>
+
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-slate-700">Services Offered *</Label>
+                                    <div className={`border rounded-lg p-3 space-y-2 ${profileErrors.services ? 'border-red-500' : 'border-slate-200'}`}>
+                                        {DOCTOR_SERVICES_OPTIONS.map(opt => {
+                                            const checked = profileForm.services.includes(opt.value);
+                                            return (
+                                                <label key={opt.value} className="flex items-center gap-2.5 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => {
+                                                            const next = checked
+                                                                ? profileForm.services.filter(s => s !== opt.value)
+                                                                : [...profileForm.services, opt.value];
+                                                            setProfileForm(p => ({ ...p, services: next }));
+                                                            setProfileErrors(prev => ({ ...prev, services: validateField('services', next) }));
+                                                        }}
+                                                        className="w-4 h-4 rounded accent-emerald-600"
+                                                    />
+                                                    <span className={`text-xs font-medium transition-colors ${checked ? 'text-emerald-700' : 'text-slate-600 group-hover:text-slate-800'}`}>{opt.label}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    {profileErrors.services && <p className="text-[10px] text-red-500">{profileErrors.services}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="profConsultationFee" className="text-xs font-semibold text-slate-700">Consultation Fee (₱) *</Label>
+                                    <div className="flex">
+                                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-sm font-semibold select-none">₱</span>
+                                        <Input
+                                            id="profConsultationFee"
+                                            type="number"
+                                            min="0"
+                                            step="50"
+                                            value={profileForm.consultationFee}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setProfileForm(p => ({ ...p, consultationFee: val }));
+                                                setProfileErrors(prev => ({ ...prev, consultationFee: validateField('consultationFee', val) }));
+                                            }}
+                                            onBlur={(e) => setProfileErrors(prev => ({ ...prev, consultationFee: validateField('consultationFee', e.target.value) }))}
+                                            className={`rounded-l-none h-10 ${profileErrors.consultationFee ? 'border-red-500 focus-visible:ring-red-500' : 'border-slate-200 focus-visible:ring-emerald-500'}`}
+                                            placeholder="e.g. 800"
+                                            required
+                                        />
+                                    </div>
+                                    {profileErrors.consultationFee && <p className="text-[10px] text-red-500">{profileErrors.consultationFee}</p>}
+                                </div>
+                            </div>
+
+                            {/* Clinic Duty Schedule Group - reopen */}
+                            <div className="space-y-4 pt-2">
+
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest border-b pb-2">Clinic Duty Schedule</h4>
+                                
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-semibold text-slate-700">Schedule Mode *</Label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => setProfileForm(p => ({ ...p, scheduleType: "Regular Schedule" }))}
+                                            className={`py-2 px-3 text-xs font-bold rounded-lg border-2 transition-all ${profileForm.scheduleType === "Regular Schedule" ? "border-emerald-600 bg-emerald-50/50 text-emerald-800" : "border-slate-200 hover:bg-slate-50 text-slate-600"}`}
+                                        >
+                                            Regular Schedule
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setProfileForm(p => ({ ...p, scheduleType: "By Appointment Only" }))}
+                                            className={`py-2 px-3 text-xs font-bold rounded-lg border-2 transition-all ${profileForm.scheduleType === "By Appointment Only" ? "border-emerald-600 bg-emerald-50/50 text-emerald-800" : "border-slate-200 hover:bg-slate-50 text-slate-600"}`}
+                                        >
+                                            By Appointment Only
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {profileForm.scheduleType === "Regular Schedule" && (
+                                    <div className="space-y-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100 animate-in fade-in slide-in-from-top-1.5 duration-200">
+                                        <div className="space-y-2">
+                                            <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Duty Days *</Label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { id: 1, label: "Mon" },
+                                                    { id: 2, label: "Tue" },
+                                                    { id: 3, label: "Wed" },
+                                                    { id: 4, label: "Thu" },
+                                                    { id: 5, label: "Fri" },
+                                                    { id: 6, label: "Sat" }
+                                                ].map(day => {
+                                                    const isChecked = profileForm.selectedDays.includes(day.id);
+                                                    return (
+                                                        <button
+                                                            key={day.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setProfileForm(p => {
+                                                                    const nextDays = p.selectedDays.includes(day.id)
+                                                                        ? p.selectedDays.filter(d => d !== day.id)
+                                                                        : [...p.selectedDays, day.id];
+                                                                    return { ...p, selectedDays: nextDays };
+                                                                });
+                                                            }}
+                                                            className={`py-2 px-1 text-xs font-semibold rounded-lg border transition-all ${isChecked ? "bg-emerald-600 border-emerald-600 text-white shadow-sm" : "bg-white border-slate-200 hover:bg-slate-50 text-slate-600"}`}
+                                                        >
+                                                            {day.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {profileErrors.schedule && <p className="text-[10px] text-red-500">{profileErrors.schedule}</p>}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="profStartHour" className="text-xs font-semibold text-slate-700">Start Time *</Label>
+                                                <select
+                                                    id="profStartHour"
+                                                    value={profileForm.startHour}
+                                                    onChange={(e) => setProfileForm(p => ({ ...p, startHour: e.target.value }))}
+                                                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                                >
+                                                    {generateTimeOptions()}
+                                                </select>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="profEndHour" className="text-xs font-semibold text-slate-700">End Time *</Label>
+                                                <select
+                                                    id="profEndHour"
+                                                    value={profileForm.endHour}
+                                                    onChange={(e) => setProfileForm(p => ({ ...p, endHour: e.target.value }))}
+                                                    className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                                                >
+                                                    {generateTimeOptions()}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        {parseStringToHour(profileForm.startHour) >= parseStringToHour(profileForm.endHour) && (
+                                            <p className="text-[10px] text-red-500">End time must be after start time.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {profileErrorMsg && (
+                                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                                    {profileErrorMsg}
+                                </div>
+                            )}
+
+                            {profileSuccessMsg && (
+                                <div className="p-3.5 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700 font-medium">
+                                    {profileSuccessMsg}
+                                </div>
+                            )}
+
+                            {/* Actions Footer */}
+                            <div className="flex gap-3 pt-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 pb-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setShowProfileSettings(false)}
+                                    className="flex-1 h-11 text-xs font-bold text-slate-500 uppercase tracking-wider"
+                                    disabled={isSavingProfile}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    className="flex-1 h-11 text-xs font-bold text-white uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700"
+                                    disabled={isSavingProfile || (profileForm.scheduleType === "Regular Schedule" && parseStringToHour(profileForm.startHour) >= parseStringToHour(profileForm.endHour))}
+                                >
+                                    {isSavingProfile ? "Saving Updates..." : "Save Changes"}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </>
+            )}
 
             {/* LOGOUT CONFIRMATION MODAL */}
             <Dialog open={showLogoutModal} onOpenChange={setShowLogoutModal}>

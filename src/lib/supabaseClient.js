@@ -554,3 +554,64 @@ export const resetPassword = async (newPassword) => {
   }
   return { success: true, data };
 };
+// ─── CREATE NEW DOCTOR PROFILE ───────────────────────────────────────────────
+// Registers a new doctor: creates Supabase auth user, clinic_staff record,
+// and doctors table entry.
+export const createDoctorProfile = async ({
+  firstName,
+  lastName,
+  email,
+  password,
+  phone,
+  specialization,
+}) => {
+  const fullName = `Dr. ${firstName} ${lastName}`;
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Create auth user
+  const { data: authData, error: authError } = await supabase.auth.signUp({
+    email: cleanEmail,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        phone_number: phone,
+        role: 'doctor',
+      },
+    },
+  });
+
+  if (authError) {
+    return { success: false, error: authError.message };
+  }
+
+  // 2. Insert into clinic_staff
+  const { error: staffError } = await supabase.from('clinic_staff').insert([
+    {
+      id: authData.user.id,
+      email: cleanEmail,
+      staff_role: 'doctor',
+      full_name: fullName,
+      phone_number: phone,
+    },
+  ]);
+
+  if (staffError) {
+    return { success: false, error: staffError.message };
+  }
+
+  // 3. Insert into doctors table
+  const { error: doctorError } = await supabase.from('doctors').insert([
+    {
+      name: fullName,
+      specializations: [specialization.toLowerCase()],
+      is_active: true,
+    },
+  ]);
+
+  if (doctorError) {
+    return { success: false, error: doctorError.message };
+  }
+
+  return { success: true };
+};

@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { doctors } from './doctorData';
+// doctors array is read from PatientContext instead
 import { Label } from '@/components/ui/label';
 import Sidebar from "@/components/Sidebar";
 import { Clock, TrendingUp, Users, XCircle, CheckCircle2, Download, ChevronDown, Calendar, History, X, Eye, FileText, Activity, Stethoscope, LogOut } from 'lucide-react';
@@ -52,6 +52,7 @@ const Dashboard = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const {
+    allDoctors,
     patients,
     currentServing,
     setCurrentServing,
@@ -69,6 +70,8 @@ const Dashboard = () => {
     isDoctorActive,
     formatQueueNumber,
   } = useContext(PatientContext);
+
+  const doctors = allDoctors;
 
   // Persist doctor selection to localStorage
   useEffect(() => {

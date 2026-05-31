@@ -5,13 +5,13 @@ import { PatientContext } from "./PatientContext";
 import { Bell, Clock, TicketCheck, CheckCircle, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AiOutlineMenu, AiOutlineClose } from "react-icons/ai";
-import { doctors, specializationCategories } from "./doctorData";
+import { specializationCategories } from "./doctorData";
 
 const Homepage = () => {
   const navigate = useNavigate();
   const [nav, setNav] = useState(false);
   const handleNav = () => setNav(!nav);
-  const { patients, activePatient, notifications, markNotificationsRead, clearNotifications } = useContext(PatientContext);
+  const { patients, activePatient, notifications, markNotificationsRead, clearNotifications, allDoctors } = useContext(PatientContext);
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedSpecialization, setSelectedSpecialization] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +58,7 @@ const Homepage = () => {
 
 
   const getFilteredDoctors = () => {
-    let result = doctors;
+    let result = allDoctors;
 
     if (selectedSpecialization !== 'all') {
       const categoryDoctorIds = specializationCategories[selectedSpecialization].doctorIds;

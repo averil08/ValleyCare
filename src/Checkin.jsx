@@ -1,4 +1,4 @@
-import { doctors, assignDoctor } from './doctorData';
+import { assignDoctor } from './doctorData';
 import React, { useState, useContext, useEffect, useRef, useMemo } from "react";
 import { PatientContext } from "./PatientContext";
 import Sidebar from "@/components/Sidebar";
@@ -21,6 +21,7 @@ import {
 function Checkin() {
   const navigate = useNavigate();
   const {
+    allDoctors,
     patients,
     addPatient,
     setActivePatient,
@@ -30,6 +31,8 @@ function Checkin() {
     isLoadingFromDB,
     activeDoctors
   } = useContext(PatientContext);
+
+  const doctors = allDoctors;
 
   const getInitialViewMode = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1195,6 +1198,12 @@ function Checkin() {
                                   </svg>
                                   <span>{doctor.schedule}</span>
                                 </div>
+                                {doctor.consultationPrice != null && (
+                                   <p className="text-xs font-semibold text-emerald-600 mt-1.5 flex items-center gap-1">
+                                     <span>Consultation Fee:</span>
+                                     <span className="font-bold">₱{doctor.consultationPrice.toLocaleString()}</span>
+                                   </p>
+                                 )}
                               </div>
 
                               {selectedDoctor?.id === doctor.id && (

@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { PatientContext, formatQueueNumber } from './PatientContext';
-import { doctors } from './doctorData';
+// doctors array is read from PatientContext instead
 
 // Matches doctor names even if the DB includes middle initials/extra punctuation.
 const normalizeDoctorNameForMatch = (name) => {
@@ -50,7 +50,8 @@ const playChime = () => {
 };
 
 const ClinicTVDisplay = () => {
-  const { patients, activeDoctors } = useContext(PatientContext);
+  const { allDoctors, patients, activeDoctors } = useContext(PatientContext);
+  const doctors = allDoctors;
   const [currentTime, setCurrentTime] = useState(new Date());
   const [syncedPatients, setSyncedPatients] = useState(patients);
   const [syncedActiveDoctors, setSyncedActiveDoctors] = useState(activeDoctors || []);

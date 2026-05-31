@@ -1,5 +1,5 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { doctors } from './doctorData';
+// doctors array is read from PatientContext instead
 import Sidebar from "@/components/Sidebar";
 import Pagination from '@/components/Pagination';
 import { Calendar, CalendarDays, Clock, Phone, User, Activity, Stethoscope, CheckCircle, XCircle, MessageSquare, Filter, Eye, AlertCircle, Bell, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
@@ -48,6 +48,7 @@ const Appointment = () => {
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   const {
+    allDoctors,
     patients,
     acceptAppointment,
     rejectAppointment,
@@ -58,6 +59,8 @@ const Appointment = () => {
     finalizeTomorrowQueue,
     formatQueueNumber
   } = useContext(PatientContext);
+
+  const doctors = allDoctors;
 
   const getDateFilterLabel = () => {
     switch (dateFilter) {
