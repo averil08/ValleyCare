@@ -100,14 +100,6 @@ const DoctorDashboard = () => {
     const currentDoctor = allDoctors.find(d => d.id === doctorId) || { name: "Dr. Ricardo Jose", id: null };
     const isAppointmentOnlyDoctor = currentDoctor?.schedule === 'By Appointment Only';
 
-    // Redirect if doctor no longer exists (e.g., account was deleted)
-    useEffect(() => {
-        if (doctorId && !allDoctors.find(d => d.id === doctorId)) {
-            localStorage.removeItem('selectedDoctorId');
-            navigate('/login');
-        }
-    }, [allDoctors, doctorId, navigate]);
-
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [activeTab, setActiveTab] = useState('queue');
     const [apptDateFilter, setApptDateFilter] = useState('all');
@@ -533,12 +525,9 @@ const DoctorDashboard = () => {
             setShowDeleteModal(false);
             setShowProfileSettings(false);
 
-            // Clear selected doctor from localStorage
-            localStorage.removeItem('selectedDoctorId');
-
-            // Redirect to login page
+            // Redirect to home
             setTimeout(() => {
-                navigate('/login');
+                navigate('/');
             }, 1000);
         } catch (error) {
             console.error('Error deleting account:', error);
@@ -2005,86 +1994,55 @@ const DoctorDashboard = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* DELETE ACCOUNT CONFIRMATION MODAL - Sliding Panel */}
-            {showDeleteModal && (
-                <>
-                    {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 bg-black/40 z-[90] transition-opacity duration-300 animate-in fade-in"
-                        onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
-                    />
-
-                    {/* Panel Container */}
-                    <div className="fixed top-0 right-0 h-full w-full sm:w-[480px] bg-white shadow-2xl z-[100] transform transition-transform duration-300 ease-in-out translate-x-0 animate-in slide-in-from-right flex flex-col font-sans">
-                        {/* Header */}
-                        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-emerald-50/35">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">Delete Account</h3>
-                                <p className="text-xs text-slate-500 mt-0.5">Confirm account deletion</p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
-                                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                                disabled={isDeleting}
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+            {/* DELETE ACCOUNT CONFIRMATION MODAL */}
+            <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+                <DialogContent className="max-w-md rounded-lg border-none shadow-2xl [&>button]:hidden">
+                    <DialogHeader className="items-center text-center gap-0">
+                        <div className="flex items-center justify-center mb-4">
+                            <AlertTriangle className="w-9 h-9 text-red-600" />
                         </div>
-
-                        {/* Scrollable Form */}
-                        <form onSubmit={handleDeleteAccount} className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-center mb-4">
-                                    <AlertTriangle className="w-12 h-12 text-red-600" />
-                                </div>
-                                <h3 className="text-xl font-bold text-slate-800 text-center">Delete Account Permanently</h3>
-                                <p className="text-slate-600 text-center text-sm">
-                                    This action cannot be undone. All your data including appointments, patient records,
-                                    and profile information will be permanently deleted.
-                                </p>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium text-slate-700 block text-left">
-                                        Enter your password to confirm
-                                    </label>
-                                    <Input
-                                        type="password"
-                                        value={deletePassword}
-                                        onChange={(e) => setDeletePassword(e.target.value)}
-                                        placeholder="Your current password"
-                                        className={deleteError ? "border-red-500 focus-visible:ring-red-500 h-10" : "h-10"}
-                                        disabled={isDeleting}
-                                    />
-                                    {deleteError && <p className="text-[10px] text-red-500">{deleteError}</p>}
-                                </div>
-                            </div>
-
-                            {/* Actions Footer */}
-                            <div className="flex gap-3 pt-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 pb-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
-                                    className="flex-1 h-11 text-xs font-bold text-slate-500 uppercase tracking-wider"
-                                    disabled={isDeleting}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    className="flex-1 h-11 text-xs font-bold text-white uppercase tracking-wider bg-red-600 hover:bg-red-700"
-                                    disabled={isDeleting || !deletePassword}
-                                >
-                                    {isDeleting ? 'Deleting...' : 'Delete Account Permanently'}
-                                </Button>
-                            </div>
-                        </form>
+                        <DialogTitle className="text-2xl font-bold text-gray-800 mb-2 text-center">
+                            Delete Account Permanently
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-600 mb-6 text-center text-base">
+                            This action cannot be undone. All your data including appointments, patient records,
+                            and profile information will be permanently deleted.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700 block text-left">
+                                Enter your password to confirm
+                            </label>
+                            <Input
+                                type="password"
+                                value={deletePassword}
+                                onChange={(e) => setDeletePassword(e.target.value)}
+                                placeholder="Your current password"
+                                className={deleteError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                                disabled={isDeleting}
+                            />
+                            {deleteError && <p className="text-xs text-red-500 text-left">{deleteError}</p>}
+                        </div>
                     </div>
-                </>
-            )}
+                    <DialogFooter className="flex flex-row gap-3 sm:gap-3">
+                        <button
+                            onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
+                            className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors font-medium"
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleDeleteAccount}
+                            className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium"
+                            disabled={isDeleting || !deletePassword}
+                        >
+                            {isDeleting ? 'Deleting...' : 'Delete Account Permanently'}
+                        </button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* INDIVIDUAL DECLINE CONFIRMATION MODAL */}
             <Dialog open={showIndividualDeclineModal} onOpenChange={(open) => {

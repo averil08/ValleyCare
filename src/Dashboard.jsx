@@ -1362,14 +1362,13 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 pt-3 border-t border-gray-100">
+<div className="flex flex-col sm:flex-row gap-3 sm:gap-6 pt-3 border-t border-gray-100">
                 <div className="flex items-center gap-2">
                   <span className="text-xs sm:text-sm text-gray-600">Medical Staff:</span>
                   <span className="text-xs sm:text-sm font-semibold text-gray-900">
                     {isDoctor && selectedDoctor
-                      ? doctors.find(d => d.id === selectedDoctor)?.name || '15 Doctors Available'
-                      : '15 Doctors Available'
-                    }
+                      ? doctors.find(d => d.id === selectedDoctor)?.name
+                      : `${doctors.filter(d => d.is_active !== false).length} Doctors Available`}
                   </span>
                 </div>
                 <div className="flex items-center gap-2">

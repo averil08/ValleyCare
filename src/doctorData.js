@@ -256,6 +256,48 @@ export const doctors = [
     availability: [
       { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
     ]
+  },
+  {
+    id: 15,
+    name: "Dr. Debbie Ryan",
+    consultationPrice: 1500,
+    specialization: "General Consultation",
+    specializations: [
+      "preventive", "senior",
+      "urinalysis", "fecalysis", "fecal"
+    ],
+    schedule: "By Appointment Only",
+    availability: [
+      { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+    ]
+  },
+  {
+    id: 16,
+    name: "Dr. Bobbie Ferrer",
+    consultationPrice: 800,
+    specialization: "General Consultation",
+    specializations: [
+      "preventive", "senior",
+      "obgyn", "fecalysis", "fecal"
+    ],
+    schedule: "By Appointment Only",
+    availability: [
+      { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+    ]
+  },
+  {
+    id: 17,
+    name: "Dr. Judith Belen",
+    consultationPrice: 800,
+    specialization: "General Consultation",
+    specializations: [
+      "preventive", "senior",
+      "obgyn", "fecalysis", "fecal"
+    ],
+    schedule: "By Appointment Only",
+    availability: [
+      { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
+    ]
   }
 ];
 

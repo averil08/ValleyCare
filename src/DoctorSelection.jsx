@@ -1,101 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import { doctors, specializationCategories } from "./doctorData";
+import { specializationCategories } from "./doctorData";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Lock, ChevronRight, ArrowLeft, UserPlus, Eye, EyeOff } from "lucide-react";
+import { User, Lock, ChevronRight, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import Logo from "./assets/partner-logo.jpg";
-import { supabase, createDoctorProfile } from "./lib/supabaseClient";
+import { PatientContext } from "./PatientContext";
 
 const DoctorSelection = () => {
     const navigate = useNavigate();
+    const { allDoctors } = useContext(PatientContext);
     const [selectedDoctor, setSelectedDoctor] = useState(null);
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [selectedSpecialization, setSelectedSpecialization] = useState('all');
-
-    // Dynamic doctors loaded from localStorage
-    const [localDoctors, setLocalDoctors] = useState(() => {
-        const stored = localStorage.getItem("abante_local_doctors");
-        return stored ? JSON.parse(stored) : [];
-    });
-
-    const [dbDoctors, setDbDoctors] = useState([]);
-
-    // Re-sync when another tab/component updates doctor profiles
-    useEffect(() => {
-        const syncLocalDoctors = () => {
-            const stored = localStorage.getItem("abante_local_doctors");
-            setLocalDoctors(stored ? JSON.parse(stored) : []);
-        };
-        // Fire once on mount so PatientContext gets pre-existing localStorage doctors immediately
-        window.dispatchEvent(new Event('storage-doctors-updated'));
-        window.addEventListener('storage', (e) => { if (e.key === 'abante_local_doctors') syncLocalDoctors(); });
-        window.addEventListener('storage-doctors-updated', syncLocalDoctors);
-        return () => {
-            window.removeEventListener('storage', syncLocalDoctors);
-            window.removeEventListener('storage-doctors-updated', syncLocalDoctors);
-        };
-    }, []);
-
-    useEffect(() => {
-        const fetchDoctors = async () => {
-            try {
-                const { data, error } = await supabase
-                    .from('doctors')
-                    .select('*')
-                    .eq('is_active', true);
-                if (error) throw error;
-                if (data) {
-                    const parsed = data.map(dbDoc => {
-                        let richData = {};
-                        if (dbDoc.specializations && typeof dbDoc.specializations === 'object' && !Array.isArray(dbDoc.specializations)) {
-                            richData = dbDoc.specializations;
-                        }
-                        return {
-                            id: dbDoc.id,
-                            name: dbDoc.name,
-                            consultationPrice: richData.consultationPrice !== undefined ? richData.consultationPrice : 1000,
-                            specialization: richData.specialization || (Array.isArray(richData.services) && richData.services.length > 0 ? richData.services[0] : "General Practice"),
-                            specializations: richData.services || (Array.isArray(dbDoc.specializations) ? dbDoc.specializations : []),
-                            doctorServices: richData.services || (Array.isArray(dbDoc.specializations) ? dbDoc.specializations : []),
-                            schedule: richData.schedule || "By Appointment Only",
-                            availability: richData.availability || [
-                                { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 17 }
-                            ],
-                            phone: richData.phone || "",
-                            email: richData.email || "",
-                            password: richData.password || "doctor123"
-                        };
-                    });
-                    setDbDoctors(parsed);
-                }
-            } catch (err) {
-                console.error("Error fetching doctors in DoctorSelection:", err);
-            }
-        };
-        fetchDoctors();
-    }, []);
-
-    const allDoctors = (() => {
-        const merged = doctors.map(d => {
-            const dbOverride = dbDoctors.find(dbDoc => dbDoc.id === d.id || dbDoc.name.toLowerCase().trim() === d.name.toLowerCase().trim());
-            const localOverride = localDoctors.find(ld => ld.id === d.id);
-            return dbOverride || localOverride || d;
-        });
-        
-        const staticNames = doctors.map(d => d.name.toLowerCase().trim());
-        const staticIds = doctors.map(d => d.id);
-        
-        const newDb = dbDoctors.filter(dbDoc => !staticIds.includes(dbDoc.id) && !staticNames.includes(dbDoc.name.toLowerCase().trim()));
-        const newLocal = localDoctors.filter(ld => !staticIds.includes(ld.id) && !newDb.some(dbDoc => dbDoc.id === ld.id || dbDoc.name.toLowerCase().trim() === ld.name.toLowerCase().trim()));
-        
-        return [...merged, ...newDb, ...newLocal];
-    })();
 
     const filteredDoctors = selectedSpecialization === 'all'
         ? allDoctors

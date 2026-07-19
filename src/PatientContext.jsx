@@ -54,6 +54,17 @@ const normalizeDoctorNameForMatch = (name) => {
     .toLowerCase();
 };
 
+// Deduplicate doctors by normalized name (handles duplicates across static, DB, and localStorage)
+const deduplicateDoctors = (doctorList) => {
+  const seen = new Set();
+  return doctorList.filter(doc => {
+    const normalized = normalizeDoctorNameForMatch(doc.name);
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+};
+
 export const PatientProvider = ({ children }) => {
   const [activePatient, setActivePatient] = useState(null);
   const [isLoadingFromDB, setIsLoadingFromDB] = useState(true);
@@ -140,6 +151,29 @@ export const PatientProvider = ({ children }) => {
           setCurrentPatientEmail(null);
           setIsPatientLoggedIn(false);
           clearActivePatient();
+
+          // For doctors, verify account is still active
+          if (role === 'doctor' && email) {
+            const checkDoctorActive = async () => {
+              try {
+                const { data: doctor } = await supabase
+                  .from('doctors')
+                  .select('is_active')
+                  .eq('email', email.toLowerCase())
+                  .maybeSingle();
+
+                if (doctor && doctor.is_active === false) {
+                  console.log("⚠️ Doctor account is deactivated. Forcing sign out...");
+                  await supabase.auth.signOut({ scope: 'global' });
+                  // Clear any doctor-specific localStorage
+                  localStorage.removeItem('selectedDoctorId');
+                }
+              } catch (err) {
+                console.error('Error checking doctor active status:', err);
+              }
+            };
+            checkDoctorActive();
+          }
         } else {
           console.log("❓ Unknown role in metadata. Maintaining existing state if any.");
           const savedEmail = localStorage.getItem('currentPatientEmail');
@@ -373,7 +407,7 @@ export const PatientProvider = ({ children }) => {
               merged.push(dbDoc);
             }
           });
-          return merged;
+          return deduplicateDoctors(merged);
         });
       }
     } catch (err) {
@@ -851,7 +885,7 @@ export const PatientProvider = ({ children }) => {
     });
     const staticIds = doctors.map(d => d.id);
     const newLocal = local.filter(ld => !staticIds.includes(ld.id));
-    return [...merged, ...newLocal];
+    return deduplicateDoctors([...merged, ...newLocal]);
   });
 
   const updateDoctorProfile = (updatedDoctor) => {
@@ -872,7 +906,7 @@ export const PatientProvider = ({ children }) => {
     });
     const staticIds = doctors.map(d => d.id);
     const newLocalOnly = newLocal.filter(ld => !staticIds.includes(ld.id));
-    setAllDoctors([...merged, ...newLocalOnly]);
+    setAllDoctors(deduplicateDoctors([...merged, ...newLocalOnly]));
 
     window.dispatchEvent(new Event('storage-doctors-updated'));
   };

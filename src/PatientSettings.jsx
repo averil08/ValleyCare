@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import PatientSidebar from '@/components/PatientSidebar';
-import { User, Save, AlertCircle, Eye, EyeOff } from 'lucide-react';
-import { updateUserPassword, getProfileMetadata, updateProfileMetadata } from './lib/supabaseClient';
+import { User, Save, AlertCircle, Eye, EyeOff, Trash2, AlertTriangle } from 'lucide-react';
+import { updateUserPassword, getProfileMetadata, updateProfileMetadata, deleteAccount, deletePatientProfile } from './lib/supabaseClient';
 import { syncPatientToDatabase } from './lib/patientService';
 
 function PatientSettings() {
@@ -30,6 +30,10 @@ function PatientSettings() {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     loadProfile();
@@ -65,7 +69,6 @@ function PatientSettings() {
             })()
           }));
 
-          // Sync localStorage
           const fullNameCombined = (metadata.fullName || '').trim();
           localStorage.setItem(`userProfile_${currentEmail}`, JSON.stringify({
             email: metadata.email,
@@ -164,7 +167,6 @@ function PatientSettings() {
       value = value.slice(0, 10);
     }
 
-    // Prevent negative age values if typed manually
     if (id === 'age' && value !== '') {
       value = Math.max(0, parseInt(value, 10)).toString();
       if (isNaN(value)) value = '';
@@ -209,7 +211,6 @@ function PatientSettings() {
         newErrors.confirmPassword = validateField('confirmPassword', formData.confirmPassword);
       }
 
-      // Check if any errors exist
       if (Object.values(newErrors).some(err => err !== '')) {
         setErrors(prev => ({ ...prev, ...newErrors }));
         setTouched({
@@ -251,7 +252,6 @@ function PatientSettings() {
       const fullNameCombined = `${formData.firstName.trim()} ${formData.middleName.trim() ? formData.middleName.trim() + ' ' : ''}${formData.surname.trim()}`.trim();
       const formattedPhone = `+63${formData.phoneNumber.trim()}`;
 
-      // 1. Update Supabase Auth Metadata
       const metadataResult = await updateProfileMetadata({
         fullName: fullNameCombined,
         phoneNumber: formattedPhone,
@@ -277,7 +277,6 @@ function PatientSettings() {
       const profileKey = `userProfile_${currentEmail}`;
       localStorage.setItem(profileKey, JSON.stringify(updatedProfile));
 
-      // 3. Attempt to sync to 'patients' table if ID exists
       const activePatientId = localStorage.getItem('activePatientId');
       if (activePatientId) {
         await syncPatientToDatabase({
@@ -294,7 +293,6 @@ function PatientSettings() {
       setMessage({ text: 'Profile updated successfully!', type: 'success' });
       setHasChanges(false);
 
-      // Clear password fields
       setFormData(prev => ({
         ...prev,
         currentPassword: '',
@@ -328,250 +326,367 @@ function PatientSettings() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setDeleteError('');
+    if (!deletePassword) {
+      setDeleteError('Please enter your password to confirm');
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const result = await deleteAccount(deletePassword);
+      
+      if (!result.success) {
+        setDeleteError(result.error || 'Failed to delete account');
+        setIsDeleting(false);
+        return;
+      }
+
+      const currentEmail = localStorage.getItem('currentPatientEmail');
+      if (currentEmail) {
+        await deletePatientProfile(currentEmail);
+      }
+
+      setShowDeleteModal(false);
+      setMessage({ text: 'Account deleted successfully. Redirecting...', type: 'success' });
+      
+      setTimeout(() => {
+        navigate('/');
+      }, 2000);
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      setDeleteError('Failed to delete account. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const isProfileComplete = formData.firstName && formData.surname && formData.age && formData.phoneNumber;
 
   return (
-    <div className="flex w-full min-h-screen">
-      <PatientSidebar nav={nav} handleNav={() => setNav(!nav)} />
+    <>
+      <div className="flex w-full min-h-screen">
+        <PatientSidebar nav={nav} handleNav={() => setNav(!nav)} />
 
-      <div className="flex-1 bg-gray-50 ml-0 md:ml-52 p-4 sm:p-6">
-        <div className="max-w-3xl mx-auto pt-12 lg:pt-6">
-          <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
-              <CardTitle className="flex items-center gap-2 text-green-700">
-                <User className="w-6 h-6" />
-                Profile Settings
-              </CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Manage your personal information and account settings
-              </p>
-            </CardHeader>
+        <div className="flex-1 bg-gray-50 ml-0 md:ml-52 p-4 sm:p-6">
+          <div className="max-w-3xl mx-auto pt-12 lg:pt-6">
+            <Card className="shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50">
+                <CardTitle className="flex items-center gap-2 text-green-700">
+                  <User className="w-6 h-6" />
+                  Profile Settings
+                </CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  Manage your personal information and account settings
+                </p>
+              </CardHeader>
 
-            <CardContent className="pt-6 space-y-6">
-              {/* Alert Messages */}
-              {message.text && (
-                <div className={`p-4 rounded-lg border ${message.type === 'success' ? 'bg-green-50 border-green-300 text-green-800' :
-                  message.type === 'error' ? 'bg-red-50 border-red-300 text-red-800' :
-                    'bg-blue-50 border-blue-300 text-blue-800'
-                  }`}>
-                  <p className="text-sm font-medium">{message.text}</p>
-                </div>
-              )}
+              <CardContent className="pt-6 space-y-6">
+                {/* Alert Messages */}
+                {message.text && (
+                  <div className={`p-4 rounded-lg border ${message.type === 'success' ? 'bg-green-50 border-green-300 text-green-800' :
+                    message.type === 'error' ? 'bg-red-50 border-red-300 text-red-800' :
+                      'bg-blue-50 border-blue-300 text-blue-800'
+                    }`}>
+                    <p className="text-sm font-medium">{message.text}</p>
+                  </div>
+                )}
 
-              {!isProfileComplete && (
-                <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-yellow-800">
-                      Profile Incomplete
+                {!isProfileComplete && (
+                  <div className="flex items-start gap-3 p-4 bg-yellow-50 border border-yellow-300 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-yellow-800">
+                        Profile Incomplete
+                      </p>
+                      <p className="text-xs text-yellow-700 mt-1">
+                        Please complete all required fields to book appointments
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Personal Information Section */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Personal Information</h3>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      disabled
+                      className="bg-gray-100 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Email cannot be changed
                     </p>
-                    <p className="text-xs text-yellow-700 mt-1">
-                      Please complete all required fields to book appointments
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Personal Information Section */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800 border-b pb-2">Personal Information</h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    disabled
-                    className="bg-gray-100 cursor-not-allowed"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Email cannot be changed
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="firstName">First Name <span className="text-red-600">*</span></Label>
-                    <Input
-                      id="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.firstName && errors.firstName ? "border-red-500" : ""}
-                      placeholder="Juan"
-                      required
-                    />
-                    {touched.firstName && errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="middleName">Middle Name</Label>
-                    <Input
-                      id="middleName"
-                      value={formData.middleName}
-                      onChange={handleInputChange}
-                      placeholder="Dela"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="surname">Surname <span className="text-red-600">*</span></Label>
-                    <Input
-                      id="surname"
-                      value={formData.surname}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.surname && errors.surname ? "border-red-500" : ""}
-                      placeholder="Cruz"
-                      required
-                    />
-                    {touched.surname && errors.surname && <p className="text-xs text-red-500">{errors.surname}</p>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="age">Age <span className="text-red-600">*</span></Label>
-                    <Input
-                      id="age"
-                      type="number"
-                      value={formData.age}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.age && errors.age ? "border-red-500" : ""}
-                      placeholder="25"
-                      min="0"
-                      max="150"
-                      required
-                    />
-                    {touched.age && errors.age && <p className="text-xs text-red-500">{errors.age}</p>}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="phoneNumber">Phone Number <span className="text-red-600">*</span></Label>
-                    <div className="flex">
-                      <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-medium">
-                        +63
-                      </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name <span className="text-red-600">*</span></Label>
                       <Input
-                        id="phoneNumber"
-                        type="tel"
-                        value={formData.phoneNumber}
+                        id="firstName"
+                        value={formData.firstName}
                         onChange={handleInputChange}
                         onBlur={handleBlur}
-                        className={`rounded-l-none ${touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}`}
-                        placeholder="9123456789"
+                        className={touched.firstName && errors.firstName ? "border-red-500" : ""}
+                        placeholder="Juan"
                         required
-                        maxLength={10}
-                        minLength={10}
-                        pattern="9\d{9}"
+                      />
+                      {touched.firstName && errors.firstName && <p className="text-xs text-red-500">{errors.firstName}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="middleName">Middle Name</Label>
+                      <Input
+                        id="middleName"
+                        value={formData.middleName}
+                        onChange={handleInputChange}
+                        placeholder="Dela"
                       />
                     </div>
-                    {touched.phoneNumber && errors.phoneNumber && <p className="text-xs text-red-500">{errors.phoneNumber}</p>}
+                    <div className="space-y-2">
+                      <Label htmlFor="surname">Surname <span className="text-red-600">*</span></Label>
+                      <Input
+                        id="surname"
+                        value={formData.surname}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={touched.surname && errors.surname ? "border-red-500" : ""}
+                        placeholder="Cruz"
+                        required
+                      />
+                      {touched.surname && errors.surname && <p className="text-xs text-red-500">{errors.surname}</p>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="age">Age <span className="text-red-600">*</span></Label>
+                      <Input
+                        id="age"
+                        type="number"
+                        value={formData.age}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={touched.age && errors.age ? "border-red-500" : ""}
+                        placeholder="25"
+                        min="0"
+                        max="150"
+                        required
+                      />
+                      {touched.age && errors.age && <p className="text-xs text-red-500">{errors.age}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="phoneNumber">Phone Number <span className="text-red-600">*</span></Label>
+                      <div className="flex">
+                        <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-medium">
+                          +63
+                        </span>
+                        <Input
+                          id="phoneNumber"
+                          type="tel"
+                          value={formData.phoneNumber}
+                          onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          className={`rounded-l-none ${touched.phoneNumber && errors.phoneNumber ? "border-red-500" : ""}`}
+                          placeholder="9123456789"
+                          required
+                          maxLength={10}
+                          minLength={10}
+                          pattern="9\d{9}"
+                        />
+                      </div>
+                      {touched.phoneNumber && errors.phoneNumber && <p className="text-xs text-red-500">{errors.phoneNumber}</p>}
+                    </div>
                   </div>
                 </div>
+
+                {/* Password Change Section */}
+                <div className="space-y-4 pt-6 border-t">
+                  <h3 className="text-lg font-semibold text-gray-800">Change Password (Optional)</h3>
+                  <p className="text-sm text-gray-600">Leave blank to keep current password</p>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="currentPassword"
+                        type={showCurrentPassword ? "text" : "password"}
+                        value={formData.currentPassword}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={touched.currentPassword && errors.currentPassword ? "border-red-500 pr-10" : "pr-10"}
+                        placeholder="Enter current password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {touched.currentPassword && errors.currentPassword && <p className="text-xs text-red-500">{errors.currentPassword}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="newPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        value={formData.newPassword}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={touched.newPassword && errors.newPassword ? "border-red-500 pr-10" : "pr-10"}
+                        placeholder="Enter new password (min 6 characters)"
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {touched.newPassword && errors.newPassword && <p className="text-xs text-red-500">{errors.newPassword}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="confirmPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={touched.confirmPassword && errors.confirmPassword ? "border-red-500 pr-10" : "pr-10"}
+                        placeholder="Re-enter new password"
+                      />
+                    </div>
+                    {touched.confirmPassword && errors.confirmPassword && <p className="text-xs text-red-500">{errors.confirmPassword}</p>}
+                  </div>
+                </div>
+
+                {/* Danger Zone - Delete Account */}
+                <div className="space-y-4 pt-6 border-t border-red-200 bg-red-50 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                    <h3 className="text-lg font-semibold text-red-800">Danger Zone</h3>
+                  </div>
+                  <p className="text-sm text-red-700 ml-7">
+                    Once you delete your account, there is no going back. Please be certain.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="w-full bg-red-600 hover:bg-red-700"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete My Account
+                  </Button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-6 space-y-3 border-t">
+                  <Button
+                    onClick={handleSaveProfile}
+                    disabled={isSaving || !hasChanges}
+                    className="w-full bg-green-600 hover:bg-green-700 py-6"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {isSaving ? 'Saving Changes...' : 'Save Changes'}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate('/homepage')}
+                    className="w-full"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                  <p className="text-blue-800">
+                    <strong>💡 Tip:</strong> Keep your profile up to date to make booking appointments faster and easier!
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md shadow-2xl animate-in fade-in zoom-in duration-200">
+            <CardHeader className="bg-red-50 border-b border-red-200">
+              <div className="flex items-center gap-2 text-red-800">
+                <AlertTriangle className="w-6 h-6" />
+                <CardTitle className="text-lg">Delete Account</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm text-gray-700">
+                  Are you sure you want to permanently delete your account? This action cannot be undone.
+                </p>
+                <p className="text-xs text-red-600 font-medium">
+                  All your data including appointments, queue history, and profile information will be permanently removed.
+                </p>
               </div>
 
-              {/* Password Change Section */}
-              <div className="space-y-4 pt-6 border-t">
-                <h3 className="text-lg font-semibold text-gray-800">Change Password (Optional)</h3>
-                <p className="text-sm text-gray-600">Leave blank to keep current password</p>
-
-                <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="currentPassword"
-                      type={showCurrentPassword ? "text" : "password"}
-                      value={formData.currentPassword}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.currentPassword && errors.currentPassword ? "border-red-500 pr-10" : "pr-10"}
-                      placeholder="Enter current password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {touched.currentPassword && errors.currentPassword && <p className="text-xs text-red-500">{errors.currentPassword}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="newPassword"
-                      type={showNewPassword ? "text" : "password"}
-                      value={formData.newPassword}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.newPassword && errors.newPassword ? "border-red-500 pr-10" : "pr-10"}
-                      placeholder="Enter new password (min 6 characters)"
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {touched.newPassword && errors.newPassword && <p className="text-xs text-red-500">{errors.newPassword}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      type={showNewPassword ? "text" : "password"}
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      onBlur={handleBlur}
-                      className={touched.confirmPassword && errors.confirmPassword ? "border-red-500 pr-10" : "pr-10"}
-                      placeholder="Re-enter new password"
-                    />
-                  </div>
-                  {touched.confirmPassword && errors.confirmPassword && <p className="text-xs text-red-500">{errors.confirmPassword}</p>}
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="deletePassword" className="text-sm font-medium text-gray-700">
+                  Enter your password to confirm
+                </Label>
+                <Input
+                  id="deletePassword"
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Your current password"
+                  className={deleteError ? "border-red-500 focus-visible:ring-red-500" : ""}
+                  disabled={isDeleting}
+                />
+                {deleteError && <p className="text-xs text-red-500">{deleteError}</p>}
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-6 space-y-3 border-t">
-                <Button
-                  onClick={handleSaveProfile}
-                  disabled={isSaving || !hasChanges}
-                  className="w-full bg-green-600 hover:bg-green-700 py-6"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {isSaving ? 'Saving Changes...' : 'Save Changes'}
-                </Button>
-
+              <div className="flex gap-3 pt-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate('/homepage')}
-                  className="w-full"
+                  onClick={() => { setShowDeleteModal(false); setDeletePassword(''); setDeleteError(''); }}
+                  disabled={isDeleting}
+                  className="flex-1"
                 >
                   Cancel
                 </Button>
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
-                <p className="text-blue-800">
-                  <strong>💡 Tip:</strong> Keep your profile up to date to make booking appointments faster and easier!
-                </p>
+                <Button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={isDeleting}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Account'}
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }
 

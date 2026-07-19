@@ -70,14 +70,8 @@ function App() {
           <Route path="/appointmenthistory" element={<AppointmentHistory />} />
           <Route path="/clinic-tv" element={<ClinicTVDisplay />} />
           <Route path="/patient-settings" element={<PatientSettings />} />
-          <Route
-            path="/doctor-selection"
-            element={session ? <DoctorSelection /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/doctor-dashboard"
-            element={session ? <DoctorDashboard /> : <Navigate to="/login" />}
-          />
+          <Route path="/doctor-selection" element={<DoctorSelection />} />
+          <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
           <Route path="/patient-details" element={<PatientDetails />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/notifications" element={<Notifications />} />

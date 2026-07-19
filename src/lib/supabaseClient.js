@@ -697,3 +697,80 @@ export const registerClinicStaff = async ({
   return { success: true, user: authData.user };
 };
 
+// ─── DELETE ACCOUNT ────────────────────────────────────────────────────────────
+// Deletes the current user's account and associated data (soft delete)
+export const deleteAccount = async (currentPassword) => {
+  try {
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { success: false, error: 'No authenticated user found' };
+    }
+
+    const userId = user.id;
+    const userEmail = user.email;
+
+    // Verify password by attempting to sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password: currentPassword
+    });
+
+    if (signInError) {
+      return { success: false, error: 'Incorrect password' };
+    }
+
+    // Get user role from metadata
+    const role = user.user_metadata?.role || 'patient';
+
+    // Soft delete from role-specific tables
+    if (role === 'doctor') {
+      // Find the doctor record by email first to get the ID
+      const { data: doctorRecord } = await supabase
+        .from('doctors')
+        .select('id')
+        .eq('email', userEmail.toLowerCase())
+        .maybeSingle();
+
+      const doctorId = doctorRecord?.id;
+
+      // Delete from clinic_staff
+      await supabase.from('clinic_staff').delete().eq('id', userId);
+
+      // Soft delete doctor by setting is_active = false
+      if (doctorId) {
+        await supabase.from('doctors').update({ is_active: false }).eq('id', doctorId);
+      } else {
+        await supabase.from('doctors').update({ is_active: false }).eq('email', userEmail.toLowerCase());
+      }
+    } else if (role === 'secretary') {
+      await supabase.from('clinic_staff').delete().eq('id', userId);
+    }
+
+    // Sign out the user globally to clear all sessions
+    await supabase.auth.signOut({ scope: 'global' });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    return { success: false, error: error.message || 'Failed to delete account' };
+  }
+};
+
+// For patient accounts - delete patient profile data
+export const deletePatientProfile = async (patientEmail) => {
+  try {
+    // Delete from patients table (all records for this email)
+    await supabase.from('patients').delete().eq('patient_email', patientEmail.toLowerCase());
+    
+    // Clear localStorage
+    localStorage.removeItem(`userProfile_${patientEmail}`);
+    localStorage.removeItem('currentPatientEmail');
+    localStorage.removeItem('isPatientLoggedIn');
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting patient profile:', error);
+    return { success: false, error: error.message };
+  }
+};
+
