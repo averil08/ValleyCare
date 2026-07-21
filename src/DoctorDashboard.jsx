@@ -513,7 +513,8 @@ const DoctorDashboard = () => {
         }
     };
 
-    const handleDeleteAccount = async () => {
+    const handleDeleteAccount = async (e) => {
+        e.preventDefault();
         setDeleteError('');
         if (!deletePassword) {
             setDeleteError('Please enter your password to confirm');
